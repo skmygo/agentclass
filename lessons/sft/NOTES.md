@@ -115,11 +115,17 @@
 
 ## molab 實測結果（2026-08-06）
 
-- 使用者將 `sft_gpu.py` 上傳 molab、以 GPU（RTX Pro 6000 選項）**完整跑通全程**。
-- 分享連結（最終版，Unsloth + Llama-3.2-1B-Instruct）：
-  https://molab.marimo.io/notebooks/nb_CaYVVFxPTd5ngkZYYjZBjb
-  （初版 transformers+peft 為 nb_9AyV73Kck4g89rx9E27mrF，已棄用）。
-  課頁 GPU 區塊與右欄 GPU 分頁的按鈕均已指向新連結並重部署。
+- 使用者將 `sft_gpu.py` 上傳 molab、以 GPU（RTX Pro 6000 選項）**完整跑通全程**
+  （歷程：初版 transformers+peft nb_9AyV..、Unsloth 版 nb_CaYV..，均已被下述機制取代）。
+- **最終機制（零手動上傳、零連結回填）**：repo 公開在 GitHub 後，molab 支援
+  直接網址規則 `https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/{path}`——
+  課頁連結固定為
+  https://molab.marimo.io/github/skmygo/agentclass/blob/main/lessons/sft/sft_gpu.py ，
+  **內容直讀 GitHub，git push 即更新**，網址永不改變。未來每堂 GPU 課的 molab
+  網址都由 GitHub 路徑直接構造，AI 全自動完成，無需任何人工步驟。
+  （此規則出自官方 docs 的 open-in-molab badge 範例；官方另有 badge svg：
+  `https://marimo.io/molab-shield.svg`。）
+- 注意：repo 需公開；`ref_data/`（含內網資訊的參考教材）已進 .gitignore 不入版控。
 - 雙軌架構驗證完成：瀏覽器軌（WASM）與 GPU 軌（molab）皆可用，
   molab 端無需本站任何後端配合。
 - 未記錄的細節（GPU 額度上限、模型下載耗時、實際訓練時長）：學員實跑時如回報再補。
