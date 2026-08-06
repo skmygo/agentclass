@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 互動教室 · 課程列表</title>
+<style>
+  :root {
+    --bg: #FAFBF8; --panel: #fff; --ink: #1C2B33; --ink-soft: #52646E;
+    --grid: #E4E9E2; --green: #55A868; --cut: #C44E52;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--sans); color: var(--ink);
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 72px 28px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--cut); }
+  h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 900; margin: 10px 0 12px; }
+  .sub { color: var(--ink-soft); font-size: 15.5px; line-height: 1.9; max-width: 560px; }
+  .lessons { margin-top: 48px; display: grid; gap: 18px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 2px solid var(--ink); border-radius: 14px;
+    padding: 22px 26px; box-shadow: 6px 6px 0 var(--grid);
+    transition: transform .15s, box-shadow .15s;
+  }
+  a.card:hover { transform: translate(-2px, -2px); box-shadow: 9px 9px 0 var(--grid); }
+  a.card:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+  .card .tag { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--green); }
+  .card h2 { font-size: 21px; font-weight: 900; margin: 6px 0 8px; }
+  .card p { font-size: 14px; color: var(--ink-soft); line-height: 1.8; }
+  .card .go { display: inline-block; margin-top: 12px; font-size: 13.5px; font-weight: 800; color: var(--cut); }
+  footer { margin-top: 72px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">AI INTERACTIVE CLASSROOM</span>
+  <h1>AI 互動教室</h1>
+  <p class="sub">
+    左邊讀教學、右邊改程式——每一課的 Python 都直接在你的瀏覽器裡執行，
+    不用登入、不用安裝。程式改壞了重新整理就復原。
+  </p>
+
+  <div class="lessons">
+    <a class="card" href="decision-tree/">
+      <span class="tag">MACHINE LEARNING · 01</span>
+      <h2>🌳 決策樹：把混亂切成秩序</h2>
+      <p>從「猜猜看」遊戲到 Gini 不純度，親手切出一棵樹，再看它怎麼因為太深而背答案。
+         含 6 個互動實驗與 3 道自我挑戰。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="sft/">
+      <span class="tag">LLM · 02</span>
+      <h2>🔧 SFT：補一堂課，讓它學會回話</h2>
+      <p>從 chat template 到 loss masking 與 LoRA，在瀏覽器裡親手微調一個迷你語言模型；
+         選配 GPU 軌道，把真的 0.5B 模型調教成你的助教。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+  </div>
+
+  <footer>
+    Python 由 marimo + Pyodide (WebAssembly) 驅動 · 本站為純靜態網頁，不收集任何資料
+  </footer>
+</div>
+</body>
+</html>

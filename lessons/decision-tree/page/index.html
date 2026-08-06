@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>決策樹：把混亂切成秩序 · AI 互動教室</title>
+<style>
+  :root {
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --setosa: #4C72B0;
+    --versicolor: #DD8452;
+    --virginica: #55A868;
+    --cut: #C44E52;
+    --chip-bg: #F0F4EE;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── 頂列 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel);
+    border-bottom: 2px solid var(--ink);
+  }
+  header .brand { font-weight: 900; font-size: 15px; letter-spacing: .02em; }
+  header .brand .leaf { color: var(--virginica); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700;
+    transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--virginica); color: var(--virginica); }
+  header a.tool.dl:hover { background: var(--virginica); color: #fff; }
+
+  /* ── 左右分欄 ─────────────────────────── */
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto;
+    padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px,
+      var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink);
+    background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid);
+    background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--versicolor);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--virginica); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+
+  /* ── 文章排版 ─────────────────────────── */
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 {
+    font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22;
+    letter-spacing: .01em; margin: 10px 0 0;
+  }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code {
+    font-family: var(--mono); font-size: .88em;
+    background: var(--chip-bg); border-radius: 4px; padding: 1px 6px;
+  }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  .species { font-weight: 800; }
+  .species.s0 { color: var(--setosa); }
+  .species.s1 { color: var(--versicolor); }
+  .species.s2 { color: var(--virginica); }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+  /* 「到右邊做」chip */
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink);
+    border: 0; border-radius: 999px; cursor: pointer;
+    transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, .hero-btns button:focus-visible, a:focus-visible {
+    outline: 3px solid var(--setosa); outline-offset: 2px;
+  }
+
+  /* 公式塊 */
+  .formula {
+    font-family: var(--mono); font-size: 15px; text-align: center;
+    background: var(--panel); border: 1.5px solid var(--ink);
+    border-radius: 10px; padding: 14px 10px; margin: 18px 0;
+  }
+  .formula small { display: block; font-family: var(--sans); color: var(--ink-soft); margin-top: 8px; font-size: 12.5px; }
+
+  /* 資料表 */
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--grid); padding: 8px 10px; text-align: left; line-height: 1.5; }
+  th { background: var(--chip-bg); font-weight: 800; }
+
+  /* ── Hero 互動：切一刀 ─────────────────── */
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px 18px 14px;
+    box-shadow: 6px 6px 0 var(--grid);
+  }
+  .hero-demo svg { width: 100%; height: auto; display: block; }
+  .hero-btns { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .hero-btns button {
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+    padding: 9px 20px; border-radius: 999px; cursor: pointer;
+    border: 2px solid var(--ink); background: var(--panel); color: var(--ink);
+    transition: background .15s, color .15s;
+  }
+  .hero-btns button.primary { background: var(--cut); border-color: var(--cut); color: #fff; }
+  .hero-btns button.primary:hover:not(:disabled) { background: #a93d41; }
+  .hero-btns button:disabled { opacity: .35; cursor: default; }
+  .hero-gini { margin-left: auto; font-family: var(--mono); font-size: 13.5px; color: var(--ink-soft); }
+  .hero-gini b { color: var(--cut); font-size: 16px; }
+
+  /* ── Gini 1D 互動 ─────────────────────── */
+  .gini-demo {
+    background: var(--panel); border: 1.5px solid var(--ink);
+    border-radius: 12px; padding: 16px 18px; margin: 20px 0;
+  }
+  .gini-demo svg { width: 100%; height: auto; display: block; }
+  .gini-demo input[type=range] { width: 100%; margin: 10px 0 6px; accent-color: var(--cut); }
+  .gini-read { display: flex; gap: 18px; font-family: var(--mono); font-size: 13px; flex-wrap: wrap; }
+  .gini-read span b { font-size: 15px; }
+  .gini-read .w b { color: var(--cut); }
+
+  /* 樹狀圖 / 過擬合圖 */
+  .fig { margin: 20px 0; }
+  .fig svg { width: 100%; height: auto; display: block; }
+  .fig figcaption { font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+  /* 練習卡 */
+  .ex {
+    border: 1.5px solid var(--ink); border-radius: 12px;
+    padding: 14px 18px; margin: 14px 0; background: var(--panel);
+  }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+  footer.pagefoot {
+    margin-top: 88px; padding-top: 24px; border-top: 2px solid var(--ink);
+    font-size: 13px; color: var(--ink-soft); line-height: 1.9;
+  }
+
+  /* ── 窄螢幕：上下疊 ────────────────────── */
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; max-height: none; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="leaf">◥</span> AI 互動教室 · 機器學習</div>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">DECISION TREE · 決策樹</span>
+  <h1>把混亂<br>切成秩序</h1>
+  <p style="margin-top:18px">
+    下面是一群混在一起的資料點。決策樹做的事只有一件：
+    <b>一次問一個問題，一刀一刀把它們切開</b>。你來試試——
+  </p>
+
+  <div class="hero-demo">
+    <svg id="hero-svg" viewBox="0 0 520 300" role="img" aria-label="互動示範：逐步切分資料點"></svg>
+    <div class="hero-btns">
+      <button class="primary" id="hero-cut">切一刀 🔪</button>
+      <button id="hero-reset">重來</button>
+      <div class="hero-gini">加權 Gini <b id="hero-gini-val">—</b></div>
+    </div>
+  </div>
+
+  <p style="margin-top:22px">
+    三刀之後，每個區域幾乎只剩一種顏色，<em class="cut">Gini 不純度</em>從 0.5 掉到接近 0——
+    這一頁接下來的所有內容，都在回答一個問題：<b>機器怎麼自己找到「該在哪裡切」？</b>
+  </p>
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<!-- ── 1 ──────────────────────────────── -->
+<section id="s1">
+  <span class="eyebrow">01 · 直覺</span>
+  <h2>決策樹就是「猜猜看」遊戲</h2>
+  <p>
+    你一定玩過：我心裡想一個動物，你用「是非題」猜——「會飛嗎？」「比人大嗎?」
+    好的提問者不會亂問，每一題都挑<b>最能砍掉一半可能性</b>的問題。
+  </p>
+  <p>
+    決策樹把這個遊戲玩在資料上：每個內部節點是一道是非題（「花瓣長度 ≤ 2.45 cm 嗎？」），
+    每個葉節點是一個答案（「這是 setosa」）。訓練一棵樹 = <b>學會該問哪些問題、按什麼順序問</b>。
+  </p>
+  <p>
+    它可能是最誠實的機器學習模型：預測時你可以從根到葉把路徑唸出來，
+    每一步都是人話。這也是它至今仍被大量使用的原因——
+    以及它的進化型（隨機森林、梯度提升樹）稱霸表格資料的起點。
+  </p>
+</section>
+
+<!-- ── 2 ──────────────────────────────── -->
+<section id="s2">
+  <span class="eyebrow">02 · 資料</span>
+  <h2>先認識今天的主角：鳶尾花</h2>
+  <p>
+    Iris 是統計學家 Fisher 在 1936 年整理的經典資料集：150 朵鳶尾花、
+    3 個品種、每朵花 4 個測量值。它小到一眼看得完，又剛好複雜到能教會你決策樹的一切。
+  </p>
+  <table>
+    <tr><th>特徵（cm）</th><th>意思</th><th>品種（各 50 朵）</th></tr>
+    <tr><td><code>sepal length/width</code></td><td>花萼長 / 寬</td><td><span class="species s0">● setosa</span></td></tr>
+    <tr><td><code>petal length/width</code></td><td>花瓣長 / 寬</td><td><span class="species s1">● versicolor</span></td></tr>
+    <tr><td colspan="2"></td><td><span class="species s2">● virginica</span></td></tr>
+  </table>
+  <p>
+    這三個顏色會貫穿整堂課——<b>左邊圖裡的藍橘綠，跟右邊程式畫出來的藍橘綠，永遠指同三個品種</b>。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊看真實資料表</button>
+  <p class="note">右邊的表格可以排序、搜尋、看每欄的分布直方圖。找找看：哪一欄的三色分得最開？</p>
+</section>
+
+<!-- ── 3 ──────────────────────────────── -->
+<section id="s3">
+  <span class="eyebrow">03 · 觀察</span>
+  <h2>先用你的眼睛當一次分類器</h2>
+  <p>
+    在寫任何模型之前，先做人肉版：右邊的散佈圖可以任選兩個特徵當 X、Y 軸。
+    你的任務——<b>找出讓三種顏色最不重疊的特徵組合</b>。
+  </p>
+  <p>
+    劇透一半：花萼（sepal）組合會讓你很挫折，花瓣（petal）組合會讓你覺得「這也太簡單」。
+    記住這個手感，等一下你會看到決策樹<b>自己</b>發現同一件事。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊切換特徵、找出最好分的組合</button>
+</section>
+
+<!-- ── 4 ──────────────────────────────── -->
+<section id="s4">
+  <span class="eyebrow">04 · 核心</span>
+  <h2>好問題的數學標準：Gini 不純度</h2>
+  <p>
+    「這一刀切得好不好」需要一個分數。決策樹（預設）用 <b>Gini 不純度</b>衡量一組資料有多「混」：
+  </p>
+  <div class="formula">
+    Gini = 1 − Σ<sub>k</sub> p<sub>k</sub>²
+    <small>p<sub>k</sub> = 第 k 類的占比。全部同類 → 0（最純）；三類各⅓ → 0.667（最混）</small>
+  </div>
+  <p>
+    切一刀會把資料分成左右兩組，各算一個 Gini，再按<b>人數加權平均</b>。
+    決策樹在每個節點做的事：<b>掃過所有特徵 × 所有切點，挑加權 Gini 最小的那一刀</b>。就這樣，沒有魔法。
+  </p>
+  <p>拖拖看下面的<em class="cut">紅線</em>，感受一下同一刀切在不同位置，分數差多少：</p>
+
+  <div class="gini-demo">
+    <svg id="gini-svg" viewBox="0 0 520 92" role="img" aria-label="一維切分示範：拖動閾值觀察 Gini 變化"></svg>
+    <input type="range" id="gini-slider" min="0" max="520" value="200" step="1"
+           aria-label="切分閾值位置">
+    <div class="gini-read">
+      <span>左組 Gini <b id="g-left">—</b></span>
+      <span>右組 Gini <b id="g-right">—</b></span>
+      <span class="w">加權 Gini <b id="g-w">—</b></span>
+    </div>
+  </div>
+
+  <p>
+    找到讓加權 Gini 最低的位置了嗎？恭喜，你剛剛手動執行了一次決策樹演算法的核心迴圈。
+    現在到右邊，對<b>真實的 150 朵花</b>做同一件事：
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊親手當一次決策樹</button>
+  <p class="note">
+    挑戰：在右邊選 petal length，把加權 Gini 壓到 0.333 以下。
+    你找到的那個切點，待會兒會在真正訓練出的樹的<b>根節點</b>再次出現。
+  </p>
+</section>
+
+<!-- ── 5 ──────────────────────────────── -->
+<section id="s5">
+  <span class="eyebrow">05 · 訓練</span>
+  <h2>讓演算法自己把樹長出來</h2>
+  <p>
+    手動找一刀就夠累了，而決策樹要<b>遞迴</b>地做：切完的每一半，再各自找最好的一刀，
+    一直切到夠純（或被你喊停）為止。<code>sklearn</code> 一行就能訓練：
+  </p>
+  <p style="font-family:var(--mono);font-size:13.5px;background:var(--chip-bg);border-radius:8px;padding:12px 16px;line-height:1.8">
+    DecisionTreeClassifier(max_depth=3,<br>&nbsp;&nbsp;min_samples_leaf=1).fit(X_train, y_train)
+  </p>
+  <p>兩個「喊停」的旋鈕，也是你在右邊要玩的滑桿：</p>
+  <ul>
+    <li><b><code>max_depth</code></b>——最多問幾層問題。層數是樹的表達力，也是它闖禍的本錢。</li>
+    <li><b><code>min_samples_leaf</code></b>——每片葉子至少幾個樣本。防止樹為了一兩朵怪花特設規則。</li>
+  </ul>
+  <p>這是 iris 上深度 2 的真實結果（數字都是真的，不是示意）：</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 560 240" role="img" aria-label="iris 深度 2 決策樹圖">
+      <defs>
+        <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L8,4 L0,8 z" fill="#52646E"/>
+        </marker>
+      </defs>
+      <!-- edges -->
+      <line x1="260" y1="52" x2="120" y2="102" stroke="#52646E" stroke-width="1.6" marker-end="url(#arr)"/>
+      <line x1="260" y1="52" x2="400" y2="102" stroke="#52646E" stroke-width="1.6" marker-end="url(#arr)"/>
+      <line x1="400" y1="150" x2="305" y2="196" stroke="#52646E" stroke-width="1.6" marker-end="url(#arr)"/>
+      <line x1="400" y1="150" x2="482" y2="196" stroke="#52646E" stroke-width="1.6" marker-end="url(#arr)"/>
+      <text x="168" y="72" font-size="11" fill="#52646E">是</text>
+      <text x="348" y="72" font-size="11" fill="#52646E">否</text>
+      <!-- root -->
+      <g>
+        <rect x="160" y="8" width="200" height="44" rx="9" fill="#fff" stroke="#1C2B33" stroke-width="2"/>
+        <text x="260" y="26" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1C2B33">petal length ≤ 2.45 ?</text>
+        <text x="260" y="43" text-anchor="middle" font-size="10.5" fill="#52646E">150 朵 · gini 0.667 · [50, 50, 50]</text>
+      </g>
+      <!-- left leaf -->
+      <g>
+        <rect x="34" y="104" width="172" height="42" rx="9" fill="#EBF0F7" stroke="#4C72B0" stroke-width="2"/>
+        <text x="120" y="122" text-anchor="middle" font-size="12.5" font-weight="700" fill="#4C72B0">setosa ✓</text>
+        <text x="120" y="138" text-anchor="middle" font-size="10.5" fill="#52646E">50 朵 · gini 0 —— 一刀就全純</text>
+      </g>
+      <!-- right node -->
+      <g>
+        <rect x="300" y="104" width="200" height="44" rx="9" fill="#fff" stroke="#1C2B33" stroke-width="2"/>
+        <text x="400" y="122" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1C2B33">petal width ≤ 1.75 ?</text>
+        <text x="400" y="139" text-anchor="middle" font-size="10.5" fill="#52646E">100 朵 · gini 0.5 · [0, 50, 50]</text>
+      </g>
+      <!-- leaves -->
+      <g>
+        <rect x="228" y="198" width="152" height="38" rx="9" fill="#FBEFE8" stroke="#DD8452" stroke-width="2"/>
+        <text x="304" y="214" text-anchor="middle" font-size="12" font-weight="700" fill="#B05F2C">versicolor</text>
+        <text x="304" y="229" text-anchor="middle" font-size="10.5" fill="#52646E">54 朵 · gini 0.168</text>
+      </g>
+      <g>
+        <rect x="408" y="198" width="148" height="38" rx="9" fill="#EAF3EC" stroke="#55A868" stroke-width="2"/>
+        <text x="482" y="214" text-anchor="middle" font-size="12" font-weight="700" fill="#3B7A4C">virginica</text>
+        <text x="482" y="229" text-anchor="middle" font-size="10.5" fill="#52646E">46 朵 · gini 0.043</text>
+      </g>
+    </svg>
+    <figcaption>
+      根節點的 <code>petal length ≤ 2.45</code>——正是你剛剛在第 04 節手動找到的那一刀。
+      藍色葉子 gini = 0：<span class="species s0">setosa</span> 一刀就被完美分出來。
+    </figcaption>
+  </figure>
+
+  <button class="golab" data-nb="4️⃣">到右邊拉滑桿，看樹怎麼跟著長</button>
+  <p class="note">
+    讀樹小抄：每個節點四行字 = 切分條件 / gini / 樣本數 / 各類數量。
+    先把 max_depth 拉到 1 看「一刀樹」，再一層層加深，注意訓練與測試準確率怎麼分家。
+  </p>
+</section>
+
+<!-- ── 6 ──────────────────────────────── -->
+<section id="s6">
+  <span class="eyebrow">06 · 視角</span>
+  <h2>樹眼中的世界：橫平豎直的格子</h2>
+  <p>
+    每道是非題都長這樣：「<b>某一個特徵</b> ≤ 某個值？」——所以每一刀都<b>平行於座標軸</b>。
+    把樹的所有預測塗在平面上，你會看到決策邊界永遠是<b>矩形拼貼</b>，
+    不會是斜線、不會是曲線。
+  </p>
+  <p>
+    這是決策樹的口音，一眼就能認出來。它也解釋了兩件事：
+    為什麼樹處理「特徵各自有意義」的表格資料特別強；
+    為什麼遇到斜向的分界時，它得用很多刀去階梯狀逼近。
+  </p>
+  <button class="golab" data-nb="5️⃣">到右邊把 max_depth 調大，看格子越切越碎</button>
+</section>
+
+<!-- ── 7 ──────────────────────────────── -->
+<section id="s7">
+  <span class="eyebrow">07 · 陷阱</span>
+  <h2>深度的代價：把雜訊背下來</h2>
+  <p>
+    樹每深一層，訓練準確率幾乎必漲——極端情況下每朵花自己一片葉子，訓練 100% 全對。
+    但那不是學習，是<b>背答案</b>：連量錯的、長歪的花都被寫成了規則。
+  </p>
+  <figure class="fig">
+    <svg viewBox="0 0 520 210" role="img" aria-label="過擬合示意：訓練與測試準確率隨深度分岔">
+      <line x1="52" y1="170" x2="500" y2="170" stroke="#1C2B33" stroke-width="1.5"/>
+      <line x1="52" y1="170" x2="52" y2="18" stroke="#1C2B33" stroke-width="1.5"/>
+      <text x="276" y="196" text-anchor="middle" font-size="12" fill="#52646E">max_depth →</text>
+      <text x="30" y="95" text-anchor="middle" font-size="12" fill="#52646E" transform="rotate(-90 30 95)">準確率</text>
+      <!-- sweet spot -->
+      <rect x="188" y="18" width="56" height="152" fill="#EAF3EC"/>
+      <text x="216" y="34" text-anchor="middle" font-size="11" font-weight="700" fill="#3B7A4C">甜蜜點</text>
+      <!-- train curve -->
+      <path d="M60,150 C110,90 170,52 240,38 C320,26 420,22 495,20" fill="none" stroke="#4C72B0" stroke-width="3"/>
+      <!-- test curve -->
+      <path d="M60,152 C110,96 170,62 216,56 C280,52 360,68 495,92" fill="none" stroke="#C44E52" stroke-width="3" stroke-dasharray="7 5"/>
+      <text x="498" y="14" text-anchor="end" font-size="12" font-weight="700" fill="#4C72B0">訓練集 ↗ 一路漲</text>
+      <text x="380" y="112" font-size="12" font-weight="700" fill="#C44E52">測試集：先升後掉</text>
+    </svg>
+    <figcaption>
+      我們真正在乎的是<b>測試集</b>（模型沒看過的花）。兩條線分岔的地方，就是模型開始背答案的地方。
+    </figcaption>
+  </figure>
+  <p>
+    右邊的實驗會把每個深度都訓練一次、畫出這張圖的<b>真實版</b>。
+    找到 iris 的甜蜜點之後想一想：為什麼「更多層」買不到「更準」？
+  </p>
+  <button class="golab" data-nb="6️⃣">到右邊畫出真實的分岔曲線</button>
+</section>
+
+<!-- ── 8 ──────────────────────────────── -->
+<section id="s8">
+  <span class="eyebrow">08 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最後一格是留給你的實驗區，三個挑戰由易到難：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <code>criterion</code> 改成 <code>"entropy"</code>（用資訊增益取代 Gini）。準確率變了嗎？樹長得一樣嗎？——體會「評分標準不同，結論常常相同」。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>只用 sepal 兩個特徵訓練，看測試準確率掉到多少。這會用數字證實你在第 03 節「用眼睛」得到的結論。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>把資料換成 <code>load_wine()</code>（13 個特徵、3 種酒）。同一套流程還能用嗎？哪些特徵被樹選進了前兩層？</p>
+  </div>
+  <button class="golab" data-nb="7️⃣">到右邊的實驗區開工</button>
+</section>
+
+<!-- ── 9 ──────────────────────────────── -->
+<section id="s9">
+  <span class="eyebrow">09 · 帶走</span>
+  <h2>把這棵樹帶回家</h2>
+  <p>
+    右上角的「<b>下載 .py</b>」會給你整個 notebook 的原始檔——它同時是一個普通的 Python 腳本。
+    在自己電腦上這樣繼續：
+  </p>
+  <p style="font-family:var(--mono);font-size:13.5px;background:var(--chip-bg);border-radius:8px;padding:12px 16px">
+    uvx marimo edit lesson.py
+  </p>
+  <p>下一步往哪走：</p>
+  <ul>
+    <li><b>隨機森林</b>——一棵樹會背答案，就種一百棵各看部分資料的樹投票。</li>
+    <li><b>梯度提升樹</b>（XGBoost / LightGBM）——讓每棵新樹專門修前面的錯，表格資料的常勝軍。</li>
+    <li>它們的基本單位，都是你今天親手切過的這棵樹。</li>
+  </ul>
+  <footer class="pagefoot">
+    右側 Python 由 <b>marimo + Pyodide (WebAssembly)</b> 驅動，完全在你的瀏覽器內執行；
+    本頁不收集任何資料，你的修改只存在你的分頁裡。
+    圖中藍 / 橘 / 綠恆指 setosa / versicolor / virginica 三品種。
+  </footer>
+</section>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完左邊第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ Hero：切一刀 ═══════════════════════ */
+(function () {
+  const svg = document.getElementById("hero-svg");
+  const btnCut = document.getElementById("hero-cut");
+  const btnReset = document.getElementById("hero-reset");
+  const giniOut = document.getElementById("hero-gini-val");
+  const W = 520, H = 300;
+  const C = { 0: "#4C72B0", 1: "#DD8452", 2: "#55A868" };
+
+  // 固定亂數 → 每個人看到同一份「資料」
+  function rng(seed) { return function () { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+  const rand = rng(42);
+  const pts = [];
+  function blob(cls, cx, cy, sx, sy, n) {
+    for (let i = 0; i < n; i++) {
+      const a = rand() * 6.283, r = Math.sqrt(rand());
+      pts.push({ c: cls, x: cx + Math.cos(a) * r * sx, y: cy + Math.sin(a) * r * sy });
+    }
+  }
+  blob(0, 120, 90, 85, 62, 22);   // 藍：左上
+  blob(1, 330, 200, 95, 70, 22);  // 橘：中下
+  blob(2, 430, 78, 72, 55, 20);   // 綠：右上
+  // 這三刀是按「加權 Gini 下降最多」預先算好的順序
+  const cuts = [
+    { axis: "x", t: 232 },                          // 先把藍切出去
+    { axis: "y", t: 140, region: r => r.x0 >= 232 },// 右半再橫切分開綠 / 橘
+    { axis: "x", t: 372, region: r => r.x0 >= 232 && r.y1 <= 140 }, // 右上補一刀
+  ];
+  let step = 0;
+
+  function regionsAfter(k) {
+    let regs = [{ x0: 0, y0: 0, x1: W, y1: H }];
+    for (let i = 0; i < k; i++) {
+      const cut = cuts[i], next = [];
+      for (const r of regs) {
+        const hit = cut.region ? cut.region(r) : true;
+        if (hit && cut.axis === "x" && cut.t > r.x0 && cut.t < r.x1) {
+          next.push({ ...r, x1: cut.t }, { ...r, x0: cut.t });
+        } else if (hit && cut.axis === "y" && cut.t > r.y0 && cut.t < r.y1) {
+          next.push({ ...r, y1: cut.t }, { ...r, y0: cut.t });
+        } else next.push(r);
+      }
+      regs = next;
+    }
+    return regs;
+  }
+  function gini(list) {
+    if (!list.length) return 0;
+    const n = {}; list.forEach(p => n[p.c] = (n[p.c] || 0) + 1);
+    return 1 - Object.values(n).reduce((s, c) => s + (c / list.length) ** 2, 0);
+  }
+  function draw() {
+    const regs = regionsAfter(step);
+    let html = "";
+    let wg = 0;
+    for (const r of regs) {
+      const inside = pts.filter(p => p.x >= r.x0 && p.x < r.x1 && p.y >= r.y0 && p.y < r.y1);
+      wg += gini(inside) * inside.length / pts.length;
+      if (step > 0 && inside.length) {
+        const maj = [0, 1, 2].map(c => inside.filter(p => p.c === c).length);
+        const top = maj.indexOf(Math.max(...maj));
+        html += `<rect x="${r.x0}" y="${r.y0}" width="${r.x1 - r.x0}" height="${r.y1 - r.y0}"
+                 fill="${C[top]}" opacity="0.13"/>`;
+      }
+    }
+    for (let i = 0; i < step; i++) {
+      const c = cuts[i];
+      // 只畫落在生效區域內的線段
+      for (const r of regionsAfter(i)) {
+        const hit = c.region ? c.region(r) : true;
+        if (!hit) continue;
+        if (c.axis === "x" && c.t > r.x0 && c.t < r.x1)
+          html += `<line x1="${c.t}" y1="${r.y0}" x2="${c.t}" y2="${r.y1}" stroke="#C44E52" stroke-width="3"/>`;
+        if (c.axis === "y" && c.t > r.y0 && c.t < r.y1)
+          html += `<line x1="${r.x0}" y1="${c.t}" x2="${r.x1}" y2="${c.t}" stroke="#C44E52" stroke-width="3"/>`;
+      }
+    }
+    for (const p of pts)
+      html += `<circle cx="${p.x}" cy="${p.y}" r="6" fill="${C[p.c]}" stroke="#fff" stroke-width="1.6"/>`;
+    svg.innerHTML = html;
+    giniOut.textContent = wg.toFixed(3);
+    btnCut.disabled = step >= cuts.length;
+    btnCut.textContent = step >= cuts.length ? "切完了 ✓" : "切一刀 🔪";
+  }
+  btnCut.addEventListener("click", () => { step = Math.min(step + 1, cuts.length); draw(); });
+  btnReset.addEventListener("click", () => { step = 0; draw(); });
+  draw();
+})();
+
+/* ═══ Gini 1D 互動 ═══════════════════════ */
+(function () {
+  const svg = document.getElementById("gini-svg");
+  const slider = document.getElementById("gini-slider");
+  const outL = document.getElementById("g-left"), outR = document.getElementById("g-right"), outW = document.getElementById("g-w");
+  // 兩類、帶一點重疊的一維資料（手排，重疊區在 210–300 之間）
+  const dots = [
+    ...[30, 48, 62, 80, 95, 118, 135, 150, 168, 190, 214, 236, 268, 292].map(x => ({ x, c: "#4C72B0" })),
+    ...[222, 248, 275, 305, 322, 340, 359, 377, 398, 418, 436, 458, 476, 495].map(x => ({ x, c: "#DD8452" })),
+  ];
+  function gini(list) {
+    if (!list.length) return 0;
+    const a = list.filter(d => d.c === "#4C72B0").length / list.length;
+    return 1 - a * a - (1 - a) * (1 - a);
+  }
+  function draw() {
+    const t = +slider.value;
+    const L = dots.filter(d => d.x <= t), R = dots.filter(d => d.x > t);
+    const gl = gini(L), gr = gini(R);
+    const gw = (gl * L.length + gr * R.length) / dots.length;
+    let html = `<rect x="0" y="20" width="${t}" height="52" fill="#4C72B0" opacity="0.07"/>
+                <rect x="${t}" y="20" width="${520 - t}" height="52" fill="#DD8452" opacity="0.07"/>
+                <line x1="10" y1="46" x2="510" y2="46" stroke="#E4E9E2" stroke-width="2"/>`;
+    for (const d of dots)
+      html += `<circle cx="${d.x}" cy="46" r="7" fill="${d.c}" stroke="#fff" stroke-width="1.6"/>`;
+    html += `<line x1="${t}" y1="8" x2="${t}" y2="84" stroke="#C44E52" stroke-width="3"/>
+             <text x="${Math.min(Math.max(t, 24), 496)}" y="90" text-anchor="middle" font-size="10" fill="#C44E52" font-weight="700">切點</text>`;
+    svg.innerHTML = html;
+    outL.textContent = gl.toFixed(3);
+    outR.textContent = gr.toFixed(3);
+    outW.textContent = gw.toFixed(3);
+  }
+  slider.addEventListener("input", draw);
+  draw();
+})();
+
+/* ═══ 「到右邊做」：同源 iframe 捲動 ═══════ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        const heads = doc.querySelectorAll("h1, h2, h3");
+        for (const h of heads) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 跨域或未就緒時安靜略過 */ }
+      // 窄螢幕（上下疊）時，把視窗帶到實驗場
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列：偵測 Pyodide 就緒 ═══════ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= 4) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+</script>
+</body>
+</html>

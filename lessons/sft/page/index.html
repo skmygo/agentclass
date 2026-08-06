@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SFT：補一堂課，讓它學會回話 · AI 互動教室</title>
+<style>
+  :root {
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --setosa: #4C72B0;
+    --versicolor: #DD8452;
+    --virginica: #55A868;
+    --cut: #C44E52;
+    --masked: #9AA3A8;
+    --chip-bg: #F0F4EE;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel); border-bottom: 2px solid var(--ink);
+  }
+  header .brand { font-weight: 900; font-size: 15px; }
+  header .brand .leaf { color: var(--virginica); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--virginica); color: var(--virginica); }
+  header a.tool.dl:hover { background: var(--virginica); color: #fff; }
+  header a.tool.gpu { border-color: var(--versicolor); color: var(--versicolor); }
+  header a.tool.gpu:hover { background: var(--versicolor); color: #fff; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink); background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--versicolor);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--virginica); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+  #nb-frame[hidden], #nb-status[hidden], #molab-panel[hidden] { display: none !important; }
+
+  /* 右欄分頁列 */
+  #lab-tabs {
+    flex: none; display: flex; gap: 0; background: var(--panel);
+    border-bottom: 2px solid var(--ink);
+  }
+  .labtab {
+    font-family: inherit; font-size: 13.5px; font-weight: 800;
+    padding: 9px 18px; border: 0; background: transparent; color: var(--ink-soft);
+    cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: color .15s, border-color .15s;
+  }
+  .labtab:hover { color: var(--ink); }
+  .labtab.active { color: var(--ink); border-bottom-color: var(--cut); }
+  .labtab.gpu.active { border-bottom-color: var(--versicolor); }
+  .labtab:focus-visible { outline: 3px solid var(--setosa); outline-offset: -3px; }
+
+  /* molab GPU 分頁：站內導流面板（molab 拒絕被嵌入，見 NOTES） */
+  #molab-panel { flex: 1; overflow-y: auto; background: #FFFDF9; }
+  #molab-panel .panel-inner { max-width: 560px; margin: 0 auto; padding: 56px 36px; }
+  #molab-panel h3 { font-size: 22px; font-weight: 900; margin: 10px 0 12px; line-height: 1.35; }
+  #molab-panel p { font-size: 14.5px; line-height: 1.9; margin: 10px 0; }
+  #molab-panel ol { padding-left: 22px; margin: 14px 0; }
+  #molab-panel li { font-size: 14.5px; line-height: 1.9; margin: 5px 0; }
+  #molab-panel .panel-btns { display: flex; flex-direction: column; gap: 10px; margin: 20px 0 8px; }
+  .pbtn {
+    display: block; text-align: center; text-decoration: none;
+    font-size: 14.5px; font-weight: 800; padding: 11px 18px; border-radius: 999px;
+    border: 2px solid var(--versicolor); color: var(--versicolor);
+    transition: background .15s, color .15s;
+  }
+  .pbtn.primary { background: var(--versicolor); color: #fff; }
+  .pbtn.primary:hover { background: #C06A38; }
+  .pbtn:not(.primary):hover { background: var(--versicolor); color: #fff; }
+  #molab-panel .panel-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; }
+
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+  em.learn { color: var(--virginica); font-style: normal; font-weight: 800; }
+
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+    cursor: pointer; transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, a:focus-visible, .hero-demo button:focus-visible {
+    outline: 3px solid var(--setosa); outline-offset: 2px;
+  }
+
+  .codeblock {
+    font-family: var(--mono); font-size: 13.5px; background: var(--chip-bg);
+    border-radius: 8px; padding: 12px 16px; line-height: 1.8; margin: 14px 0;
+    overflow-x: auto; white-space: pre;
+  }
+
+  /* Hero：SFT 開關 */
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .hero-q {
+    font-family: var(--mono); font-size: 14px; padding: 9px 14px;
+    background: var(--chip-bg); border-radius: 10px; margin-bottom: 12px;
+  }
+  .hero-a {
+    border: 2px solid var(--masked); border-radius: 10px;
+    padding: 12px 14px; min-height: 84px;
+    font-family: var(--mono); font-size: 14px; line-height: 1.75;
+    white-space: pre-wrap; transition: border-color .25s, background .25s;
+  }
+  .hero-a.sft { border-color: var(--virginica); background: #F4FAF5; }
+  .hero-a .tag { display: block; font-size: 11px; font-weight: 800; letter-spacing: .08em;
+                 font-family: var(--sans); margin-bottom: 6px; color: var(--masked); }
+  .hero-a.sft .tag { color: var(--virginica); }
+  .hero-controls { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+  .sft-toggle {
+    position: relative; width: 92px; height: 40px; border-radius: 999px;
+    border: 2px solid var(--ink); background: var(--panel); cursor: pointer;
+    font-family: inherit; font-weight: 900; font-size: 13.5px; color: var(--ink);
+    transition: background .2s, color .2s;
+  }
+  .sft-toggle.on { background: var(--virginica); border-color: var(--virginica); color: #fff; }
+  .hero-controls .nextq {
+    font-family: inherit; font-size: 13px; font-weight: 700;
+    border: 1.5px solid var(--ink); background: var(--panel); color: var(--ink);
+    border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  }
+  .hero-controls .hint { font-size: 12.5px; color: var(--ink-soft); margin-left: auto; }
+
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--grid); padding: 8px 10px; text-align: left; line-height: 1.6; }
+  th { background: var(--chip-bg); font-weight: 800; }
+
+  .fig { margin: 20px 0; }
+  .fig svg { width: 100%; height: auto; display: block; }
+  .fig figcaption { font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+  /* mask 示意 chips */
+  .maskstrip { line-height: 2.6; margin: 14px 0; }
+  .maskstrip span {
+    display: inline-block; margin: 2px; padding: 3px 8px; border-radius: 6px;
+    font-family: var(--mono); font-size: 13px;
+  }
+  .maskstrip .m { background: #F0F0F0; border: 1px solid #C8C8C8; color: var(--masked); }
+  .maskstrip .t { background: #EAF3EC; border: 1.5px solid var(--virginica); }
+
+  /* GPU 軌道卡 */
+  .gpu-card {
+    border: 2px solid var(--versicolor); border-radius: 14px;
+    background: #FFFDF9; padding: 20px 24px; margin: 18px 0;
+    box-shadow: 6px 6px 0 #F5E8DC;
+  }
+  .gpu-card ol { margin: 10px 0; }
+  .gpu-card .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .gpu-card a.btn {
+    display: inline-block; text-decoration: none; font-size: 14px; font-weight: 800;
+    padding: 9px 18px; border-radius: 999px; border: 2px solid var(--versicolor);
+    color: var(--versicolor); transition: background .15s, color .15s;
+  }
+  .gpu-card a.btn.primary { background: var(--versicolor); color: #fff; }
+  .gpu-card a.btn.primary:hover { background: #C06A38; }
+  .gpu-card a.btn:not(.primary):hover { background: var(--versicolor); color: #fff; }
+  .gpu-card a.btn.pending { opacity: .45; pointer-events: none; }
+
+  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+  footer.pagefoot {
+    margin-top: 88px; padding-top: 24px; border-top: 2px solid var(--ink);
+    font-size: 13px; color: var(--ink-soft); line-height: 1.9;
+  }
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span class="leaf">◥</span> AI 互動教室 · 機器學習</div>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool gpu" href="#s8" id="jump-gpu">GPU 軌道 🚀</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">SUPERVISED FINE-TUNING · 監督式微調</span>
+  <h1>補一堂課，<br>讓它學會回話</h1>
+  <p style="margin-top:18px">
+    預訓練完的語言模型知識淵博，卻只會<b>把你的問題當文章接著寫</b>。
+    SFT 做的事：用幾十筆「怎麼問、該怎麼答」的示範資料<b>補一堂課</b>，
+    行為就徹底改變。按按看那顆綠色開關——
+  </p>
+
+  <div class="hero-demo">
+    <div class="hero-q" id="hero-q">q: what color is the sky?</div>
+    <div class="hero-a" id="hero-a"><span class="tag" id="hero-tag">BASE（只會續寫）</span><span id="hero-text"></span></div>
+    <div class="hero-controls">
+      <button class="sft-toggle" id="sft-toggle" aria-pressed="false">SFT</button>
+      <button class="nextq" id="hero-next">換一題 ↻</button>
+      <span class="hint">示意取自右欄迷你模型的真實行為——待會兒你會親手訓練它</span>
+    </div>
+  </div>
+
+  <p style="margin-top:22px">
+    同一個模型、同一個問題：SFT 前像鸚鵡學舌，SFT 後像個助理。
+    這一課回答三個問題：<b>資料長什麼樣？只學回答不學問題怎麼做到？
+    為什麼一張普通顯卡就微調得動 LLM？</b>
+  </p>
+  <p class="note">
+    右欄是真的 Python（瀏覽器內執行，首次載入約 30–60 秒）。壓軸實驗會在你的
+    瀏覽器裡<b>現場訓練一個迷你語言模型</b>；想跑真正的 1B 模型，最後有
+    <a href="#s8" style="color:var(--versicolor);font-weight:800">GPU 軌道 🚀</a>。
+  </p>
+</section>
+
+<!-- ── 1 ──────────────────────────────── -->
+<section id="s1">
+  <span class="eyebrow">01 · 全局</span>
+  <h2>SFT 站在訓練管線的哪裡</h2>
+
+  <figure class="fig">
+    <svg viewBox="0 0 560 150" role="img" aria-label="LLM 訓練三階段管線圖">
+      <defs>
+        <marker id="par" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L8,4 L0,8 z" fill="#52646E"/>
+        </marker>
+      </defs>
+      <line x1="168" y1="62" x2="196" y2="62" stroke="#52646E" stroke-width="2" marker-end="url(#par)"/>
+      <line x1="368" y1="62" x2="396" y2="62" stroke="#52646E" stroke-width="2" marker-end="url(#par)"/>
+      <g>
+        <rect x="8" y="26" width="160" height="72" rx="10" fill="#EBF0F7" stroke="#4C72B0" stroke-width="2"/>
+        <text x="88" y="52" text-anchor="middle" font-size="14" font-weight="800" fill="#1C2B33">預訓練</text>
+        <text x="88" y="72" text-anchor="middle" font-size="10.5" fill="#52646E">海量文本 · 學接下一個字</text>
+        <text x="88" y="87" text-anchor="middle" font-size="10.5" fill="#4C72B0">→ base model（只會續寫）</text>
+      </g>
+      <g>
+        <rect x="200" y="18" width="168" height="88" rx="10" fill="#EAF3EC" stroke="#55A868" stroke-width="3"/>
+        <text x="284" y="46" text-anchor="middle" font-size="15" font-weight="900" fill="#1C2B33">SFT ⬅ 本課</text>
+        <text x="284" y="66" text-anchor="middle" font-size="10.5" fill="#52646E">指令示範資料 · 千~萬筆級</text>
+        <text x="284" y="81" text-anchor="middle" font-size="10.5" fill="#3B7A4C">→ 聽懂指令、會用助理格式回話</text>
+      </g>
+      <g>
+        <rect x="400" y="26" width="152" height="72" rx="10" fill="#FBEFE8" stroke="#DD8452" stroke-width="2"/>
+        <text x="476" y="52" text-anchor="middle" font-size="14" font-weight="800" fill="#1C2B33">偏好對齊</text>
+        <text x="476" y="72" text-anchor="middle" font-size="10.5" fill="#52646E">RLHF / DPO…</text>
+        <text x="476" y="87" text-anchor="middle" font-size="10.5" fill="#B05F2C">→ 回答又好又安全</text>
+      </g>
+      <text x="284" y="132" text-anchor="middle" font-size="11.5" fill="#52646E">資料量：預訓練＝圖書館，SFT＝一本習題示範，卻能徹底改變行為</text>
+    </svg>
+  </figure>
+
+  <p>
+    關鍵認知：<b>SFT 不是重新訓練，是在 base model 上「補課」</b>。
+    它教的是<em class="learn">行為</em>（聽指令、格式、語氣），
+    不太能教<b>知識</b>——知識早在預訓練就裝進去了。
+    這個區別會在最後的實驗裡被你親眼驗證。
+  </p>
+</section>
+
+<!-- ── 2 ──────────────────────────────── -->
+<section id="s2">
+  <span class="eyebrow">02 · 原料</span>
+  <h2>指令資料：一問一答的示範集</h2>
+  <p>
+    SFT 的原料就是「理想對話的錄影帶」。訓練前每筆資料會套上
+    <b>chat template</b>——用特殊記號標出誰在說話：
+  </p>
+  <div class="codeblock">&lt;|im_start|&gt;user
+what color is the sky?&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+blue.&lt;|im_end|&gt;</div>
+  <p>
+    模型學會這套格式後，推論時只要看到 <code>&lt;|im_start|&gt;assistant</code>，
+    就知道「輪到我了」。右欄的迷你模型用簡化版模板
+    <code>q: 問題 / a: 回答</code>——概念一模一樣。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊看本課的 16 筆訓練資料</button>
+</section>
+
+<!-- ── 3 ──────────────────────────────── -->
+<section id="s3">
+  <span class="eyebrow">03 · 底層</span>
+  <h2>模型眼中沒有字，只有編號</h2>
+  <p>
+    文字進模型前要先切成 token、換成整數編號。真實 LLM 用 BPE 子詞
+    （詞表數萬到數十萬）；右欄的迷你模型用最簡單的字元級切法。
+  </p>
+  <p>
+    有個小實驗值得做：在右欄的編碼器裡<b>打中文</b>。迷你詞表只收英文小寫，
+    中文全變 <code>⟨unk⟩</code>——這就是「詞表覆蓋率」問題的縮影：
+    模型看不懂的字，連學的機會都沒有。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊把文字變成編號</button>
+</section>
+
+<!-- ── 4 ──────────────────────────────── -->
+<section id="s4">
+  <span class="eyebrow">04 · 核心技巧</span>
+  <h2>Loss Masking：只在回答上學</h2>
+  <p>
+    一筆訓練資料裡<b>問題和回答都在</b>，但我們只想教模型「怎麼回答」。
+    做法：算損失時把問題部分<em class="cut">遮起來</em>（label 設 -100），
+    只有<em class="learn">回答部分</em>的錯誤會產生梯度：
+  </p>
+  <div class="maskstrip" aria-label="loss masking 示意：灰色遮罩、綠色計算損失">
+    <span class="m">q</span><span class="m">:</span><span class="m">␣</span><span class="m">w</span><span class="m">h</span><span class="m">a</span><span class="m">t</span><span class="m">␣</span><span class="m">c</span><span class="m">o</span><span class="m">l</span><span class="m">o</span><span class="m">r</span><span class="m">…</span><span class="m">a</span><span class="m">:</span><span class="m">␣</span><span class="t">b</span><span class="t">l</span><span class="t">u</span><span class="t">e</span><span class="t">.</span><span class="t">⏎</span>
+  </div>
+  <p>
+    注意最後那顆綠色的 <code>⏎</code>：<b>回合結束符也要算 loss</b>
+    （真實模型是 <code>&lt;|im_end|&gt;</code>，Llama 系叫 <code>&lt;|eot_id|&gt;</code>——同概念不同方言）。這堂課開發時真的踩過這個坑——
+    漏掉它，模型學會回答卻學不會「停」，答完正確答案繼續瞎講。
+    右欄有一顆「loss masking」開關，你可以親手做這個消融實驗。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊看每個字元的遮罩狀態</button>
+</section>
+
+<!-- ── 5 ──────────────────────────────── -->
+<section id="s5">
+  <span class="eyebrow">05 · 省錢神器</span>
+  <h2>LoRA：不動原模型，外掛小補丁</h2>
+  <p>
+    全參數微調 1B 模型要更新十二億個數字。<b>LoRA</b> 的解法：
+    原權重 <b>W 凍結</b>，旁邊掛一對秩為 r 的小矩陣 <b>B·A</b>，只訓練它們：
+  </p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 560 170" role="img" aria-label="LoRA 結構示意：凍結的 W 加上可訓練的低秩 B·A">
+      <g>
+        <rect x="30" y="24" width="120" height="120" rx="8" fill="#F0F0F0" stroke="#9AA3A8" stroke-width="2"/>
+        <text x="90" y="80" text-anchor="middle" font-size="22" font-weight="900" fill="#9AA3A8">W</text>
+        <text x="90" y="102" text-anchor="middle" font-size="11" fill="#52646E">凍結 🔒 12.4 億參數</text>
+      </g>
+      <text x="185" y="92" text-anchor="middle" font-size="26" font-weight="900" fill="#1C2B33">+</text>
+      <g>
+        <rect x="220" y="24" width="34" height="120" rx="6" fill="#EAF3EC" stroke="#55A868" stroke-width="2.5"/>
+        <text x="237" y="90" text-anchor="middle" font-size="16" font-weight="900" fill="#3B7A4C">B</text>
+        <rect x="262" y="24" width="120" height="34" rx="6" fill="#EAF3EC" stroke="#55A868" stroke-width="2.5"/>
+        <text x="322" y="47" text-anchor="middle" font-size="16" font-weight="900" fill="#3B7A4C">A</text>
+        <text x="300" y="100" font-size="11.5" fill="#3B7A4C" font-weight="700">只訓練這對 ✏️</text>
+        <text x="300" y="118" font-size="11" fill="#52646E">≈ 1,127 萬參數（0.9%）</text>
+      </g>
+      <g>
+        <rect x="428" y="40" width="118" height="88" rx="10" fill="#fff" stroke="#1C2B33" stroke-width="2"/>
+        <text x="487" y="68" text-anchor="middle" font-size="12.5" font-weight="800" fill="#1C2B33">W′ = W + B·A</text>
+        <text x="487" y="90" text-anchor="middle" font-size="10.5" fill="#52646E">行為改變靠補丁</text>
+        <text x="487" y="106" text-anchor="middle" font-size="10.5" fill="#52646E">原模型毫髮無傷</text>
+      </g>
+    </svg>
+    <figcaption>
+      數字取自 GPU 軌道的真實設定：Llama-3.2-1B-Instruct、r=16、掛在注意力與 MLP 的七個投影上。
+    </figcaption>
+  </figure>
+
+  <p>
+    為什麼小小的 r 夠用？因為 SFT 要教的行為改變（格式、語氣、身分）
+    <b>本質上是低秩的</b>——右欄有一張「秩 vs 重建誤差」的實驗圖讓你拉著玩。
+  </p>
+  <button class="golab" data-nb="5️⃣">到右邊拉 rank 滑桿，看參數量差幾個數量級</button>
+</section>
+
+<!-- ── 6 ──────────────────────────────── -->
+<section id="s6">
+  <span class="eyebrow">06 · 招牌實驗</span>
+  <h2>在瀏覽器裡親手 SFT 一個模型</h2>
+  <p>
+    右欄有一個約 1.1 萬參數的字元級迷你語言模型，<b>完全在你的瀏覽器裡</b>
+    訓練：先在通用語料上預訓練（載入時已自動完成），然後由你按下 SFT。
+    流程與真實 LLM 完全同構：
+  </p>
+  <table>
+    <tr><th></th><th>迷你模型（右欄）</th><th>真實 LLM（GPU 軌道）</th></tr>
+    <tr><td>預訓練語料</td><td>英文短句</td><td>兆級 token 網路文本</td></tr>
+    <tr><td>SFT 資料</td><td>16 筆 QA</td><td>50 筆繁中助教示範</td></tr>
+    <tr><td>模板</td><td><code>q:/a:</code></td><td>Llama 3 chat template</td></tr>
+    <tr><td>結束符</td><td>換行 <code>⏎</code></td><td><code>&lt;|eot_id|&gt;</code></td></tr>
+    <tr><td>微調方法</td><td>手寫 numpy SGD</td><td>Unsloth + LoRA（4-bit）</td></tr>
+    <tr><td>訓練時間</td><td>你瀏覽器裡 1–2 秒</td><td>GPU 上 60 步、約 1–3 分鐘</td></tr>
+  </table>
+  <p>三個一定要做的實驗：</p>
+  <ul>
+    <li>問<b>訓練過</b>的問題 → 幾乎每次答對</li>
+    <li>問<b>同格式但沒訓練過</b>的問題 → 格式對、內容亂掰——<b>SFT 教行為不教知識</b>，這就是幻覺的縮影</li>
+    <li>關掉 <b>loss masking</b> → 模型開始自己出題，學習力被問題部分偷走</li>
+  </ul>
+  <button class="golab" data-nb="6️⃣">到右邊按下 SFT，見證行為改變</button>
+</section>
+
+<!-- ── 7 ──────────────────────────────── -->
+<section id="s7">
+  <span class="eyebrow">07 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在右欄 <code>sft_pairs</code> 加 3–5 筆你自己的 QA（小寫英文），重跑後測試模型學不學得會。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>把 SFT 學習率 <code>lr=0.25</code> 改成 1.0，觀察 loss 曲線發生什麼事——親眼看「學習率太大」長什麼樣。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>思考題：SFT 資料混進錯誤答案（<code>the sky is green.</code>）會怎樣？先猜，再加進資料集驗證——體會「資料品質 &gt; 資料數量」。</p>
+  </div>
+  <button class="golab" data-nb="7️⃣">到右邊的實驗區開工</button>
+</section>
+
+<!-- ── 8 GPU 軌道 ─────────────────────── -->
+<section id="s8">
+  <span class="eyebrow">08 · GPU 軌道 🚀</span>
+  <h2>跑真的：給 1B 模型一個新身分</h2>
+  <p>
+    迷你模型是概念教具；<b>真實版</b>在本課附的 <code>sft_gpu.py</code>——
+    用業界常用的 <b>Unsloth</b> 快速微調法：4-bit 量化載入、LoRA 補丁、
+    <code>SFTTrainer</code> 60 步、loss masking 一行搞定（<code>train_on_responses_only</code>）。
+    底模是 <code>Llama-3.2-1B-Instruct</code>：它已經會聊天，這次 SFT 教的是
+    更貼近業界實務的事——<b>換上新身分與說話風格</b>，變成自稱「小樹」的繁中助教。
+    瀏覽器跑不動 torch，所以這一段借用 <b>molab</b>（marimo 官方雲）的 GPU：
+  </p>
+
+  <div class="gpu-card">
+    <b>在 molab 用雲端 GPU 跑（約 5–10 分鐘）</b>
+    <ol>
+      <li>登入 <b>molab</b>（marimo 帳號，可用 GitHub/Google）</li>
+      <li>在<b>新分頁</b>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯（molab 的登入狀態進不了內嵌框架，所以要新分頁跑——跟本頁並排開，教學照樣對照）</li>
+      <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
+      <li>從第一格往下全部執行，看 loss 掉下來、看 base 與 SFT 後的對比</li>
+    </ol>
+    <div class="btns">
+      <a class="btn primary" id="molab-open" href="https://molab.marimo.io/notebooks/nb_CaYVVFxPTd5ngkZYYjZBjb" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+      <a class="btn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+      <a class="btn" href="sft_gpu.py" download>下載 sft_gpu.py</a>
+    </div>
+  </div>
+
+  <p class="note">
+    誠實說明：GPU 軌道是<b>選配延伸</b>，不跑它也能完整理解本課。
+    GPU 供應與額度依 molab 帳號方案而定（可能需要付費方案或有用量限制）；
+    molab 連不上時，下載 <code>sft_gpu.py</code> 在任何有 <b>NVIDIA GPU</b> 的機器
+    <code>uvx marimo edit sft_gpu.py</code> 也能跑（Unsloth 需要 GPU，純 CPU 跑不動這份——
+    但概念版的所有實驗都不受影響）。
+  </p>
+</section>
+
+<!-- ── 9 ──────────────────────────────── -->
+<section id="s9">
+  <span class="eyebrow">09 · 帶走</span>
+  <h2>這一課的三句話</h2>
+  <ul>
+    <li><b>SFT 教行為，預訓練給知識</b>——別指望用 50 筆資料教會模型新學問</li>
+    <li><b>loss 只算在回答和結束符上</b>——遮罩錯了，模型不是學會出題就是學不會停</li>
+    <li><b>行為改變是低秩的</b>——所以 LoRA 用 0.4% 的參數就辦得到</li>
+  </ul>
+  <p>下一步往哪走：</p>
+  <ul>
+    <li><b>偏好對齊</b>（RLHF / DPO）——SFT 教「會答」，對齊教「答得好」</li>
+    <li><b>資料工程</b>——真實世界的 SFT 成敗八成在資料品質與多樣性</li>
+    <li>右上角「下載 .py」把兩個 notebook 都帶回家繼續玩</li>
+  </ul>
+  <footer class="pagefoot">
+    右欄 Python 由 marimo + Pyodide (WebAssembly) 驅動，完全在你的瀏覽器內執行；
+    GPU 軌道於 molab（marimo 官方雲）以你自己的帳號執行，本站不經手任何帳號與資料。
+    灰色＝masked、綠色＝計算 loss，這套色彩語義在左右兩欄與 GPU notebook 中一致。
+  </footer>
+</section>
+
+</div>
+</div>
+
+<div id="lab">
+  <div id="lab-tabs" role="tablist">
+    <button class="labtab active" role="tab" aria-selected="true" data-tab="wasm">🧪 互動實驗</button>
+    <button class="labtab gpu" role="tab" aria-selected="false" data-tab="molab">⚡ GPU 軌道</button>
+  </div>
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 01 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <div id="molab-panel" hidden>
+    <div class="panel-inner">
+      <span class="eyebrow">GPU TRACK · MOLAB</span>
+      <h3>真實 1B 模型的 SFT，在 molab 的 GPU 上跑</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 GPU 版要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b></li>
+        <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
+        <li>Run all，約 5–10 分鐘</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/notebooks/nb_CaYVVFxPTd5ngkZYYjZBjb" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="sft_gpu.py" download>下載 sft_gpu.py</a>
+      </div>
+      <p class="panel-note">沒有 molab 帳號或 GPU 額度？下載 <code>sft_gpu.py</code> 在任何有 NVIDIA GPU 的機器
+        <code>uvx marimo edit sft_gpu.py</code>（Unsloth 需要 GPU；概念版實驗不受影響）。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ Hero：SFT 開關（示意內容 = 右欄迷你模型的真實行為模式）═══ */
+(function () {
+  const QA = [
+    { q: "q: what color is the sky?",
+      base: " the sun is bright and the sky is wide. a cat sat on the",
+      sft: " blue." },
+    { q: "q: what do cats say?",
+      base: " the moon shines at night and the fish swim in cold water",
+      sft: " meow." },
+    { q: "q: how many legs has a cat?",
+      base: " the little bird has two legs and the old cat has four le",
+      sft: " four." },
+  ];
+  let idx = 0, on = false;
+  const toggle = document.getElementById("sft-toggle");
+  const qEl = document.getElementById("hero-q");
+  const aEl = document.getElementById("hero-a");
+  const tagEl = document.getElementById("hero-tag");
+  const textEl = document.getElementById("hero-text");
+  let timer = null;
+
+  function render() {
+    const item = QA[idx];
+    qEl.textContent = item.q;
+    aEl.classList.toggle("sft", on);
+    toggle.classList.toggle("on", on);
+    toggle.setAttribute("aria-pressed", String(on));
+    tagEl.textContent = on ? "SFT 後（學會回答，答完就停）" : "BASE（只會續寫）";
+    const target = "a:" + (on ? item.sft : item.base + "…");
+    clearInterval(timer);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      textEl.textContent = target;
+      return;
+    }
+    let i = 0;
+    textEl.textContent = "";
+    timer = setInterval(() => {
+      textEl.textContent = target.slice(0, ++i);
+      if (i >= target.length) clearInterval(timer);
+    }, 18);
+  }
+  toggle.addEventListener("click", () => { on = !on; render(); });
+  document.getElementById("hero-next").addEventListener("click", () => {
+    idx = (idx + 1) % QA.length; render();
+  });
+  render();
+})();
+
+/* ═══ 右欄分頁切換（雙 iframe，molab 惰性載入）═══ */
+window.switchLabTab = (function () {
+  const nbFrame = document.getElementById("nb-frame");
+  const nbStatus = document.getElementById("nb-status");
+  const molabPanel = document.getElementById("molab-panel");
+  function switchTab(name) {
+    const isMolab = name === "molab";
+    nbFrame.hidden = isMolab;
+    nbStatus.hidden = isMolab;
+    molabPanel.hidden = !isMolab;
+    document.querySelectorAll(".labtab").forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("active", on);
+      t.setAttribute("aria-selected", String(on));
+    });
+  }
+  document.querySelectorAll(".labtab").forEach(t =>
+    t.addEventListener("click", () => switchTab(t.dataset.tab))
+  );
+  return switchTab;
+})();
+
+/* ═══ 「到右邊做」：同源 iframe 捲動（並自動切回互動實驗分頁）═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      window.switchLabTab("wasm");
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        for (const h of doc.querySelectorAll("h1, h2, h3")) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 未就緒時安靜略過 */ }
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列 ═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= 3) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——迷你模型已完成預訓練，等你按下 SFT。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+
+</script>
+</body>
+</html>

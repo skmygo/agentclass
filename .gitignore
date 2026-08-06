@@ -1,0 +1,24 @@
+# build 產物（wrangler 直傳部署，不進版控）
+dist/
+.wrangler/
+dist-nb/
+
+# 訓練輸出
+outputs/
+lora_adapter/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# 本機測試產物
+smoke-screenshot.png
+*.log
+nohup.out
+
+# 參考教材（含內網 infra 細節，不公開）
+ref_data/
+
+# marimo 本機 session 快取
+__marimo__/
