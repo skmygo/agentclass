@@ -8,26 +8,27 @@
 
 ```
 bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic> "<主題名>" [--gpu]
-                       # ↑ 模板複製＋代換＋GPU 剝除＋build.sh 加課＋uv sync 一次做完
-→ 寫 lesson.py（marimo 純 .py 格式）＋ Edit page 內容區
-→ 第一層驗證：uv run marimo export html lesson.py -o check.html    # CPython headless 全 cell 執行
-→ scripts/build.sh                                                  # export html-wasm + 後處理 + 組裝 dist/
+                       # ↑ 模板複製＋代換＋GPU 剝除＋自檢＋root uv sync 一次做完
+→ 寫 content/<topic>/<id>/lesson.py ＋ Edit 同目錄 index.html 的內容區
+→ 第一層驗證（repo 根執行）：uv run marimo export html content/<topic>/<id>/lesson.py -o check.html
+→ scripts/build.sh                    # 自動發現全部課：export html-wasm + 後處理 + 組裝 dist/
 → 第二層驗證：headless Playwright 開 dist 的 WASM 版（冒煙）
 → npx wrangler pages deploy dist --project-name=agentclass          # 憑證見 homelab-infra skill
 ```
 
-build.sh 已處理：WASM 匯出、`auto_instantiate` 後處理、698 個 assets 抽共用、教學頁與
-lesson.py 複製、site/（首頁＋主題頁＋shared/）併入、404.html、Pages 上限檢核。
-新課只需在 build.sh 加一行 `build_lesson <id>`（GPU 課另 cp `<id>_gpu.py`）。
+build.sh **自動發現** `content/*/*/lesson.py`（新課零改動；有 `<id>_gpu.py` 也自動放上），
+並處理：WASM 匯出、`auto_instantiate` 後處理、698 個 assets 抽共用、教學頁與 lesson.py
+複製、首頁／主題頁／shared/ 併入、404.html、course id 重複防呆、Pages 上限檢核。
+Python 依賴是 **repo 根一個 uv 專案**（一個 venv、一個 lock，全部課共用）。
 
 ## marimo / 匯出的坑
 
 - **`export html-wasm` 會把 `auto_instantiate: false` 烙進產物**（0.23.16；export 不吃專案
   pyproject 設定）→ build.sh 已用 sed 修。**升版 marimo 必須重驗這行為**。
-- **marimo 版本必須全站釘同一版（`marimo==0.23.16`，模板已釘）**：寫 `>=` 會讓新課解到
-  更新版（實測解到 0.24.0），export 出的 assets hash 與共用基準不一致 → build.sh 退回
-  該課獨立 assets，dist 從 28M 膨脹到 112M（每課多 ~700 檔/27MB）。要升版就全部課
-  一起升＋重驗雙層驗證。
+- **marimo 版本必須全站釘同一版（`marimo==0.23.16`，repo 根 pyproject 已釘、全站共用
+  一個 venv，結構上不會飄）**：當年每課一個 pyproject 寫 `>=` 時，新課解到 0.24.0，
+  export 出的 assets hash 與共用基準不一致 → build.sh 退回該課獨立 assets，dist 從
+  28M 膨脹到 112M。要升版就改根 pyproject 一次升全站＋重驗雙層驗證。
 - **`mo.vstack([fig, mo.md(...)])` 裡的裸 matplotlib figure 不渲染**：圖一律當 cell 的
   最後運算式，說明文字拆到下一個 cell（要共用數值就 return 變數）。
 - 本機 CPython 跑通 ≠ WASM 跑通，**雙層驗證缺一不可**。

@@ -1,12 +1,14 @@
-# 課程專案：分類（classification）
+# 全站課程共用的 Python 專案：一個 venv、一個 lock，所有課的 CPython 驗證與 WASM 匯出都用它。
+# marimo 一律釘版且全站同版——版本不同 → export assets hash 不同 → 無法共用、dist 爆量。
 [project]
-name = "classification-lesson"
+name = "agentclass-lessons"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
     "marimo==0.23.16",
     "matplotlib>=3.11.1",
     "numpy>=2.5.1",
+    "pandas>=3.0.5",
     "scikit-learn>=1.9.0",
 ]
 

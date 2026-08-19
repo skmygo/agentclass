@@ -21,15 +21,18 @@ bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic-slu
 # 例：bash .claude/skills/make-lesson/scripts/new-lesson.sh clustering "分群：沒有答案也能找出結構" ml-basics "學基礎機器學習"
 ```
 
-script 做完（不用再做）：四件套從 `assets/templates/` 複製並代換好 id／課名／主題／molab 網址、
-純瀏覽器課已剝除全部 `[GPU]` 區塊（`--gpu` 才保留＋建 `<id>_gpu.py`）、smoke-test 的
-`H1_TEXT` 已填、build.sh 已加該課、`uv sync` 已跑。只有新開主題才需要手動
-`cp assets/templates/topic.html site/<topic-slug>/index.html`。
+script 做完（不用再做）：`content/<topic>/<id>/` 三件套（lesson.py、index.html、
+smoke-test.mjs）從 `assets/templates/` 複製並代換好 id／課名／主題／molab 網址、
+純瀏覽器課已剝除全部 `[GPU]` 區塊（`--gpu` 才保留＋建 `<id>_gpu.py`）、
+生成自檢已跑、root `uv sync` 已跑。**build.sh 與 pyproject 都不用碰**
+（build 自動發現課程；Python 依賴是 repo 根共用的一個 uv 專案）。
+只有新開主題才需要手動 `cp assets/templates/topic.html content/<topic-slug>/index.html`。
 
-**scaffold 之後一律用 Edit 改內容區，不要整檔重寫**——page 的版面骨架（CSS、狀態列、
-golab／輪詢 JS、splitter 引入）是全站一致的固定資產，整檔重寫既燒 token 又容易弄掉
-「勿刪」元素。你真正要動的只有：hero（含開場互動 JS）、各 section、練習卡、endnav、
-`READY_FIGURES`、語義色 token。模板內「必改／勿刪／自由發揮」都有註解標記。
+**scaffold 之後一律用 Edit 改內容區，不要整檔重寫**——版面骨架與共用行為在
+`/shared/lesson.css`／`lesson.js`（全站一份，別為單一課去改它）。你真正要動的只有：
+hero（含開場互動 JS）、各 section、練習卡、endnav、`<body data-ready-figures="N">`
+（N＝notebook 圖表數，至少 1）、頁內 `<style>` 的語義色與 hero 樣式。
+模板內「必改／勿刪／自由發揮」都有註解標記。
 
 ## 流程
 
@@ -37,12 +40,12 @@ golab／輪詢 JS、splitter 引入）是全站一致的固定資產，整檔重
 2. **決定軌道**（判斷準則見 engineering.md）：
    - 套件在 Pyodide 有 wheel、瀏覽器算力夠 → **純瀏覽器課**
    - 需要 GPU / torch / 大模型 → **雙軌課**：核心概念一律做成瀏覽器內可跑的迷你版，真實版走 molab GPU 外部連結。GPU 是延伸不是前提。
-3. **scaffold（上面那行指令）→ 創作**：寫 `lesson.py` 內容與 page 內容區。左頁引用的每個數字與方向性宣稱（「k=1 準確率必是 100%」「直線兩端猜太低」「手肘在 3」），**先用 `uv run python` 小腳本驗過再寫進文案**——量化宣稱寫反，比少一個互動更傷（實測踩過：凸型資料配直線的殘差方向寫反）。
-4. **接進網站**（site.md 的 wiring 清單）：主題頁課卡、首頁主題卡的課數、上一課的「下一課」連結（build.sh 那行 scaffold 已加）。
+3. **scaffold（上面那行指令）→ 創作**：寫 `content/<topic>/<id>/lesson.py` 與同目錄 `index.html` 的內容區。左頁引用的每個數字與方向性宣稱（「k=1 準確率必是 100%」「直線兩端猜太低」「手肘在 3」），**先用 `uv run python` 小腳本驗過再寫進文案**——量化宣稱寫反，比少一個互動更傷（實測踩過：凸型資料配直線的殘差方向寫反）。
+4. **接進網站**（site.md 的 wiring 清單）：主題頁課卡、首頁主題卡的課數、上一課的「下一課」連結。
 5. **雙層驗證**：
-   - `uv run marimo export html lesson.py -o check.html`（CPython 全 cell 執行）
-   - `scripts/build.sh`——盯輸出：檔案數應約「既有＋每課 ~15 檔」；出現「assets 與共用版本不一致」警告＝marimo 版本飄了，回頭釘版重來，別帶著獨立 assets 上線
-   - dist **根目錄**起 server（`python3 -m http.server 8787 -d dist`），`node smoke-test.mjs http://127.0.0.1:8787/<id>/nb/index.html`（別只 serve nb 目錄：assets 走 `/shared/` 絕對路徑）
+   - repo 根執行 `uv run marimo export html content/<topic>/<id>/lesson.py -o check.html`（CPython 全 cell 執行）
+   - `scripts/build.sh`——盯輸出：檔案數應約「既有＋每課 ~15 檔」；出現「assets 與共用版本不一致」警告＝marimo 版本飄了，回頭查根 pyproject 的釘版，別帶著獨立 assets 上線
+   - dist **根目錄**起 server（`python3 -m http.server 8787 -d dist`），`node content/<topic>/<id>/smoke-test.mjs http://127.0.0.1:8787/<id>/nb/index.html`（別只 serve nb 目錄：assets 走 `/shared/` 絕對路徑）
    - wiring 自檢：`grep -o '/<id>/' dist/<topic-slug>/index.html` 有中、首頁課數已更新
 6. **給使用者預覽**：server 開著＋`node .claude/skills/make-lesson/scripts/preview-shots.mjs / /<topic-slug>/ /<id>/` 截圖（課程頁會自動等 notebook 全跑完才截），等確認再部署。
 7. **部署**：`npx wrangler pages deploy dist --project-name=agentclass`（憑證見 homelab-infra skill），部署後線上驗證。

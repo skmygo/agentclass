@@ -2,23 +2,35 @@
 
 ## 資訊架構
 
+**檔案一棵樹（content/），網址兩層扁平**——課程實體放在主題目錄下，
+但課程網址永遠在根層：課換主題、主題改名，已分享出去的課程連結都不會斷。
+
 ```
-/                     主題列表（首頁）      site/index.html
-/<topic>/             主題頁（課程列表）    site/<topic>/index.html
-/<lesson-id>/         課程頁                lessons/<id>/page/index.html → dist/<id>/
-/<lesson-id>/nb/      marimo WASM notebook  build.sh 產
-/shared/              全站共用資源          site/shared/（splitter.js 等）＋ WASM assets
+content/index.html                →  /              首頁（主題列表）
+content/<topic>/index.html        →  /<topic>/      主題頁（課程列表）
+content/<topic>/<lesson-id>/      →  /<lesson-id>/  課程（index.html 教學頁 + lesson.py + smoke-test.mjs + NOTES.md）
+                                     /<lesson-id>/nb/   marimo WASM notebook（build.sh 產）
+content/shared/                   →  /shared/       全站共用（lesson.css/lesson.js/topic.css/splitter.js + WASM assets）
 ```
 
-- **課程網址永遠在根層**（`/<lesson-id>/`），主題只是導覽層——課換主題、主題改名，
-  已分享出去的課程連結都不會斷。
-- 主題 slug 用簡短英文（如 `ml-basics`）。
+- **course id 全站唯一**（網址在根層），scaffold 與 build.sh 都會擋重複。
+- 主題與課程 slug 用簡短英文（如 `ml-basics`、`clustering`）。
+- build.sh **自動發現** `content/*/*/lesson.py`——新課不用改 build.sh。
+
+## 共用骨架（重要：頁面只寫內容）
+
+- 課程頁版面（CSS）與行為（golab 捲動、就緒輪詢、GPU 分頁）都在
+  `/shared/lesson.css` 與 `/shared/lesson.js`，**全站一份**；課程頁只放內容、
+  課程語義色覆蓋、hero 專屬樣式與互動 JS。
+- 就緒門檻用 `<body data-ready-figures="N">` 宣告（N = notebook 圖表數，至少 1）。
+- 首頁與主題頁共用 `/shared/topic.css`。
+- **改共用檔＝改全站**，動之前想清楚；課程專屬需求寫在該課頁面的 `<style>`/inline script。
 
 ## 導覽鏈（每一環都要能點）
 
 首頁 → 主題頁 → 課程頁 →（下一課 → …）→ 回主題 → 品牌回首頁
 
-新增一堂課的 wiring 清單：
+新增一堂課的 wiring 清單（scaffold 印的待辦就是這份）：
 
 1. 課程卡插進主題頁的 `.lessons` **最上面**（越新越上；沒有該主題就先建主題頁、
    主題卡插首頁最上面）
@@ -29,14 +41,14 @@
 
 ## 課程頁必備（工程底線）
 
-以下全部已內建在 `assets/templates/page.html`，從模板起手就不會漏：
+以下全部已內建在 `assets/templates/page.html`＋共用骨架，從 scaffold 起手就不會漏：
 
-- `<script src="/shared/splitter.js" defer>`（左右欄拖拉/收合，共用檔自動處理）
+- `/shared/lesson.css`、`/shared/lesson.js`、`/shared/splitter.js` 三個引用
 - 「下載 .py」與「單獨開啟實驗場 ↗」入口
-- 右欄載入狀態提示；左頁第一節在等待時間內讀得完
-- 窄螢幕（≤980px）上下疊降級
+- 右欄載入狀態提示（`#nb-status`）；左頁第一節在等待時間內讀得完
+- `<body data-ready-figures="N">`（就緒門檻＝notebook 圖表數）
+- 窄螢幕（≤980px）上下疊降級、`prefers-reduced-motion`、`:focus-visible`（都在共用 CSS）
 - `lang="zh-Hant"`、有意義的 `<title>`（課名 · AI 互動教室）、meta description
-- `:focus-visible` 樣式與 `prefers-reduced-motion` 降級
 - 影片（選配）：YouTube 非公開 + `youtube-nocookie.com` 嵌入，版型在 page 模板的 `.video-box` 區塊
 
 ## 禁止：平台系統說明文字
@@ -67,8 +79,8 @@
 
 ## 版型與自由度
 
-- 基礎版型 token（`--bg/--ink/--grid` 等紙感底色系）與卡片語言（粗黑邊＋硬陰影）
-  全站一致，維持「同一間教室」的體感；**課程專屬的語義色、互動設計、章節結構、
-  教學法、文案語氣完全自由**，不必模仿既有課的寫法。
-- 版型基準都在本 skill 的 `assets/templates/`：課程頁 `page.html`、主題頁
-  `topic.html`（token 已內建）。首頁 `site/index.html` 是常設檔案，直接編輯。
+- 版面骨架與紙感 token 在 `/shared/lesson.css`／`topic.css`，全站一致維持
+  「同一間教室」的體感；**課程專屬的語義色（頁內 `<style>` 覆蓋 `--c1…--cut`）、
+  互動設計、章節結構、教學法、文案語氣完全自由**，不必模仿既有課的寫法。
+- 模板：課程頁 `assets/templates/page.html`、主題頁 `assets/templates/topic.html`。
+  首頁 `content/index.html` 是常設檔案，直接編輯。

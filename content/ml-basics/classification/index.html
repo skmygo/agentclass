@@ -5,155 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>分類：教機器做判斷 · AI 互動教室</title>
 <meta name="description" content="用 120 顆水果學會 k-NN 分類：讓鄰居投票、拉動 k 看分界線變化，再親手捏一顆新果實考模型。">
+<link rel="stylesheet" href="/shared/lesson.css">
 <style>
-  :root {
-    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
-    --bg: #FAFBF8;
-    --panel: #FFFFFF;
-    --ink: #1C2B33;
-    --ink-soft: #52646E;
-    --grid: #E4E9E2;
-    --chip-bg: #F0F4EE;
-    /* 課程語義色：橘子 / 葡萄柚，左頁與 notebook 圖表共用 */
-    --c1: #4C72B0;
-    --c2: #DD8452;   /* orange 橘子 */
-    --c3: #55A868;
-    --cut: #C44E52;  /* grapefruit 葡萄柚 */
-    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    font-family: var(--sans); color: var(--ink); background: var(--bg);
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-
-  /* ── 頂列 ─────────────────────────────── */
-  header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 0 20px; height: 52px; flex: none;
-    background: var(--panel); border-bottom: 2px solid var(--ink);
-  }
-  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
-  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
-  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
-  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
-  header .brand .leaf { color: var(--c3); }
-  header .spacer { flex: 1; }
-  header a.tool {
-    font-size: 13px; text-decoration: none; color: var(--ink);
-    border: 1.5px solid var(--ink); border-radius: 999px;
-    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
-  }
-  header a.tool:hover { background: var(--ink); color: var(--panel); }
-  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
-  header a.tool.dl:hover { background: var(--c3); color: #fff; }
-
-  /* ── 左右分欄 ─────────────────────────── */
-  main { flex: 1; display: flex; min-height: 0; }
-  #lesson {
-    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
-    scroll-behavior: smooth;
-    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
-  }
-  #lab {
-    flex: 1; display: flex; flex-direction: column; min-width: 0;
-    border-left: 2px solid var(--ink); background: var(--panel);
-  }
-  #nb-status {
-    flex: none; display: flex; align-items: center; gap: 10px;
-    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
-    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
-  }
-  #nb-status .dot {
-    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-  #nb-status.ready .dot { background: var(--c3); animation: none; }
-  @keyframes pulse { 50% { opacity: .3; } }
-  #nb-frame { flex: 1; border: 0; width: 100%; }
-
-  /* ── 文章排版 ─────────────────────────── */
-  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
-  section { margin-top: 72px; }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--mono); font-size: 12px; font-weight: 700;
-    color: var(--cut); letter-spacing: .12em;
-  }
-  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
-  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
-  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
-  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
-  p b, li b { font-weight: 800; }
-  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
-  ul, ol { padding-left: 22px; }
-  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
-  .note {
-    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
-    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
-  }
-  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
-
-  /* 「到右邊做」chip：每節的行動點 */
-  .golab {
-    display: inline-flex; align-items: center; gap: 8px;
-    margin: 14px 0 4px; padding: 8px 16px;
-    font-size: 14px; font-weight: 800; font-family: inherit;
-    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
-    cursor: pointer; transition: transform .12s, background .15s;
-  }
-  .golab:hover { background: var(--cut); transform: translateX(3px); }
-  .golab::after { content: "▶"; font-size: 11px; }
-  .golab:focus-visible, a:focus-visible, button:focus-visible {
-    outline: 3px solid var(--c1); outline-offset: 2px;
-  }
-
-  /* hero 互動卡 */
-  #hero { padding-top: 48px; }
-  .hero-demo {
-    margin-top: 26px; background: var(--panel);
-    border: 2px solid var(--ink); border-radius: 14px;
-    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
-  }
-  .hero-demo svg { width: 100%; height: auto; display: block; }
-  .hero-demo .ctrl { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-  .hero-demo input[type=range] { flex: 1; accent-color: var(--ink); }
-  .hero-demo .verdict { font-size: 14px; font-weight: 800; margin-top: 10px; }
+  /* 課程語義色：橘子＝--c2（#DD8452）、葡萄柚＝--cut（#C44E52），與 notebook 圖表一致 */
   .hero-demo .verdict .who { font-weight: 900; }
-
-  /* 練習卡 */
-  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
-  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
-  .ex p { margin: 6px 0 0; font-size: 14.5px; }
-
-  /* 課末導覽 */
-  .endnav { margin-top: 72px; display: grid; gap: 12px; }
-  .endnav a {
-    display: block; text-decoration: none; color: inherit;
-    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
-    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
-    transition: transform .15s, box-shadow .15s;
-  }
-  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
-  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
-  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
-
-  /* ── 窄螢幕：上下疊降級 ────────────────── */
-  @media (max-width: 980px) {
-    body { overflow: auto; }
-    main { flex-direction: column; }
-    #lesson { width: 100%; min-width: 0; overflow: visible; }
-    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    * { animation: none !important; transition: none !important; }
-    #lesson { scroll-behavior: auto; }
-  }
 </style>
 </head>
-<body>
+<body data-ready-figures="3">
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
@@ -288,7 +146,7 @@
 </main>
 
 <script>
-/* ═══ hero 互動：k=3 的最近鄰投票玩具（純 SVG/JS，不依賴 notebook）═══ */
+/* ═══ hero 互動：k=3 的最近鄰投票玩具（課程專屬）═══ */
 (function () {
   const ORANGE = "#DD8452", GRAPE = "#C44E52";
   // 固定的兩群果實（SVG 座標）
@@ -346,51 +204,8 @@
   range.addEventListener("input", vote);
   vote();
 })();
-
-/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
-(function () {
-  const frame = document.getElementById("nb-frame");
-  document.querySelectorAll(".golab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const mark = btn.dataset.nb;
-      try {
-        const doc = frame.contentDocument;
-        for (const h of doc.querySelectorAll("h1, h2, h3")) {
-          if (h.textContent.includes(mark)) {
-            h.scrollIntoView({ behavior: "smooth", block: "start" });
-            break;
-          }
-        }
-      } catch (e) { /* 未就緒時安靜略過 */ }
-      if (window.matchMedia("(max-width: 980px)").matches)
-        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
-    });
-  });
-})();
-
-/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測就緒 ═══ */
-(function () {
-  const READY_FIGURES = 3; // notebook 全部跑完會渲染出的圖表數
-  const frame = document.getElementById("nb-frame");
-  const bar = document.getElementById("nb-status");
-  const txt = document.getElementById("nb-status-text");
-  const t0 = Date.now();
-  const timer = setInterval(() => {
-    try {
-      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
-      if (n >= READY_FIGURES) {
-        bar.classList.add("ready");
-        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
-        clearInterval(timer);
-      }
-    } catch (e) { /* not ready */ }
-    if (Date.now() - t0 > 180000) {
-      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
-      clearInterval(timer);
-    }
-  }, 1500);
-})();
 </script>
+<script src="/shared/lesson.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

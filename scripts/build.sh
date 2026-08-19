@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# 組裝整站 dist/：每課 = /<lesson>/（教學頁）+ /<lesson>/nb/（marimo WASM）+ /<lesson>/lesson.py
+# 組裝整站 dist/：自動發現 content/<topic>/<lesson>/lesson.py，不需手動維護課程清單。
+#
+# URL 映射（檔案擺在主題下，但課程網址永遠在根層——分享連結不因搬主題而斷）：
+#   content/index.html            → /
+#   content/<topic>/index.html    → /<topic>/
+#   content/<topic>/<id>/         → /<id>/（教學頁 index.html + lesson.py + nb/）
+#   content/shared/               → /shared/（骨架 CSS/JS + 共用 WASM assets）
 #
 # marimo export 出來的 698 個 assets 每課完全相同（檔名含 content hash），
-# 全部抽到 /shared/assets/ 共用：
-#   共用前 每課 713 檔 → Cloudflare Pages 免費版 20,000 檔上限約 28 課就撞牆
-#   共用後 首課 713 檔，之後每課約 15 檔 → 上千課才撞牆，順便省掉每課 27MB 重複上傳
+# 全部抽到 /shared/assets/ 共用：共用前每課 713 檔、共用後每課約 15 檔。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
@@ -16,8 +20,7 @@ rm -rf "$DIST"
 mkdir -p "$DIST"
 
 # 把該課的 nb/assets 併進 /shared/assets/，並改寫 index.html 的引用路徑。
-# assets 內部（JS chunk 互相 import、CSS 的 url()、wasm 載入）全是 ./ 相對路徑，
-# 整包搬走後仍在同一層，所以只有 index.html 需要改。
+# assets 內部全是 ./ 相對路徑，整包搬走後仍在同一層，所以只有 index.html 需要改。
 share_assets() {
   local nb="$1" id="$2"
   local shared="$DIST/shared/assets"
@@ -40,27 +43,36 @@ share_assets() {
   fi
 }
 
-build_lesson() {
-  local id="$1"
-  local src="$ROOT/lessons/$id"
+# ── 自動發現並編譯每一課（全部課共用 repo 根的 uv 專案／venv）
+for lesson_py in "$ROOT"/content/*/*/lesson.py; do
+  dir="$(dirname "$lesson_py")"
+  id="$(basename "$dir")"
   echo "── building lesson: $id"
+  if [ -d "$DIST/$id" ]; then
+    echo "   ✗ 課程 id 重複：$id（課程網址在根層，id 必須全站唯一）" >&2
+    exit 1
+  fi
   mkdir -p "$DIST/$id"
-  (cd "$src" && uv run marimo export html-wasm lesson.py -o "$DIST/$id/nb" --mode edit -f)
+  (cd "$ROOT" && uv run marimo export html-wasm "$lesson_py" -o "$DIST/$id/nb" --mode edit -f)
   # marimo 0.23 預設 auto_instantiate=false，且 export 不吃專案設定 → 後處理強制開啟自動執行
   sed -i 's/"auto_instantiate": false/"auto_instantiate": true/' "$DIST/$id/nb/index.html"
   share_assets "$DIST/$id/nb" "$id"
-  cp "$src/page/index.html" "$DIST/$id/index.html"
-  cp "$src/lesson.py" "$DIST/$id/lesson.py"
-}
+  cp "$dir/index.html" "$DIST/$id/index.html"
+  cp "$dir/lesson.py" "$DIST/$id/lesson.py"
+  # 雙軌課：GPU notebook 一併放上（頁面的「下載 <id>_gpu.py」連結用）
+  [ -f "$dir/${id}_gpu.py" ] && cp "$dir/${id}_gpu.py" "$DIST/$id/"
+done
 
-build_lesson decision-tree
-build_lesson classification
-build_lesson regression
-build_lesson clustering
-build_lesson fastmcp
-
-# site/ 整包併入：首頁（主題列表）、主題頁、shared/ 共用前端資源
-cp -r "$ROOT/site/." "$DIST/"
+# ── 首頁、主題頁、shared/（骨架 CSS/JS 併進已含 WASM assets 的 /shared/）
+cp "$ROOT/content/index.html" "$DIST/index.html"
+mkdir -p "$DIST/shared"
+cp -r "$ROOT/content/shared/." "$DIST/shared/"
+for topic_index in "$ROOT"/content/*/index.html; do
+  topic="$(basename "$(dirname "$topic_index")")"
+  [ "$topic" = "shared" ] && continue
+  mkdir -p "$DIST/$topic"
+  cp "$topic_index" "$DIST/$topic/index.html"
+done
 
 # 根目錄放 404.html 會關掉 Pages 的 SPA fallback（缺檔回 index.html + 200），
 # 缺檔改回真 404 —— 否則瀏覽器抓不到的 JS 會拿到 HTML，噴難懂的 module MIME 錯誤

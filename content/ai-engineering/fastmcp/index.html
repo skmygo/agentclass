@@ -1,145 +1,13 @@
 <!DOCTYPE html>
-<!--
-  課程教學頁模板（左教學 / 右 notebook）
-  ══════════════════════════════════════
-  用法：cp 到 lessons/<id>/page/index.html 後修改。
-  - 【必改】<title>、meta description、header 的主題連結、hero、各 section 內容、
-    課末導覽的連結、狀態列的 READY_FIGURES（= notebook 的圖表數）
-  - 【勿刪】header 品牌連結、下載 .py、單獨開啟實驗場、#nb-status 狀態列、
-    splitter.js 引入、≤980px 降級、prefers-reduced-motion、:focus-visible
-  - 【GPU 軌道課才需要】標記為 GPU 的區塊（純瀏覽器課由 scaffold 自動剝除；
-    這行說明不能寫出字面標記，否則會被剝除邏輯誤傷——實測踩過）
-  - 版面之下全部自由：章節數、互動設計、hero 玩法、語義色都是教學創作空間
-  - 課程頁不寫平台系統說明（Pyodide/WASM/marimo 是什麼一律不解釋，
-    學員需要的操作提示用自然口吻融入文案）
--->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FastMCP 4：把函式變成 AI 的工具 · AI 互動教室</title>
 <meta name="description" content="親手蓋一個 60 行的迷你 FastMCP，看懂 @tool 怎麼把型別提示變成 AI 的說明書、tools/call 怎麼分發，再用重播互動搞懂 FastMCP 4 的 UserSession。">
+<link rel="stylesheet" href="/shared/lesson.css">
 <style>
-  :root {
-    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
-    --bg: #FAFBF8;
-    --panel: #FFFFFF;
-    --ink: #1C2B33;
-    --ink-soft: #52646E;
-    --grid: #E4E9E2;
-    --chip-bg: #F0F4EE;
-    /* 課程語義色：一個概念一個顏色，左頁與 notebook 圖表共用——自由改 */
-    --c1: #4C72B0;
-    --c2: #DD8452;
-    --c3: #55A868;
-    --cut: #C44E52;
-    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    font-family: var(--sans); color: var(--ink); background: var(--bg);
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-
-  /* ── 頂列 ─────────────────────────────── */
-  header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 0 20px; height: 52px; flex: none;
-    background: var(--panel); border-bottom: 2px solid var(--ink);
-  }
-  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
-  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
-  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
-  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
-  header .brand .leaf { color: var(--c3); }
-  header .spacer { flex: 1; }
-  header a.tool {
-    font-size: 13px; text-decoration: none; color: var(--ink);
-    border: 1.5px solid var(--ink); border-radius: 999px;
-    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
-  }
-  header a.tool:hover { background: var(--ink); color: var(--panel); }
-  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
-  header a.tool.dl:hover { background: var(--c3); color: #fff; }
-
-  /* ── 左右分欄 ─────────────────────────── */
-  main { flex: 1; display: flex; min-height: 0; }
-  #lesson {
-    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
-    scroll-behavior: smooth;
-    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
-  }
-  #lab {
-    flex: 1; display: flex; flex-direction: column; min-width: 0;
-    border-left: 2px solid var(--ink); background: var(--panel);
-  }
-  #nb-status {
-    flex: none; display: flex; align-items: center; gap: 10px;
-    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
-    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
-  }
-  #nb-status .dot {
-    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-  #nb-status.ready .dot { background: var(--c3); animation: none; }
-  @keyframes pulse { 50% { opacity: .3; } }
-  #nb-frame { flex: 1; border: 0; width: 100%; }
-
-
-  /* ── 文章排版 ─────────────────────────── */
-  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
-  section { margin-top: 72px; }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--mono); font-size: 12px; font-weight: 700;
-    color: var(--cut); letter-spacing: .12em;
-  }
-  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
-  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
-  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
-  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
-  p b, li b { font-weight: 800; }
-  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
-  ul, ol { padding-left: 22px; }
-  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
-  .note {
-    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
-    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
-  }
-  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
-
-  /* 「到右邊做」chip：每節的行動點 */
-  .golab {
-    display: inline-flex; align-items: center; gap: 8px;
-    margin: 14px 0 4px; padding: 8px 16px;
-    font-size: 14px; font-weight: 800; font-family: inherit;
-    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
-    cursor: pointer; transition: transform .12s, background .15s;
-  }
-  .golab:hover { background: var(--cut); transform: translateX(3px); }
-  .golab::after { content: "▶"; font-size: 11px; }
-  .golab:focus-visible, a:focus-visible, button:focus-visible {
-    outline: 3px solid var(--c1); outline-offset: 2px;
-  }
-
-  /* 等寬程式碼塊 */
-  .codeblock {
-    font-family: var(--mono); font-size: 13.5px; background: var(--chip-bg);
-    border-radius: 8px; padding: 12px 16px; line-height: 1.8; margin: 14px 0;
-    overflow-x: auto; white-space: pre;
-  }
-
-  /* hero 互動卡（第一屏就有可以動手的東西） */
-  #hero { padding-top: 48px; }
-  .hero-demo {
-    margin-top: 26px; background: var(--panel);
-    border: 2px solid var(--ink); border-radius: 14px;
-    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
-  }
-  /* hero：接上 MCP 的對話玩具 */
+  /* hero：接上 MCP 的對話玩具（課程專屬） */
   .mcp-q {
     font-family: inherit; font-size: 13.5px; font-weight: 800;
     padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--ink);
@@ -159,58 +27,9 @@
     margin-top: 12px; overflow-x: auto; white-space: pre; color: var(--ink-soft);
   }
   #mcp-answer { font-size: 14.5px; line-height: 1.8; margin-top: 12px; font-weight: 700; }
-
-  /* 課程影片（選配）：YouTube 非公開 + youtube-nocookie 嵌入 */
-  .video-box {
-    margin-top: 22px; background: var(--panel);
-    border: 2px solid var(--ink); border-radius: 14px;
-    padding: 10px; box-shadow: 6px 6px 0 var(--grid);
-  }
-  .video-box .video-frame { aspect-ratio: 16 / 9; }
-  .video-box iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 8px; }
-
-  /* 資料表 */
-  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
-  th, td { border: 1px solid var(--grid); padding: 8px 10px; text-align: left; line-height: 1.6; }
-  th { background: var(--chip-bg); font-weight: 800; }
-
-  /* 圖（SVG 示意圖等） */
-  .fig { margin: 20px 0; }
-  .fig svg { width: 100%; height: auto; display: block; }
-  .fig figcaption { font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
-
-  /* 練習卡（分級挑戰） */
-  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
-  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
-  .ex p { margin: 6px 0 0; font-size: 14.5px; }
-
-
-  /* 課末導覽 */
-  .endnav { margin-top: 72px; display: grid; gap: 12px; }
-  .endnav a {
-    display: block; text-decoration: none; color: inherit;
-    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
-    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
-    transition: transform .15s, box-shadow .15s;
-  }
-  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
-  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
-  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
-
-  /* ── 窄螢幕：上下疊降級 ────────────────── */
-  @media (max-width: 980px) {
-    body { overflow: auto; }
-    main { flex-direction: column; }
-    #lesson { width: 100%; min-width: 0; overflow: visible; }
-    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    * { animation: none !important; transition: none !important; }
-    #lesson { scroll-behavior: auto; }
-  }
 </style>
 </head>
-<body>
+<body data-ready-figures="1">
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
@@ -389,7 +208,7 @@ if __name__ == "__main__":
 </main>
 
 <script>
-/* ═══ hero 互動：有手 vs 沒手（純 JS，不依賴 notebook）═══ */
+/* ═══ hero 互動：有手 vs 沒手（課程專屬）═══ */
 (function () {
   // 數字跟右邊 notebook 的 MENU 一致：珍奶 L=60、四季春 M=30/L=35
   const QA = [
@@ -427,53 +246,8 @@ if __name__ == "__main__":
   );
   render();
 })();
-
-
-/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
-(function () {
-  const frame = document.getElementById("nb-frame");
-  document.querySelectorAll(".golab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const mark = btn.dataset.nb;
-      try {
-        const doc = frame.contentDocument;
-        for (const h of doc.querySelectorAll("h1, h2, h3")) {
-          if (h.textContent.includes(mark)) {
-            h.scrollIntoView({ behavior: "smooth", block: "start" });
-            break;
-          }
-        }
-      } catch (e) { /* 未就緒時安靜略過 */ }
-      // 窄螢幕（上下疊）時，把視窗帶到實驗場
-      if (window.matchMedia("(max-width: 980px)").matches)
-        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
-    });
-  });
-})();
-
-/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測 Pyodide 就緒（同源才可行）═══ */
-(function () {
-  const READY_FIGURES = 1; // notebook 全部跑完會渲染出的圖表數（本課只有 4️⃣ 的長條圖）
-  const frame = document.getElementById("nb-frame");
-  const bar = document.getElementById("nb-status");
-  const txt = document.getElementById("nb-status-text");
-  const t0 = Date.now();
-  const timer = setInterval(() => {
-    try {
-      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
-      if (n >= READY_FIGURES) {
-        bar.classList.add("ready");
-        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
-        clearInterval(timer);
-      }
-    } catch (e) { /* not ready */ }
-    if (Date.now() - t0 > 180000) {
-      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
-      clearInterval(timer);
-    }
-  }, 1500);
-})();
 </script>
+<script src="/shared/lesson.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,225 @@
+/* ═══════════════════════════════════════════════════════════════
+   課程頁共用骨架（全站一份）——版面、頂列、左右欄、排版、練習卡、GPU 區版型
+   課程專屬的語義色與 hero 樣式寫在各課頁面的 <style> 覆蓋，不要改這裡的版面骨架。
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* 紙感底色系：全站一致，維持「同一間教室」體感 */
+  --bg: #FAFBF8;
+  --panel: #FFFFFF;
+  --ink: #1C2B33;
+  --ink-soft: #52646E;
+  --grid: #E4E9E2;
+  --chip-bg: #F0F4EE;
+  /* 課程語義色預設值：一個概念一個顏色，各課在自己的 <style> 覆蓋 */
+  --c1: #4C72B0;
+  --c2: #DD8452;
+  --c3: #55A868;
+  --cut: #C44E52;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--sans); color: var(--ink); background: var(--bg);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── 頂列 ─────────────────────────────── */
+header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; height: 52px; flex: none;
+  background: var(--panel); border-bottom: 2px solid var(--ink);
+}
+header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
+header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
+header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+header .brand .leaf { color: var(--c3); }
+header .spacer { flex: 1; }
+header a.tool {
+  font-size: 13px; text-decoration: none; color: var(--ink);
+  border: 1.5px solid var(--ink); border-radius: 999px;
+  padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+}
+header a.tool:hover { background: var(--ink); color: var(--panel); }
+header a.tool.dl { border-color: var(--c3); color: var(--c3); }
+header a.tool.dl:hover { background: var(--c3); color: #fff; }
+header a.tool.gpu { border-color: var(--c2); color: var(--c2); }
+header a.tool.gpu:hover { background: var(--c2); color: #fff; }
+
+/* ── 左右分欄 ─────────────────────────── */
+main { flex: 1; display: flex; min-height: 0; }
+#lesson {
+  width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+  scroll-behavior: smooth;
+  background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+}
+#lab {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+  border-left: 2px solid var(--ink); background: var(--panel);
+}
+#nb-status {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+  border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+}
+#nb-status .dot {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+#nb-status.ready .dot { background: var(--c3); animation: none; }
+@keyframes pulse { 50% { opacity: .3; } }
+#nb-frame { flex: 1; border: 0; width: 100%; }
+
+/* ── GPU 軌道（雙軌課才會出現這些元素；純瀏覽器課無此標記，規則閒置無害） ── */
+#nb-frame[hidden], #nb-status[hidden], #molab-panel[hidden] { display: none !important; }
+#lab-tabs {
+  flex: none; display: flex; gap: 0; background: var(--panel);
+  border-bottom: 2px solid var(--ink);
+}
+.labtab {
+  font-family: inherit; font-size: 13.5px; font-weight: 800;
+  padding: 9px 18px; border: 0; background: transparent; color: var(--ink-soft);
+  cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+}
+.labtab:hover { color: var(--ink); }
+.labtab.active { color: var(--ink); border-bottom-color: var(--cut); }
+.labtab.gpu.active { border-bottom-color: var(--c2); }
+.labtab:focus-visible { outline: 3px solid var(--c1); outline-offset: -3px; }
+#molab-panel { flex: 1; overflow-y: auto; background: #FFFDF9; }
+#molab-panel .panel-inner { max-width: 560px; margin: 0 auto; padding: 56px 36px; }
+#molab-panel h3 { font-size: 22px; font-weight: 900; margin: 10px 0 12px; line-height: 1.35; }
+#molab-panel p { font-size: 14.5px; line-height: 1.9; margin: 10px 0; }
+#molab-panel ol { padding-left: 22px; margin: 14px 0; }
+#molab-panel li { font-size: 14.5px; line-height: 1.9; margin: 5px 0; }
+#molab-panel .panel-btns { display: flex; flex-direction: column; gap: 10px; margin: 20px 0 8px; }
+.pbtn {
+  display: block; text-align: center; text-decoration: none;
+  font-size: 14.5px; font-weight: 800; padding: 11px 18px; border-radius: 999px;
+  border: 2px solid var(--c2); color: var(--c2);
+  transition: background .15s, color .15s;
+}
+.pbtn.primary { background: var(--c2); color: #fff; }
+.pbtn.primary:hover { background: #C06A38; }
+.pbtn:not(.primary):hover { background: var(--c2); color: #fff; }
+#molab-panel .panel-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; }
+.gpu-card {
+  border: 2px solid var(--c2); border-radius: 14px;
+  background: #FFFDF9; padding: 20px 24px; margin: 18px 0;
+  box-shadow: 6px 6px 0 #F5E8DC;
+}
+.gpu-card ol { margin: 10px 0; }
+.gpu-card .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.gpu-card a.btn {
+  display: inline-block; text-decoration: none; font-size: 14px; font-weight: 800;
+  padding: 9px 18px; border-radius: 999px; border: 2px solid var(--c2);
+  color: var(--c2); transition: background .15s, color .15s;
+}
+.gpu-card a.btn.primary { background: var(--c2); color: #fff; }
+.gpu-card a.btn.primary:hover { background: #C06A38; }
+.gpu-card a.btn:not(.primary):hover { background: var(--c2); color: #fff; }
+
+/* ── 文章排版 ─────────────────────────── */
+.wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+section { margin-top: 72px; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  color: var(--cut); letter-spacing: .12em;
+}
+.eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+p b, li b { font-weight: 800; }
+code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+ul, ol { padding-left: 22px; }
+li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+.note {
+  font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+  border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+}
+em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+/* 「到右邊做」chip：每節的行動點 */
+.golab {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 14px 0 4px; padding: 8px 16px;
+  font-size: 14px; font-weight: 800; font-family: inherit;
+  color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+  cursor: pointer; transition: transform .12s, background .15s;
+}
+.golab:hover { background: var(--cut); transform: translateX(3px); }
+.golab::after { content: "▶"; font-size: 11px; }
+.golab:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 3px solid var(--c1); outline-offset: 2px;
+}
+
+/* 等寬程式碼塊 */
+.codeblock {
+  font-family: var(--mono); font-size: 13.5px; background: var(--chip-bg);
+  border-radius: 8px; padding: 12px 16px; line-height: 1.8; margin: 14px 0;
+  overflow-x: auto; white-space: pre;
+}
+
+/* hero 互動卡（第一屏就有可以動手的東西；內容物樣式各課自訂） */
+#hero { padding-top: 48px; }
+.hero-demo {
+  margin-top: 26px; background: var(--panel);
+  border: 2px solid var(--ink); border-radius: 14px;
+  padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+}
+.hero-demo svg { width: 100%; height: auto; display: block; }
+.hero-demo .ctrl { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.hero-demo input[type=range] { flex: 1; accent-color: var(--ink); }
+.hero-demo .verdict { font-size: 14px; font-weight: 800; margin-top: 10px; }
+
+/* 課程影片（選配）：YouTube 非公開 + youtube-nocookie 嵌入 */
+.video-box {
+  margin-top: 22px; background: var(--panel);
+  border: 2px solid var(--ink); border-radius: 14px;
+  padding: 10px; box-shadow: 6px 6px 0 var(--grid);
+}
+.video-box .video-frame { aspect-ratio: 16 / 9; }
+.video-box iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 8px; }
+
+/* 資料表 */
+table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+th, td { border: 1px solid var(--grid); padding: 8px 10px; text-align: left; line-height: 1.6; }
+th { background: var(--chip-bg); font-weight: 800; }
+
+/* 圖（SVG 示意圖等） */
+.fig { margin: 20px 0; }
+.fig svg { width: 100%; height: auto; display: block; }
+.fig figcaption { font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+/* 練習卡（分級挑戰） */
+.ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+.ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+.ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+/* 課末導覽 */
+.endnav { margin-top: 72px; display: grid; gap: 12px; }
+.endnav a {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
+  padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
+  transition: transform .15s, box-shadow .15s;
+}
+.endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
+.endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+.endnav b { display: block; font-size: 16px; margin-top: 4px; }
+
+/* ── 窄螢幕：上下疊降級 ────────────────── */
+@media (max-width: 980px) {
+  body { overflow: auto; }
+  main { flex-direction: column; }
+  #lesson { width: 100%; min-width: 0; overflow: visible; }
+  #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  #lesson { scroll-behavior: auto; }
+}
