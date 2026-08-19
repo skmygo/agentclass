@@ -1,0 +1,18 @@
+# 課程專案模板：cp 到 lessons/<id>/pyproject.toml 後改 name，
+# 或直接 uv init && uv add marimo <科學套件們>（記得補 [tool.marimo.runtime] 區塊）
+[project]
+name = "LESSON_ID-lesson"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    # marimo 一律釘版且全站同版：版本不同 → export assets hash 不同 → 無法共用、dist 爆量
+    "marimo==0.23.16",
+    "matplotlib>=3.11.1",
+    "numpy>=2.5.1",
+    "pandas>=3.0.5",
+    "scikit-learn>=1.9.0",
+]
+
+# export 不吃這個設定（build.sh 已用 sed 後處理），留著是給本機 marimo edit 用
+[tool.marimo.runtime]
+auto_instantiate = true

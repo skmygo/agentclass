@@ -37,7 +37,15 @@
     background: var(--panel);
     border-bottom: 2px solid var(--ink);
   }
-  header .brand { font-weight: 900; font-size: 15px; letter-spacing: .02em; }
+  header a.brand {
+    font-weight: 900; font-size: 15px; letter-spacing: .02em;
+    color: inherit; text-decoration: none;
+  }
+  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  header a.topic {
+    font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none;
+  }
+  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
   header .brand .leaf { color: var(--virginica); }
   header .spacer { flex: 1; }
   header a.tool {
@@ -162,6 +170,19 @@
   .hero-gini { margin-left: auto; font-family: var(--mono); font-size: 13.5px; color: var(--ink-soft); }
   .hero-gini b { color: var(--cut); font-size: 16px; }
 
+  /* ── 課程影片 ─────────────────────────── */
+  .video-box {
+    margin-top: 22px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 10px;
+    box-shadow: 6px 6px 0 var(--grid);
+  }
+  .video-box .video-frame { aspect-ratio: 16 / 9; }
+  .video-box iframe {
+    display: block; width: 100%; height: 100%;
+    border: 0; border-radius: 8px;
+  }
+
   /* ── Gini 1D 互動 ─────────────────────── */
   .gini-demo {
     background: var(--panel); border: 1.5px solid var(--ink);
@@ -186,10 +207,6 @@
   .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
   .ex p { margin: 6px 0 0; font-size: 14.5px; }
 
-  footer.pagefoot {
-    margin-top: 88px; padding-top: 24px; border-top: 2px solid var(--ink);
-    font-size: 13px; color: var(--ink-soft); line-height: 1.9;
-  }
 
   /* ── 窄螢幕：上下疊 ────────────────────── */
   @media (max-width: 980px) {
@@ -207,7 +224,8 @@
 <body>
 
 <header>
-  <div class="brand"><span class="leaf">◥</span> AI 互動教室 · 機器學習</div>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/ml-basics/">‹ 學基礎機器學習</a>
   <div class="spacer"></div>
   <a class="tool dl" href="lesson.py" download>下載 .py</a>
   <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
@@ -244,6 +262,26 @@
     首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
     改壞了重新整理就復原——這是你的沙盒，盡量玩。
   </p>
+</section>
+
+<!-- ── 影片 ─────────────────────────────── -->
+<section id="video">
+  <span class="eyebrow">VIDEO · 課程影片</span>
+  <h2>先看影片，抓個整體感</h2>
+  <p>
+    開始動手之前，先花幾分鐘看完這支影片，對決策樹有個全貌。
+    看不懂的地方不用停——<b>接下來的每一節都會把它拆開重講，還讓你親手做一次</b>。
+  </p>
+  <div class="video-box">
+    <div class="video-frame">
+      <iframe
+        src="https://www.youtube-nocookie.com/embed/7zEzw7aUiXQ"
+        title="課程影片：決策樹"
+        loading="lazy"
+        allowfullscreen
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
 </section>
 
 <!-- ── 1 ──────────────────────────────── -->
@@ -504,11 +542,6 @@
     <li><b>梯度提升樹</b>（XGBoost / LightGBM）——讓每棵新樹專門修前面的錯，表格資料的常勝軍。</li>
     <li>它們的基本單位，都是你今天親手切過的這棵樹。</li>
   </ul>
-  <footer class="pagefoot">
-    右側 Python 由 <b>marimo + Pyodide (WebAssembly)</b> 驅動，完全在你的瀏覽器內執行；
-    本頁不收集任何資料，你的修改只存在你的分頁裡。
-    圖中藍 / 橘 / 綠恆指 setosa / versicolor / virginica 三品種。
-  </footer>
 </section>
 
 </div><!-- /wrap -->
@@ -692,5 +725,6 @@
   }, 1500);
 })();
 </script>
+<script src="/shared/splitter.js" defer></script>
 </body>
 </html>

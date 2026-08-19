@@ -65,6 +65,7 @@ uv init + uv add marimo scikit-learn matplotlib pandas numpy   （marimo 0.23.16
 
 - 手機版只有基本上下疊降級；雙欄對照本質是桌面場景
 - 左頁「深連結到某節」（`#s4` 錨點存在但未在 UI 曝光）
-- smoke-test.mjs 的 playwright 依賴是借別的專案的安裝，skill 化時要自帶
+- ~~smoke-test.mjs 的 playwright 依賴是借別的專案的安裝，skill 化時要自帶~~
+  （2026-08-19 已完成：repo 根目錄 package.json 自帶 playwright devDependency）
 - 多課 index 目前手寫；課多了應由 build.sh 從 lessons/*/meta 生成
 - 練習題沒有解答頁；可考慮 notebook 內折疊解答 cell 的慣例

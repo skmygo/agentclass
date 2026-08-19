@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<!--
+  課程教學頁模板（左教學 / 右 notebook）
+  ══════════════════════════════════════
+  用法：cp 到 lessons/<id>/page/index.html 後修改。
+  - 【必改】<title>、meta description、header 的主題連結、hero、各 section 內容、
+    課末導覽的連結、狀態列的 READY_FIGURES（= notebook 的圖表數）
+  - 【勿刪】header 品牌連結、下載 .py、單獨開啟實驗場、#nb-status 狀態列、
+    splitter.js 引入、≤980px 降級、prefers-reduced-motion、:focus-visible
+  - 【GPU 軌道課才需要】標記為 GPU 的區塊（純瀏覽器課由 scaffold 自動剝除；
+    這行說明不能寫出字面標記，否則會被剝除邏輯誤傷——實測踩過）
+  - 版面之下全部自由：章節數、互動設計、hero 玩法、語義色都是教學創作空間
+  - 課程頁不寫平台系統說明（Pyodide/WASM/marimo 是什麼一律不解釋，
+    學員需要的操作提示用自然口吻融入文案）
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FastMCP 4：把函式變成 AI 的工具 · AI 互動教室</title>
+<meta name="description" content="親手蓋一個 60 行的迷你 FastMCP，看懂 @tool 怎麼把型別提示變成 AI 的說明書、tools/call 怎麼分發，再用重播互動搞懂 FastMCP 4 的 UserSession。">
+<style>
+  :root {
+    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --chip-bg: #F0F4EE;
+    /* 課程語義色：一個概念一個顏色，左頁與 notebook 圖表共用——自由改 */
+    --c1: #4C72B0;
+    --c2: #DD8452;
+    --c3: #55A868;
+    --cut: #C44E52;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── 頂列 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel); border-bottom: 2px solid var(--ink);
+  }
+  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
+  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
+  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  header .brand .leaf { color: var(--c3); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
+  header a.tool.dl:hover { background: var(--c3); color: #fff; }
+
+  /* ── 左右分欄 ─────────────────────────── */
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink); background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--c3); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+
+
+  /* ── 文章排版 ─────────────────────────── */
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+  /* 「到右邊做」chip：每節的行動點 */
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+    cursor: pointer; transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, a:focus-visible, button:focus-visible {
+    outline: 3px solid var(--c1); outline-offset: 2px;
+  }
+
+  /* 等寬程式碼塊 */
+  .codeblock {
+    font-family: var(--mono); font-size: 13.5px; background: var(--chip-bg);
+    border-radius: 8px; padding: 12px 16px; line-height: 1.8; margin: 14px 0;
+    overflow-x: auto; white-space: pre;
+  }
+
+  /* hero 互動卡（第一屏就有可以動手的東西） */
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  /* hero：接上 MCP 的對話玩具 */
+  .mcp-q {
+    font-family: inherit; font-size: 13.5px; font-weight: 800;
+    padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--ink);
+    background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  .mcp-q.active { background: var(--ink); color: #fff; }
+  #mcp-toggle {
+    font-family: inherit; font-size: 13.5px; font-weight: 800;
+    padding: 6px 16px; border-radius: 999px; border: 2px solid var(--c3);
+    background: var(--panel); color: var(--c3); cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  #mcp-toggle.on { background: var(--c3); color: #fff; }
+  #mcp-wire {
+    font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    background: var(--chip-bg); border-radius: 8px; padding: 8px 12px;
+    margin-top: 12px; overflow-x: auto; white-space: pre; color: var(--ink-soft);
+  }
+  #mcp-answer { font-size: 14.5px; line-height: 1.8; margin-top: 12px; font-weight: 700; }
+
+  /* 課程影片（選配）：YouTube 非公開 + youtube-nocookie 嵌入 */
+  .video-box {
+    margin-top: 22px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 10px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .video-box .video-frame { aspect-ratio: 16 / 9; }
+  .video-box iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 8px; }
+
+  /* 資料表 */
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--grid); padding: 8px 10px; text-align: left; line-height: 1.6; }
+  th { background: var(--chip-bg); font-weight: 800; }
+
+  /* 圖（SVG 示意圖等） */
+  .fig { margin: 20px 0; }
+  .fig svg { width: 100%; height: auto; display: block; }
+  .fig figcaption { font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+  /* 練習卡（分級挑戰） */
+  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+
+  /* 課末導覽 */
+  .endnav { margin-top: 72px; display: grid; gap: 12px; }
+  .endnav a {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
+    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
+  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
+
+  /* ── 窄螢幕：上下疊降級 ────────────────── */
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/ai-engineering/">‹ 學 AI 工程</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">FASTMCP 4 · MODEL CONTEXT PROTOCOL</span>
+  <h1>FastMCP 4：把函式<br>變成 AI 的工具</h1>
+  <p style="margin-top:18px">
+    AI 很會聊，但它查不到你的菜單、動不了你的系統——它<b>沒有手</b>。
+    給 AI 接上工具的標準協定叫 <b>MCP</b>，而 <b>FastMCP</b> 是用 Python
+    蓋工具伺服器最省事的方法。先感受一下有手跟沒手的差別：
+  </p>
+
+  <div class="hero-demo" id="mcp-demo">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:13.5px;font-weight:800">顧客問 AI：</span>
+      <button class="mcp-q active" data-q="0">大杯珍奶多少錢？</button>
+      <button class="mcp-q" data-q="1">你們有什麼茶？</button>
+      <span style="flex:1"></span>
+      <button id="mcp-toggle">🔌 接上 MCP</button>
+    </div>
+    <div id="mcp-wire" hidden></div>
+    <div id="mcp-answer"></div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    這一課刻意<b>一個套件都不裝</b>，所以載得比別課快——通常半分鐘內就緒，
+    正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，改壞了重新整理就復原。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 問題</span>
+  <h2>AI 很會聊，但沒有手</h2>
+  <p>
+    你寫好了兩個完全正常的函式：查菜單、下單。人類工程師看一眼就會用，
+    但 AI 對它們<b>視而不見</b>——它不知道這些函式存在、不知道參數要填什麼、
+    也沒有標準方式呼叫。過去每家把工具接給 AI 都自己發明一套接法，
+    直到 2024 年底 Anthropic 開源了 <b>MCP</b>（Model Context Protocol）：
+    AI 界的 USB-C，一套協定接所有工具。
+  </p>
+  <p>
+    <b>FastMCP</b> 就是用 Python 蓋 MCP 伺服器的主流框架
+    （它的 1.0 版好用到直接被收編進官方 SDK）。這一課我們不背 API——
+    直接<b>親手蓋一個 60 行的迷你版</b>，把它的兩個核心魔法拆給你看。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊看那兩個 AI 看不到的函式</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 魔法一</span>
+  <h2>一個裝飾器，換一份說明書</h2>
+  <p>真的 FastMCP 長這樣——這幾行就是一個<b>完整可上線</b>的 MCP 伺服器：</p>
+  <div class="codeblock">from fastmcp import FastMCP
+
+mcp = FastMCP("Demo 🚀")
+
+@mcp.tool
+def add(a: int, b: int) -> int:
+    """Add two numbers"""
+    return a + b
+
+if __name__ == "__main__":
+    mcp.run()</div>
+  <p>
+    魔法全在 <code>@mcp.tool</code>：它讀你的<b>型別提示</b>和 <b>docstring</b>，
+    自動生成一份 AI 看得懂的 JSON Schema「說明書」——參數叫什麼、什麼型別、
+    哪些必填，你一個字都不用多寫。
+  </p>
+  <p>
+    右邊我們用 <code>inspect</code> 重現了這個裝飾器。掛上去之後，
+    用下拉選單看每個工具自動長出的說明書；然後改改函式的型別提示，
+    看說明書<b>跟著變</b>。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊看說明書怎麼自動長出來</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 魔法二</span>
+  <h2>統一插座：tools/list 與 tools/call</h2>
+  <p>
+    有了說明書，還缺標準呼叫方式。MCP 規定所有工具伺服器都聽同樣兩句話：
+    <code>tools/list</code>（「你有哪些工具？」）和
+    <code>tools/call</code>（「幫我呼叫這個、參數在此」）。
+    AI 助理只要會講這兩句，就能用<b>全世界任何一台</b> MCP 伺服器——
+    這就是「USB-C」的意思。
+  </p>
+  <p>
+    右邊的 <code>handle()</code> 是迷你伺服器的心臟：收 JSON、查註冊表、
+    <b>用說明書驗參數</b>、執行、回 JSON。注意示範對話的最後一筆——
+    漏填參數的請求被說明書直接擋下，你的函式根本不會被執行。
+    然後換你當 AI：自己送一筆請求進去。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊親手送一筆 tools/call</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · FASTMCP 4</span>
+  <h2>4.0 的招牌：斷線也記得你</h2>
+  <p>
+    新版 MCP 協定是 <b>sessionless</b>：每個請求各自獨立，沒有「保持連線」。
+    對伺服器超省資源，但問題來了——怎麼記住「這位顧客點過什麼」？
+    FastMCP 4 的答案是 <code>UserSession</code>：伺服器端幫每個使用者留一個
+    <b>置物櫃</b>，鑰匙是認證身分，跨請求、跨裝置都開得到同一格。
+  </p>
+  <p>
+    到右邊拉「重播」滑桿：小明和小美的請求交錯抵達、各自獨立，
+    伺服器的置物櫃卻始終分得清清楚楚——這就是
+    <em class="cut">無狀態傳輸上的有狀態應用</em>，FastMCP 4 的核心主題。
+  </p>
+  <p>4.0 一起帶來的還有：</p>
+  <ul>
+    <li><b>互動工具</b>：工具可以跨請求向使用者追問（多輪往返），不用一次問齊。</li>
+    <li><b>背景任務</b>：長工作丟給 <code>fastmcp-tasks</code> 擴充，不用掛著連線等。</li>
+    <li><b>企業身分</b>：agent 能以使用者的公司身分行事，免每次跳 OAuth。</li>
+    <li><b>新舊通吃</b>：同一台伺服器自動跟新舊兩代協定的客戶端協商。</li>
+  </ul>
+  <p class="note">
+    誠實說明：FastMCP 4 目前是 <b>beta</b>（最新 4.0.0b3），官方建議釘死版本號。
+    想在自己電腦跑真的：穩定版 <code>uv add fastmcp</code>、
+    嘗鮮版 <code>uv add "fastmcp==4.0.0b3"</code>，
+    把第 2 節那段程式存成 server.py 後 <code>uv run server.py</code> 就是一台伺服器。
+    另外 4.0 移除了 <code>ctx.sample()</code> 與 <code>ctx.list_roots()</code>，升級前先查遷移指南。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊重播請求，看置物櫃分身術</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最下面有一格「你的實驗區」。三個挑戰，由易到難：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在 <code>MENU</code> 加一款你愛喝的，回到第 3 節的搜尋框搜搜看。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>照實驗區的開頭，寫一個 <code>recommend(budget: int)</code> 工具並註冊——
+       注意說明書是自動長的：改型別提示，schema 跟著變。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>讓 <code>handle()</code> 多聽一句 <code>resources/list</code>——
+       這是 MCP 第二種能力「資源」的雛形，你已經有能力自己發明它。</p>
+  </div>
+  <button class="golab" data-nb="5️⃣">到右邊的實驗區開工</button>
+</section>
+
+<!-- 課末導覽 -->
+<div class="endnav">
+  <a href="/ai-engineering/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 AI 工程」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：有手 vs 沒手（純 JS，不依賴 notebook）═══ */
+(function () {
+  // 數字跟右邊 notebook 的 MENU 一致：珍奶 L=60、四季春 M=30/L=35
+  const QA = [
+    {
+      dry: "抱歉，我不知道你們店裡的品項和價格 🤷",
+      wire: '→ tools/call  search_menu {"keyword": "珍珠"}\n← {"result": {"珍珠奶茶": {"M": 50, "L": 60}}}',
+      wet: "珍珠奶茶大杯是 NT$60，要直接幫你下單嗎？",
+    },
+    {
+      dry: "我沒有你們的菜單，說不出有哪些茶 🤷",
+      wire: '→ tools/call  search_menu {"keyword": "茶"}\n← {"result": {"珍珠奶茶": {"M": 50, "L": 60}, "四季春茶": {"M": 30, "L": 35}}}',
+      wet: "有珍珠奶茶（M 50／L 60）和四季春茶（M 30／L 35）！",
+    },
+  ];
+  let plugged = false, q = 0;
+  const toggle = document.getElementById("mcp-toggle");
+  const wire = document.getElementById("mcp-wire");
+  const answer = document.getElementById("mcp-answer");
+  function render() {
+    wire.hidden = !plugged;
+    wire.textContent = QA[q].wire;
+    answer.textContent = "AI：" + (plugged ? QA[q].wet : QA[q].dry);
+    answer.style.color = plugged ? "var(--c3)" : "var(--ink-soft)";
+    toggle.textContent = plugged ? "⚡ 拔掉 MCP" : "🔌 接上 MCP";
+    toggle.classList.toggle("on", plugged);
+  }
+  toggle.addEventListener("click", () => { plugged = !plugged; render(); });
+  document.querySelectorAll(".mcp-q").forEach(btn =>
+    btn.addEventListener("click", () => {
+      q = Number(btn.dataset.q);
+      document.querySelectorAll(".mcp-q").forEach(b =>
+        b.classList.toggle("active", b === btn));
+      render();
+    })
+  );
+  render();
+})();
+
+
+/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        for (const h of doc.querySelectorAll("h1, h2, h3")) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 未就緒時安靜略過 */ }
+      // 窄螢幕（上下疊）時，把視窗帶到實驗場
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測 Pyodide 就緒（同源才可行）═══ */
+(function () {
+  const READY_FIGURES = 1; // notebook 全部跑完會渲染出的圖表數（本課只有 4️⃣ 的長條圖）
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= READY_FIGURES) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

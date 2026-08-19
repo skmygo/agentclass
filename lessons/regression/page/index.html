@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>迴歸：畫一條最不冤枉的線 · AI 互動教室</title>
+<meta name="description" content="從手搖飲攤 48 天的銷量學會最小平方法與過擬合：拉高多項式次數，看模型從「太簡單」一路走到「背雜訊」。">
+<style>
+  :root {
+    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --chip-bg: #F0F4EE;
+    /* 課程語義色：模型線＝藍、誤差＝紅，左頁與 notebook 圖表共用 */
+    --c1: #4C72B0;   /* model line 模型 */
+    --c2: #DD8452;
+    --c3: #55A868;
+    --cut: #C44E52;  /* error 誤差 */
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── 頂列 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel); border-bottom: 2px solid var(--ink);
+  }
+  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
+  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
+  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  header .brand .leaf { color: var(--c3); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
+  header a.tool.dl:hover { background: var(--c3); color: #fff; }
+
+  /* ── 左右分欄 ─────────────────────────── */
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink); background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--c3); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+
+  /* ── 文章排版 ─────────────────────────── */
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+    cursor: pointer; transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, a:focus-visible, button:focus-visible {
+    outline: 3px solid var(--c1); outline-offset: 2px;
+  }
+
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .hero-demo svg { width: 100%; height: auto; display: block; }
+  .hero-demo .ctrl { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .hero-demo input[type=range] { flex: 1; accent-color: var(--ink); }
+  .hero-demo .verdict { font-size: 14px; font-weight: 800; margin-top: 10px; }
+
+  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+  .endnav { margin-top: 72px; display: grid; gap: 12px; }
+  .endnav a {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
+    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
+  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
+
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/ml-basics/">‹ 學基礎機器學習</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">REGRESSION · 迴歸</span>
+  <h1>迴歸：畫一條<br>最不冤枉的線</h1>
+  <p style="margin-top:18px">
+    上一課猜的是「<b>是哪一種</b>」，這一課猜「<b>是多少</b>」——明天 33°C，
+    冰飲會賣幾杯？<b>迴歸</b>就是從散落的點裡找出那條趨勢線。
+    但線有無限多條，哪條才對？先用手感受一下：轉動這條線，
+    紅色細線是每個點被「冤枉」的量，把<b>總冤枉值</b>壓到最低試試——
+  </p>
+
+  <div class="hero-demo">
+    <svg id="reg-svg" viewBox="0 0 560 230" role="img" aria-label="最小平方法示意">
+      <g id="reg-res"></g>
+      <line id="reg-line" stroke="#4C72B0" stroke-width="3"></line>
+      <g id="reg-dots"></g>
+    </svg>
+    <div class="ctrl">
+      <label for="reg-range" style="font-size:13px;font-weight:800;white-space:nowrap">轉動線</label>
+      <input id="reg-range" type="range" min="-95" max="25" value="20" aria-label="調整直線斜率">
+    </div>
+    <div class="verdict" id="reg-verdict"></div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 觀察</span>
+  <h2>氣溫和銷量的關係</h2>
+  <p>
+    右邊有一個飲料攤 48 天的紀錄：<b>當日最高溫</b>對<b>冰飲銷量</b>。
+    趨勢很明顯（越熱賣越多），但點不會乖乖排成一條線——
+    同樣 30°C 的兩天，銷量可能差二十杯。假日、下雨、隔壁施工……
+    這些我們沒記到的因素，統稱<b>雜訊</b>。
+  </p>
+  <p>
+    迴歸的任務從來不是「穿過每一個點」（那是雜訊，不值得追），
+    而是找出雜訊底下的<b>趨勢</b>。記住這句話，第 3 節會回來收帳。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊看 48 天的紀錄</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 方法</span>
+  <h2>最小平方法：錯得最少的那條線</h2>
+  <p>
+    你剛剛在上面轉線時做的事，有個正式名字：<b>最小平方法</b>——
+    把每個點被冤枉的量（垂直距離）平方後加總，找讓總和最小的模型。
+    平方有兩個用意：正負不抵銷，而且<b>大錯罰得特別重</b>。
+  </p>
+  <p>
+    右邊的模型多了一個旋鈕：<b>彎曲程度</b>（多項式次數）。拉拉看：
+  </p>
+  <ul>
+    <li><b>次數 1</b>（直線）：最冷和最熱的日子都猜太低、中段又猜太高——
+      灰色誤差線的方向<b>有規律</b>，代表模型太簡單，趨勢沒抓完。</li>
+    <li><b>次數 2、3</b>：曲線貼上趨勢，誤差明顯縮小。</li>
+    <li><b>次數 12 以上</b>：曲線開始為了個別的點扭來扭去。
+      誤差數字還在變小——但你心裡應該開始不安了。</li>
+  </ul>
+  <button class="golab" data-nb="2️⃣">到右邊拉「彎曲程度」看誤差</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 陷阱</span>
+  <h2>過擬合：太會背，反而不會考</h2>
+  <p>
+    剛剛的誤差有個陷阱：那是<b>訓練誤差</b>——模型看著答案算出來的分數，
+    次數越高只會越好看。真正的考驗是<b>沒看過的日子</b>。
+    右邊把 48 天拆成 36 天給模型學、12 天藏起來當考題，每個彎度都考一次：
+  </p>
+  <ul>
+    <li><b style="color:var(--c1)">訓練誤差</b>一路下降——越彎越能把看過的點背起來。</li>
+    <li><b style="color:var(--cut)">測試誤差</b>先降後升——貼近真實趨勢時最低，
+      開始背雜訊之後反而越考越差。這就是<em class="cut">過擬合</em>。</li>
+  </ul>
+  <p>
+    挑模型不是挑訓練分數最高的，是挑<b>測試誤差最低的那個彎度</b>。
+    這個 U 型曲線是整個機器學習最重要的一張圖，之後每一課都會再遇到它。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊看訓練 vs 測試誤差</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最下面有一格「你的實驗區」。三個挑戰，由易到難：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <code>my_degree</code> 改成 15、<code>ask_temp</code> 改成 40，
+       看它猜幾杯——這個模型會給你一個<b>負的</b>銷量。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>同樣問 40°C：次數 2 和次數 12 的答案差多少？哪個你敢拿去備料？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>回到 1️⃣ 把雜訊從 9 改成 25，再看 3️⃣ 的紅線最低點移去哪——
+       雜訊越大，模型該更彎還是更直？先猜，再驗證。</p>
+  </div>
+  <button class="golab" data-nb="4️⃣">到右邊的實驗區開工</button>
+</section>
+
+<div class="endnav">
+  <a href="/clustering/">
+    <span class="tag">下一課</span>
+    <b>分群：沒有答案也能找出結構 →</b>
+  </a>
+  <a href="/ml-basics/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學基礎機器學習」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：轉線壓低總冤枉值（純 SVG/JS，不依賴 notebook）═══ */
+(function () {
+  const pts = [
+    [60, 178], [115, 148], [170, 155], [225, 116], [280, 128],
+    [335, 92], [390, 102], [445, 66], [500, 58],
+  ];
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  // 解析解：最小平方的最佳斜率（用來標示「你找到了」）
+  const bestM = pts.reduce((s, p) => s + (p[0] - cx) * (p[1] - cy), 0) /
+                pts.reduce((s, p) => s + (p[0] - cx) ** 2, 0);
+  const dotsG = document.getElementById("reg-dots");
+  const resG = document.getElementById("reg-res");
+  const line = document.getElementById("reg-line");
+  const range = document.getElementById("reg-range");
+  const verdict = document.getElementById("reg-verdict");
+
+  const resLines = pts.map(p => {
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("x1", p[0]); l.setAttribute("x2", p[0]);
+    l.setAttribute("stroke", "#C44E52"); l.setAttribute("stroke-width", "1.5");
+    resG.appendChild(l);
+    return l;
+  });
+  pts.forEach(p => {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", p[0]); c.setAttribute("cy", p[1]); c.setAttribute("r", 7);
+    c.setAttribute("fill", "#1C2B33"); c.setAttribute("stroke", "#fff");
+    c.setAttribute("stroke-width", "1.5");
+    dotsG.appendChild(c);
+  });
+
+  let sseBest = null;
+  function sseOf(m) {
+    return pts.reduce((s, p) => s + (p[1] - (cy + m * (p[0] - cx))) ** 2, 0);
+  }
+  sseBest = sseOf(bestM);
+
+  function draw() {
+    const m = Number(range.value) / 100;
+    line.setAttribute("x1", 20);  line.setAttribute("y1", cy + m * (20 - cx));
+    line.setAttribute("x2", 540); line.setAttribute("y2", cy + m * (540 - cx));
+    pts.forEach((p, i) => {
+      resLines[i].setAttribute("y1", p[1]);
+      resLines[i].setAttribute("y2", cy + m * (p[0] - cx));
+    });
+    const sse = sseOf(m);
+    const found = sse < sseBest * 1.05;
+    verdict.innerHTML =
+      `總冤枉值：<span style="color:var(--cut)">${Math.round(sse)}</span>` +
+      (found
+        ? ` <span style="color:var(--c3)">← 就是這條！錯得最少的線</span>`
+        : `（還能更低）`);
+  }
+  range.addEventListener("input", draw);
+  draw();
+})();
+
+/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        for (const h of doc.querySelectorAll("h1, h2, h3")) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 未就緒時安靜略過 */ }
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測就緒 ═══ */
+(function () {
+  const READY_FIGURES = 3; // notebook 全部跑完會渲染出的圖表數
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= READY_FIGURES) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# marimo 純 .py cell 格式的固有樣態，不是 bug：
+#   B018    cell 以「最後運算式」渲染輸出（圖表就是這樣顯示的）
+#   PLR1711 marimo 產生的 cell 函式一律以 return 收尾
+[lint.per-file-ignores]
+"lessons/*/lesson.py" = ["B018", "PLR1711"]
+"lessons/*/*_gpu.py" = ["B018", "PLR1711"]

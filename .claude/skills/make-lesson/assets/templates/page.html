@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<!--
+  課程教學頁模板（左教學 / 右 notebook）
+  ══════════════════════════════════════
+  用法：cp 到 lessons/<id>/page/index.html 後修改。
+  - 【必改】<title>、meta description、header 的主題連結、hero、各 section 內容、
+    課末導覽的連結、狀態列的 READY_FIGURES（= notebook 的圖表數）
+  - 【勿刪】header 品牌連結、下載 .py、單獨開啟實驗場、#nb-status 狀態列、
+    splitter.js 引入、≤980px 降級、prefers-reduced-motion、:focus-visible
+  - 【GPU 軌道課才需要】標記為 GPU 的區塊（純瀏覽器課由 scaffold 自動剝除；
+    這行說明不能寫出字面標記，否則會被剝除邏輯誤傷——實測踩過）
+  - 版面之下全部自由：章節數、互動設計、hero 玩法、語義色都是教學創作空間
+  - 課程頁不寫平台系統說明（Pyodide/WASM/marimo 是什麼一律不解釋，
+    學員需要的操作提示用自然口吻融入文案）
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>課程標題 · AI 互動教室</title>
+<meta name="description" content="一句話課程簡介（搜尋結果與分享預覽會用到）">
+<style>
+  :root {
+    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --chip-bg: #F0F4EE;
+    /* 課程語義色：一個概念一個顏色，左頁與 notebook 圖表共用——自由改 */
+    --c1: #4C72B0;
+    --c2: #DD8452;
+    --c3: #55A868;
+    --cut: #C44E52;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── 頂列 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel); border-bottom: 2px solid var(--ink);
+  }
+  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
+  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
+  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  header .brand .leaf { color: var(--c3); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
+  header a.tool.dl:hover { background: var(--c3); color: #fff; }
+  /* [GPU] 頂列的 GPU 軌道捷徑 */
+  header a.tool.gpu { border-color: var(--c2); color: var(--c2); }
+  header a.tool.gpu:hover { background: var(--c2); color: #fff; }
+  /* [/GPU] */
+
+  /* ── 左右分欄 ─────────────────────────── */
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink); background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--c3); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+
+  /* [GPU] 右欄分頁列＋molab 導流面板（molab 拒絕被 iframe 嵌入，只能導流） */
+  #nb-frame[hidden], #nb-status[hidden], #molab-panel[hidden] { display: none !important; }
+  #lab-tabs {
+    flex: none; display: flex; gap: 0; background: var(--panel);
+    border-bottom: 2px solid var(--ink);
+  }
+  .labtab {
+    font-family: inherit; font-size: 13.5px; font-weight: 800;
+    padding: 9px 18px; border: 0; background: transparent; color: var(--ink-soft);
+    cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+    transition: color .15s, border-color .15s;
+  }
+  .labtab:hover { color: var(--ink); }
+  .labtab.active { color: var(--ink); border-bottom-color: var(--cut); }
+  .labtab.gpu.active { border-bottom-color: var(--c2); }
+  .labtab:focus-visible { outline: 3px solid var(--c1); outline-offset: -3px; }
+  #molab-panel { flex: 1; overflow-y: auto; background: #FFFDF9; }
+  #molab-panel .panel-inner { max-width: 560px; margin: 0 auto; padding: 56px 36px; }
+  #molab-panel h3 { font-size: 22px; font-weight: 900; margin: 10px 0 12px; line-height: 1.35; }
+  #molab-panel p { font-size: 14.5px; line-height: 1.9; margin: 10px 0; }
+  #molab-panel ol { padding-left: 22px; margin: 14px 0; }
+  #molab-panel li { font-size: 14.5px; line-height: 1.9; margin: 5px 0; }
+  #molab-panel .panel-btns { display: flex; flex-direction: column; gap: 10px; margin: 20px 0 8px; }
+  .pbtn {
+    display: block; text-align: center; text-decoration: none;
+    font-size: 14.5px; font-weight: 800; padding: 11px 18px; border-radius: 999px;
+    border: 2px solid var(--c2); color: var(--c2);
+    transition: background .15s, color .15s;
+  }
+  .pbtn.primary { background: var(--c2); color: #fff; }
+  .pbtn.primary:hover { background: #C06A38; }
+  .pbtn:not(.primary):hover { background: var(--c2); color: #fff; }
+  #molab-panel .panel-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; }
+  /* [/GPU] */
+
+  /* ── 文章排版 ─────────────────────────── */
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+  /* 「到右邊做」chip：每節的行動點 */
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+    cursor: pointer; transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, a:focus-visible, button:focus-visible {
+    outline: 3px solid var(--c1); outline-offset: 2px;
+  }
+
+  /* 等寬程式碼塊 */
+  .codeblock {
+    font-family: var(--mono); font-size: 13.5px; background: var(--chip-bg);
+    border-radius: 8px; padding: 12px 16px; line-height: 1.8; margin: 14px 0;
+    overflow-x: auto; white-space: pre;
+  }
+
+  /* hero 互動卡（第一屏就有可以動手的東西） */
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+  }
+
+  /* 課程影片（選配）：YouTube 非公開 + youtube-nocookie 嵌入 */
+  .video-box {
+    margin-top: 22px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 10px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .video-box .video-frame { aspect-ratio: 16 / 9; }
+  .video-box iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 8px; }
+
+  /* 資料表 */
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--grid); padding: 8px 10px; text-align: left; line-height: 1.6; }
+  th { background: var(--chip-bg); font-weight: 800; }
+
+  /* 圖（SVG 示意圖等） */
+  .fig { margin: 20px 0; }
+  .fig svg { width: 100%; height: auto; display: block; }
+  .fig figcaption { font-size: 13px; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+  /* 練習卡（分級挑戰） */
+  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+  /* [GPU] 左頁的 GPU 軌道卡 */
+  .gpu-card {
+    border: 2px solid var(--c2); border-radius: 14px;
+    background: #FFFDF9; padding: 20px 24px; margin: 18px 0;
+    box-shadow: 6px 6px 0 #F5E8DC;
+  }
+  .gpu-card ol { margin: 10px 0; }
+  .gpu-card .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .gpu-card a.btn {
+    display: inline-block; text-decoration: none; font-size: 14px; font-weight: 800;
+    padding: 9px 18px; border-radius: 999px; border: 2px solid var(--c2);
+    color: var(--c2); transition: background .15s, color .15s;
+  }
+  .gpu-card a.btn.primary { background: var(--c2); color: #fff; }
+  .gpu-card a.btn.primary:hover { background: #C06A38; }
+  .gpu-card a.btn:not(.primary):hover { background: var(--c2); color: #fff; }
+  /* [/GPU] */
+
+  /* 課末導覽 */
+  .endnav { margin-top: 72px; display: grid; gap: 12px; }
+  .endnav a {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
+    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
+  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
+
+  /* ── 窄螢幕：上下疊降級 ────────────────── */
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/TOPIC_SLUG/">‹ 主題名稱</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <!-- [GPU] --><a class="tool gpu" href="#s-gpu" id="jump-gpu">GPU 軌道 🚀</a><!-- [/GPU] -->
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">ENGLISH EYEBROW · 中文副標</span>
+  <h1>課程主標題</h1>
+  <p style="margin-top:18px">
+    開場一段：丟出這堂課的核心張力。第一屏就要有可以動手的東西
+    （純 HTML/SVG/JS 小互動，不等 notebook 載入），別用三段文字暖場。
+  </p>
+
+  <div class="hero-demo">
+    <!-- 開場互動：自由發揮（SVG + 按鈕/滑桿的小玩具，預告本課的 aha 時刻） -->
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<!-- 課程影片（選配）：沒有影片就整段刪
+<section id="video">
+  <span class="eyebrow">VIDEO · 課程影片</span>
+  <h2>先看影片，抓個整體感</h2>
+  <div class="video-box">
+    <div class="video-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID"
+        title="課程影片" loading="lazy" allowfullscreen
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
+</section>
+-->
+
+<!-- ── 每節的固定骨架：eyebrow + h2 + 內容 + golab 行動點 ── -->
+<section id="s1">
+  <span class="eyebrow">01 · 章節性質</span>
+  <h2>章節標題</h2>
+  <p>
+    內容自由發揮。原則：讀與做交替——每節結尾給一個「到右邊做」的具體任務；
+    左頁描述的每個行為、每個數字，右邊 notebook 都要真的存在且為真。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊做某件具體的事</button>
+  <p class="note">data-nb 的 emoji 要跟 notebook 對應章節標題裡的 emoji 一致（錨點機制）。</p>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>課末給分級挑戰（先做得到 → 有點難 → 開放式）：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>簡單改個參數就看得到效果的挑戰。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>需要理解本課概念才做得對的挑戰。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>開放式挑戰（換資料集、換方法、先猜再驗證）。</p>
+  </div>
+  <button class="golab" data-nb="2️⃣">到右邊的實驗區開工</button>
+</section>
+
+<!-- [GPU] 左頁 GPU 軌道區（雙軌課才需要；id 要跟頂列 #jump-gpu 的 href 一致） -->
+<section id="s-gpu">
+  <span class="eyebrow">GPU 軌道 🚀</span>
+  <h2>跑真的：在雲端 GPU 上重演一次</h2>
+  <p>
+    瀏覽器內的迷你版教概念；<b>真實版</b>在本課附的 <code>LESSON_ID_gpu.py</code>，
+    借用 molab（marimo 官方雲）的 GPU 執行。
+  </p>
+  <div class="gpu-card">
+    <b>在 molab 用雲端 GPU 跑（約 X–Y 分鐘）</b>
+    <ol>
+      <li>登入 <b>molab</b>（marimo 帳號，可用 GitHub/Google）</li>
+      <li>在<b>新分頁</b>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+      <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
+      <li>從第一格往下全部執行</li>
+    </ol>
+    <div class="btns">
+      <!-- molab 網址規則：https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/lessons/<id>/<id>_gpu.py（git push 即更新，網址永不變） -->
+      <a class="btn primary" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/lessons/LESSON_ID/LESSON_ID_gpu.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+      <a class="btn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+      <a class="btn" href="LESSON_ID_gpu.py" download>下載 LESSON_ID_gpu.py</a>
+    </div>
+  </div>
+  <p class="note">
+    誠實說明：GPU 軌道是<b>選配延伸</b>，不跑它也能完整理解本課。
+    GPU 供應與額度依 molab 帳號方案而定；molab 連不上時，下載
+    <code>LESSON_ID_gpu.py</code> 在任何有 NVIDIA GPU 的機器
+    <code>uvx marimo edit LESSON_ID_gpu.py</code> 也能跑。
+  </p>
+</section>
+<!-- [/GPU] -->
+
+<!-- 課末導覽：下一課（同主題內有的話）＋回主題。本課上線後記得回頭把前一課的下一課連結補上 -->
+<div class="endnav">
+  <!-- 同主題沒有下一課時，刪掉這顆（NEXT_ID = 下一課的 slug，scaffold 不代換）
+  <a href="/NEXT_ID/">
+    <span class="tag">下一課</span>
+    <b>下一課標題 →</b>
+  </a>
+  -->
+  <a href="/TOPIC_SLUG/">
+    <span class="tag">主題</span>
+    <b>‹ 回「主題名稱」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <!-- [GPU] 右欄分頁列（純瀏覽器課刪掉整個 #lab-tabs 與 #molab-panel） -->
+  <div id="lab-tabs" role="tablist">
+    <button class="labtab active" role="tab" aria-selected="true" data-tab="wasm">🧪 互動實驗</button>
+    <button class="labtab gpu" role="tab" aria-selected="false" data-tab="molab">⚡ GPU 軌道</button>
+  </div>
+  <!-- [/GPU] -->
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <!-- [GPU] molab 導流面板（實測 molab 無法 iframe 嵌入：登入態進不去、預覽渲染失敗） -->
+  <div id="molab-panel" hidden>
+    <div class="panel-inner">
+      <span class="eyebrow">GPU TRACK · MOLAB</span>
+      <h3>真實版在 molab 的 GPU 上跑</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 GPU 版要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b></li>
+        <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
+        <li>Run all，約 X–Y 分鐘</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/lessons/LESSON_ID/LESSON_ID_gpu.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="LESSON_ID_gpu.py" download>下載 LESSON_ID_gpu.py</a>
+      </div>
+      <p class="panel-note">沒有 molab 帳號或 GPU 額度？下載 <code>LESSON_ID_gpu.py</code> 在任何有 NVIDIA GPU 的機器
+        <code>uvx marimo edit LESSON_ID_gpu.py</code>。</p>
+    </div>
+  </div>
+  <!-- [/GPU] -->
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：自由發揮（純 JS/SVG，不依賴 notebook）═══ */
+
+/* [GPU] ═══ 右欄分頁切換 ═══ */
+window.switchLabTab = (function () {
+  const nbFrame = document.getElementById("nb-frame");
+  const nbStatus = document.getElementById("nb-status");
+  const molabPanel = document.getElementById("molab-panel");
+  function switchTab(name) {
+    const isMolab = name === "molab";
+    nbFrame.hidden = isMolab;
+    nbStatus.hidden = isMolab;
+    molabPanel.hidden = !isMolab;
+    document.querySelectorAll(".labtab").forEach(t => {
+      const on = t.dataset.tab === name;
+      t.classList.toggle("active", on);
+      t.setAttribute("aria-selected", String(on));
+    });
+  }
+  document.querySelectorAll(".labtab").forEach(t =>
+    t.addEventListener("click", () => switchTab(t.dataset.tab))
+  );
+  return switchTab;
+})();
+/* [/GPU] */
+
+/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      /* [GPU] */ if (window.switchLabTab) window.switchLabTab("wasm"); /* [/GPU] */
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        for (const h of doc.querySelectorAll("h1, h2, h3")) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 未就緒時安靜略過 */ }
+      // 窄螢幕（上下疊）時，把視窗帶到實驗場
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測 Pyodide 就緒（同源才可行）═══ */
+(function () {
+  const READY_FIGURES = 3; // 【必改】notebook 全部跑完會渲染出的 img/canvas 數量
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= READY_FIGURES) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

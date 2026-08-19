@@ -1,0 +1,8 @@
+{
+  "name": "agentclass",
+  "private": true,
+  "description": "AI 互動教室 — 冒煙測試用 devDependencies（playwright headless 驗證 WASM 課程）",
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}

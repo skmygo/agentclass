@@ -14,6 +14,8 @@ __pycache__/
 
 # 本機測試產物
 smoke-screenshot.png
+check.html
+preview-shots/
 *.log
 nohup.out
 
@@ -22,3 +24,6 @@ ref_data/
 
 # marimo 本機 session 快取
 __marimo__/
+
+# node（冒煙測試 devDependencies）
+node_modules/

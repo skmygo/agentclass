@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分群：沒有答案也能找出結構 · AI 互動教室</title>
+<meta name="description" content="90 位顧客、零標籤——用 K-means 讓機器自己找出顧客的三種樣子，再用手肘法判斷該分幾群。">
+<style>
+  :root {
+    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --chip-bg: #F0F4EE;
+    /* 課程語義色：三群顧客＝藍/橘/綠、未知＝灰，左頁與 notebook 圖表共用 */
+    --c1: #4C72B0;
+    --c2: #DD8452;
+    --c3: #55A868;
+    --cut: #C44E52;
+    --unk: #9AA7AE;  /* 無標籤的灰 */
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── 頂列 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel); border-bottom: 2px solid var(--ink);
+  }
+  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
+  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
+  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  header .brand .leaf { color: var(--c3); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
+  header a.tool.dl:hover { background: var(--c3); color: #fff; }
+
+  /* ── 左右分欄 ─────────────────────────── */
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink); background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--c3); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+
+  /* ── 文章排版 ─────────────────────────── */
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+    cursor: pointer; transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, a:focus-visible, button:focus-visible {
+    outline: 3px solid var(--c1); outline-offset: 2px;
+  }
+
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .hero-demo svg { width: 100%; height: auto; display: block; }
+  .hero-demo .ctrl { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .hero-btn {
+    font-family: inherit; font-size: 14px; font-weight: 800;
+    padding: 9px 20px; border-radius: 999px; border: 2px solid var(--ink);
+    background: var(--ink); color: #fff; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .hero-btn.revealed { background: var(--panel); color: var(--ink); }
+  .hero-demo .verdict { font-size: 14px; font-weight: 800; margin-top: 4px; }
+
+  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+  .endnav { margin-top: 72px; display: grid; gap: 12px; }
+  .endnav a {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
+    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
+  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
+
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/ml-basics/">‹ 學基礎機器學習</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">CLUSTERING · 分群</span>
+  <h1>分群：沒有答案<br>也能找出結構</h1>
+  <p style="margin-top:18px">
+    前兩課機器都有答案可以抄——每顆水果、每天銷量都附了正解。
+    這一課把答案<b>整疊抽走</b>：只剩一堆灰點，沒有人說誰是誰。
+    機器還能學到東西嗎？先猜猜下面藏了幾群，再按按鈕對答案：
+  </p>
+
+  <div class="hero-demo">
+    <svg id="clu-svg" viewBox="0 0 560 230" role="img" aria-label="分群示意"></svg>
+    <div class="ctrl">
+      <button class="hero-btn" id="clu-btn">讓機器自己分 ✨</button>
+      <div class="verdict" id="clu-verdict">你看到幾群？</div>
+    </div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 觀察</span>
+  <h2>一堆沒有標籤的顧客</h2>
+  <p>
+    右邊是一間咖啡店 90 位會員的紀錄：<b>每月來店次數</b>對<b>平均單筆消費</b>。
+    店長想分眾行銷，但沒有人幫顧客貼過「你是哪種客人」的標籤——
+    這種<b>沒有正解可學</b>的情境，叫非監督學習。
+  </p>
+  <p>
+    先用眼睛看：點的分佈不是均勻的霧，而是幾坨明顯的<b>聚落</b>。
+    「資料自己長出來的結構」就是這課要機器去找的東西。
+    數一下你覺得有幾群，待會跟機器對答案。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊看 90 位顧客的分佈</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 方法</span>
+  <h2>K-means：猜中心、分邊、再修正</h2>
+  <p>
+    <b>K-means</b> 全部的邏輯只有三步，重複到不再變動：
+    <b>隨便放 k 個中心點</b> → <b>每個點歸給最近的中心</b> →
+    <b>中心搬到自己那群的平均位置</b>。到右邊拉動 k（圖上的 <b>X</b> 是每群中心）：
+  </p>
+  <ul>
+    <li><b>k = 3</b>：機器分出來的三群，跟你眼睛看到的幾乎一樣——
+      散客、常客、豪客。<em class="cut">它沒看過任何答案</em>。</li>
+    <li><b>k = 2</b>：其中兩種人被硬併成一群。</li>
+    <li><b>k = 6、7</b>：真實的群被硬切碎。K-means 你要幾群它就給幾群，
+      <b>從不回嘴</b>——這是它最大的方便，也是最大的陷阱。</li>
+  </ul>
+  <button class="golab" data-nb="2️⃣">到右邊拉 k，看機器怎麼分</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 判斷</span>
+  <h2>手肘法：k 到底該選多少</h2>
+  <p>
+    既然 K-means 不會回嘴，k 就得自己決定。線索是<b>群內距離總和</b>
+    （每個點到自己群中心的距離平方和）：k 越大它一定越小，
+    但重點是<b>變小的速度</b>——
+  </p>
+  <ul>
+    <li>k 從 1 → 2 → 3：<b>大幅下降</b>，每加一群都真的切中一種人。</li>
+    <li>k = 3 之後：下降突然變平緩——再加的群只是在切碎真實的聚落。</li>
+  </ul>
+  <p>
+    到右邊看那條折線：像手肘一樣彎的位置，就是資料自己說出來的群數。
+    這招叫<b>手肘法</b>——不是定理，是經驗法則，但在實務上出奇地好用。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊找出手肘的位置</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最下面有一格「你的實驗區」。三個挑戰，由易到難：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <code>my_k</code> 改成 6，看每群人數——被切碎的是哪一群？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>回到 1️⃣ 把豪客改成只有 5 人（<code>rng.normal(260, 35, 5)</code>），
+       手肘還看得出 3 嗎？小群很容易被 K-means 忽略。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>在 1️⃣ 加入第四群「你設計的顧客」，先猜手肘會移到哪，再跑 3️⃣ 驗證。</p>
+  </div>
+  <button class="golab" data-nb="4️⃣">到右邊的實驗區開工</button>
+</section>
+
+<div class="endnav">
+  <a href="/ml-basics/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學基礎機器學習」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：無標籤 → 一鍵讓機器分群（純 SVG/JS，不依賴 notebook）═══ */
+(function () {
+  const COLORS = ["#4C72B0", "#DD8452", "#55A868"];
+  const GRAY = "#9AA7AE";
+  // 三個聚落（SVG 座標；g = 所屬群，只在揭曉時使用）
+  const dots = [
+    { x: 80,  y: 165, g: 0 }, { x: 120, y: 190, g: 0 }, { x: 105, y: 140, g: 0 },
+    { x: 150, y: 168, g: 0 }, { x: 135, y: 205, g: 0 }, { x: 70,  y: 195, g: 0 },
+    { x: 175, y: 190, g: 0 },
+    { x: 300, y: 70,  g: 1 }, { x: 345, y: 50,  g: 1 }, { x: 330, y: 95,  g: 1 },
+    { x: 275, y: 95,  g: 1 }, { x: 370, y: 80,  g: 1 }, { x: 310, y: 40,  g: 1 },
+    { x: 470, y: 160, g: 2 }, { x: 505, y: 185, g: 2 }, { x: 445, y: 190, g: 2 },
+    { x: 490, y: 135, g: 2 }, { x: 520, y: 155, g: 2 }, { x: 460, y: 130, g: 2 },
+    { x: 500, y: 210, g: 2 },
+  ];
+  const svg = document.getElementById("clu-svg");
+  const btn = document.getElementById("clu-btn");
+  const verdict = document.getElementById("clu-verdict");
+  const els = dots.map(d => {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", d.x); c.setAttribute("cy", d.y); c.setAttribute("r", 8);
+    c.setAttribute("fill", GRAY); c.setAttribute("stroke", "#fff");
+    c.setAttribute("stroke-width", "1.5");
+    svg.appendChild(c);
+    return c;
+  });
+  let revealed = false;
+  btn.addEventListener("click", () => {
+    revealed = !revealed;
+    els.forEach((c, i) => c.setAttribute("fill", revealed ? COLORS[dots[i].g] : GRAY));
+    btn.textContent = revealed ? "打回無標籤" : "讓機器自己分 ✨";
+    btn.classList.toggle("revealed", revealed);
+    verdict.textContent = revealed
+      ? "3 群——沒有人給過它答案。"
+      : "你看到幾群？";
+  });
+})();
+
+/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        for (const h of doc.querySelectorAll("h1, h2, h3")) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 未就緒時安靜略過 */ }
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測就緒 ═══ */
+(function () {
+  const READY_FIGURES = 3; // notebook 全部跑完會渲染出的圖表數
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= READY_FIGURES) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

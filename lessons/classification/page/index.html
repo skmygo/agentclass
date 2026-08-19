@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分類：教機器做判斷 · AI 互動教室</title>
+<meta name="description" content="用 120 顆水果學會 k-NN 分類：讓鄰居投票、拉動 k 看分界線變化，再親手捏一顆新果實考模型。">
+<style>
+  :root {
+    /* 紙感底色系：全站一致，維持「同一間教室」體感——勿改 */
+    --bg: #FAFBF8;
+    --panel: #FFFFFF;
+    --ink: #1C2B33;
+    --ink-soft: #52646E;
+    --grid: #E4E9E2;
+    --chip-bg: #F0F4EE;
+    /* 課程語義色：橘子 / 葡萄柚，左頁與 notebook 圖表共用 */
+    --c1: #4C72B0;
+    --c2: #DD8452;   /* orange 橘子 */
+    --c3: #55A868;
+    --cut: #C44E52;  /* grapefruit 葡萄柚 */
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--bg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── 頂列 ─────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; height: 52px; flex: none;
+    background: var(--panel); border-bottom: 2px solid var(--ink);
+  }
+  header a.brand { font-weight: 900; font-size: 15px; color: inherit; text-decoration: none; }
+  header a.brand:hover { text-decoration: underline; text-underline-offset: 4px; }
+  header a.topic { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-decoration: none; }
+  header a.topic:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  header .brand .leaf { color: var(--c3); }
+  header .spacer { flex: 1; }
+  header a.tool {
+    font-size: 13px; text-decoration: none; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    padding: 5px 14px; font-weight: 700; transition: background .15s, color .15s;
+  }
+  header a.tool:hover { background: var(--ink); color: var(--panel); }
+  header a.tool.dl { border-color: var(--c3); color: var(--c3); }
+  header a.tool.dl:hover { background: var(--c3); color: #fff; }
+
+  /* ── 左右分欄 ─────────────────────────── */
+  main { flex: 1; display: flex; min-height: 0; }
+  #lesson {
+    width: 46%; min-width: 380px; overflow-y: auto; padding: 0 0 96px;
+    scroll-behavior: smooth;
+    background: linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 28px, var(--bg);
+  }
+  #lab {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 2px solid var(--ink); background: var(--panel);
+  }
+  #nb-status {
+    flex: none; display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; padding: 7px 14px; color: var(--ink-soft);
+    border-bottom: 1px solid var(--grid); background: var(--chip-bg);
+  }
+  #nb-status .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--c2);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  #nb-status.ready .dot { background: var(--c3); animation: none; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  #nb-frame { flex: 1; border: 0; width: 100%; }
+
+  /* ── 文章排版 ─────────────────────────── */
+  .wrap { max-width: 620px; margin: 0 auto; padding: 0 36px; }
+  section { margin-top: 72px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--cut); letter-spacing: .12em;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--cut); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 900; line-height: 1.22; margin: 10px 0 0; }
+  h2 { font-size: 24px; font-weight: 900; margin: 6px 0 14px; line-height: 1.3; }
+  p { font-size: 15.5px; line-height: 1.95; margin: 12px 0; }
+  p b, li b { font-weight: 800; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--chip-bg); border-radius: 4px; padding: 1px 6px; }
+  ul, ol { padding-left: 22px; }
+  li { font-size: 15.5px; line-height: 1.9; margin: 6px 0; }
+  .note {
+    font-size: 13.5px; line-height: 1.8; color: var(--ink-soft);
+    border-left: 3px solid var(--grid); padding: 2px 0 2px 14px; margin: 18px 0;
+  }
+  em.cut { color: var(--cut); font-style: normal; font-weight: 800; }
+
+  /* 「到右邊做」chip：每節的行動點 */
+  .golab {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin: 14px 0 4px; padding: 8px 16px;
+    font-size: 14px; font-weight: 800; font-family: inherit;
+    color: #fff; background: var(--ink); border: 0; border-radius: 999px;
+    cursor: pointer; transition: transform .12s, background .15s;
+  }
+  .golab:hover { background: var(--cut); transform: translateX(3px); }
+  .golab::after { content: "▶"; font-size: 11px; }
+  .golab:focus-visible, a:focus-visible, button:focus-visible {
+    outline: 3px solid var(--c1); outline-offset: 2px;
+  }
+
+  /* hero 互動卡 */
+  #hero { padding-top: 48px; }
+  .hero-demo {
+    margin-top: 26px; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 14px;
+    padding: 18px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .hero-demo svg { width: 100%; height: auto; display: block; }
+  .hero-demo .ctrl { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .hero-demo input[type=range] { flex: 1; accent-color: var(--ink); }
+  .hero-demo .verdict { font-size: 14px; font-weight: 800; margin-top: 10px; }
+  .hero-demo .verdict .who { font-weight: 900; }
+
+  /* 練習卡 */
+  .ex { border: 1.5px solid var(--ink); border-radius: 12px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
+  .ex .lv { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .ex p { margin: 6px 0 0; font-size: 14.5px; }
+
+  /* 課末導覽 */
+  .endnav { margin-top: 72px; display: grid; gap: 12px; }
+  .endnav a {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 2px solid var(--ink); border-radius: 12px;
+    padding: 16px 20px; box-shadow: 5px 5px 0 var(--grid);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .endnav a:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--grid); }
+  .endnav .tag { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--ink-soft); }
+  .endnav b { display: block; font-size: 16px; margin-top: 4px; }
+
+  /* ── 窄螢幕：上下疊降級 ────────────────── */
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    main { flex-direction: column; }
+    #lesson { width: 100%; min-width: 0; overflow: visible; }
+    #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    #lesson { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/ml-basics/">‹ 學基礎機器學習</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">CLASSIFICATION · 分類</span>
+  <h1>分類：教機器做判斷</h1>
+  <p style="margin-top:18px">
+    沒有人教過你「橘子的定義」。你只是看過夠多橘子和葡萄柚，之後拿到一顆新的，
+    自然知道它是誰。<b>分類</b>就是讓機器用同一招：從看過的例子學會判斷沒看過的東西。
+    先玩玩看——拖動那顆<b>問號果實</b>，離它最近的三顆會幫它投票：
+  </p>
+
+  <div class="hero-demo">
+    <svg id="knn-svg" viewBox="0 0 560 230" role="img" aria-label="k-NN 投票示意">
+      <g id="knn-lines"></g>
+      <g id="knn-dots"></g>
+      <circle id="knn-q" r="11" fill="#FAFBF8" stroke="#1C2B33" stroke-width="2.5"></circle>
+      <text id="knn-qmark" text-anchor="middle" font-size="13" font-weight="900" fill="#1C2B33">?</text>
+    </svg>
+    <div class="ctrl">
+      <label for="knn-range" style="font-size:13px;font-weight:800;white-space:nowrap">移動它</label>
+      <input id="knn-range" type="range" min="60" max="500" value="270" aria-label="移動問號果實">
+    </div>
+    <div class="verdict" id="knn-verdict"></div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 觀察</span>
+  <h2>認水果之前，先看資料</h2>
+  <p>
+    右邊的實驗場裡有 120 顆果實：<em style="color:var(--c2);font-style:normal;font-weight:800">橘子</em>和
+    <em class="cut">葡萄柚</em>各 60 顆，每顆量了兩個數字——<b>重量</b>和<b>直徑</b>。
+    這兩個數字叫<b>特徵</b>（我們拿來判斷的線索），「是橘子還是葡萄柚」叫<b>標籤</b>（正確答案）。
+  </p>
+  <p>
+    把 120 顆點在圖上，兩群涇渭分明——但注意中間那塊<b>曖昧地帶</b>：
+    有些橘子長得特別大、有些葡萄柚特別小。世界上真實的資料幾乎都長這樣，
+    而分類真正的難題，全部發生在那塊地帶。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊看 120 顆果實的分佈</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 方法</span>
+  <h2>k-NN：讓鄰居投票</h2>
+  <p>
+    最直覺的分類法叫 <b>k 最近鄰</b>（k-Nearest Neighbors）：一顆新果實進來，
+    找出跟它最像的 <b>k</b> 顆（圖上距離最近的鄰居），讓它們投票，多數決。
+    就這樣，沒有別的了——你剛剛在上面那個小玩具裡已經玩過 k = 3 的版本。
+  </p>
+  <p>到右邊拉動 k，盯著兩群之間的<b>分界線</b>：</p>
+  <ul>
+    <li><b>k = 1</b>：訓練準確率一定是 <em class="cut">100%</em>——每顆果實最近的鄰居就是它自己，
+      當然全對。但分界線歪七扭八，繞著每顆怪果實轉。這不是聰明，是<b>背答案</b>。</li>
+    <li><b>k 變大</b>：分界線越來越平滑，個別怪果實再也綁架不了判斷。</li>
+    <li><b>k 太大</b>會怎樣？想想 k = 120（全部果實都投票）——不管來什麼果實，
+      答案永遠一樣。到第 4 節你會親手驗證這件事。</li>
+  </ul>
+  <button class="golab" data-nb="2️⃣">到右邊拉 k，看分界線怎麼變</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 實測</span>
+  <h2>拿一顆新果實考它</h2>
+  <p>
+    模型學完了，來驗收。到右邊<b>自己捏一顆果實</b>——調它的重量和直徑，
+    看模型怎麼判、幾票對幾票。然後做一件壞心的事：
+    把它慢慢推進兩群中間的曖昧地帶，找出<b>投票翻盤的那一刻</b>。
+    你會發現「模型的答案」在邊界附近其實只是險勝，這個體感比任何準確率數字都重要。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊捏一顆新果實考模型</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最下面有一格「你的實驗區」，是你的地盤。三個挑戰，由易到難：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <code>my_k</code> 改成 1，確認訓練準確率真的變 100%。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>把 <code>my_k</code> 一路調大（21、41、61…），準確率怎麼變？
+       k = 120 時模型等於在做什麼？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>回到 1️⃣ 的資料格，把兩群中心改得更近（橘子 160g、葡萄柚 200g），
+       重疊變多之後，最好的 k 還是原來那個嗎？先猜，再驗證。</p>
+  </div>
+  <button class="golab" data-nb="4️⃣">到右邊的實驗區開工</button>
+</section>
+
+<div class="endnav">
+  <a href="/regression/">
+    <span class="tag">下一課</span>
+    <b>迴歸：畫一條最不冤枉的線 →</b>
+  </a>
+  <a href="/ml-basics/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學基礎機器學習」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：k=3 的最近鄰投票玩具（純 SVG/JS，不依賴 notebook）═══ */
+(function () {
+  const ORANGE = "#DD8452", GRAPE = "#C44E52";
+  // 固定的兩群果實（SVG 座標）
+  const dots = [
+    { x: 90,  y: 150, c: 0 }, { x: 130, y: 180, c: 0 }, { x: 155, y: 120, c: 0 },
+    { x: 185, y: 165, c: 0 }, { x: 120, y: 95,  c: 0 }, { x: 210, y: 130, c: 0 },
+    { x: 245, y: 175, c: 0 }, { x: 175, y: 60,  c: 0 },
+    { x: 340, y: 70,  c: 1 }, { x: 385, y: 110, c: 1 }, { x: 420, y: 60,  c: 1 },
+    { x: 455, y: 130, c: 1 }, { x: 360, y: 155, c: 1 }, { x: 480, y: 85,  c: 1 },
+    { x: 415, y: 175, c: 1 }, { x: 300, y: 110, c: 1 },
+  ];
+  const dotsG = document.getElementById("knn-dots");
+  const linesG = document.getElementById("knn-lines");
+  const q = document.getElementById("knn-q");
+  const qmark = document.getElementById("knn-qmark");
+  const verdict = document.getElementById("knn-verdict");
+  const range = document.getElementById("knn-range");
+  const QY = 118;
+
+  dots.forEach(d => {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", d.x); c.setAttribute("cy", d.y); c.setAttribute("r", 8);
+    c.setAttribute("fill", d.c === 0 ? ORANGE : GRAPE);
+    c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", "1.5");
+    dotsG.appendChild(c);
+  });
+  const lines = [0, 1, 2].map(() => {
+    const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    l.setAttribute("stroke", "#9AA7AE"); l.setAttribute("stroke-width", "1.5");
+    l.setAttribute("stroke-dasharray", "4 3");
+    linesG.appendChild(l);
+    return l;
+  });
+
+  function vote() {
+    const qx = Number(range.value);
+    q.setAttribute("cx", qx); q.setAttribute("cy", QY);
+    qmark.setAttribute("x", qx); qmark.setAttribute("y", QY + 4.5);
+    const near = dots
+      .map(d => ({ ...d, dist: Math.hypot(d.x - qx, d.y - QY) }))
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 3);
+    near.forEach((d, i) => {
+      lines[i].setAttribute("x1", qx); lines[i].setAttribute("y1", QY);
+      lines[i].setAttribute("x2", d.x); lines[i].setAttribute("y2", d.y);
+    });
+    const o = near.filter(d => d.c === 0).length;
+    const win = o >= 2;
+    q.setAttribute("fill", win ? ORANGE : GRAPE);
+    verdict.innerHTML =
+      `3 個鄰居投票：<span style="color:${ORANGE}">橘子 ${o} 票</span> · ` +
+      `<span style="color:${GRAPE}">葡萄柚 ${3 - o} 票</span> → ` +
+      `<span class="who" style="color:${win ? ORANGE : GRAPE}">這顆是${win ? "橘子" : "葡萄柚"}</span>`;
+  }
+  range.addEventListener("input", vote);
+  vote();
+})();
+
+/* ═══ 「到右邊做」：同源 iframe 捲動到 data-nb 的 emoji 錨點 ═══ */
+(function () {
+  const frame = document.getElementById("nb-frame");
+  document.querySelectorAll(".golab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const mark = btn.dataset.nb;
+      try {
+        const doc = frame.contentDocument;
+        for (const h of doc.querySelectorAll("h1, h2, h3")) {
+          if (h.textContent.includes(mark)) {
+            h.scrollIntoView({ behavior: "smooth", block: "start" });
+            break;
+          }
+        }
+      } catch (e) { /* 未就緒時安靜略過 */ }
+      if (window.matchMedia("(max-width: 980px)").matches)
+        document.getElementById("lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+})();
+
+/* ═══ 右欄狀態列：輪詢 iframe 內圖表數量偵測就緒 ═══ */
+(function () {
+  const READY_FIGURES = 3; // notebook 全部跑完會渲染出的圖表數
+  const frame = document.getElementById("nb-frame");
+  const bar = document.getElementById("nb-status");
+  const txt = document.getElementById("nb-status-text");
+  const t0 = Date.now();
+  const timer = setInterval(() => {
+    try {
+      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
+      if (n >= READY_FIGURES) {
+        bar.classList.add("ready");
+        txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
+        clearInterval(timer);
+      }
+    } catch (e) { /* not ready */ }
+    if (Date.now() - t0 > 180000) {
+      txt.textContent = "載入比平常久——網路慢或裝置較舊時屬正常，可再等等或重新整理。";
+      clearInterval(timer);
+    }
+  }, 1500);
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

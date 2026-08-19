@@ -1,9 +1,18 @@
 <!DOCTYPE html>
+<!--
+  主題頁模板（某主題的課程列表）
+  ═══════════════════════════════
+  用法：cp 到 site/<topic-slug>/index.html 後修改（slug 用簡短英文，如 ml-basics）。
+  - 課程卡「越新越上」：新課一律插在 .lessons 最前面
+  - 規劃中的課用 .card.soon 佔位卡（虛線框＋降透明度＋不可點）
+  - 新主題上線時：把主題卡插進 site/index.html 首頁的 .lessons 最前面，
+    並維護主題卡上的課程數字（TOPIC · N 門課）
+-->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 互動教室 · 主題列表</title>
+<title>主題名稱 · AI 互動教室</title>
 <style>
   :root {
     --bg: #FAFBF8; --panel: #fff; --ink: #1C2B33; --ink-soft: #52646E;
@@ -18,11 +27,13 @@
     min-height: 100vh;
   }
   .wrap { max-width: 720px; margin: 0 auto; padding: 72px 28px; }
-  .eyebrow { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--cut); }
+  a.back { font-size: 13.5px; font-weight: 800; color: var(--ink-soft); text-decoration: none; }
+  a.back:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  .eyebrow { display: block; margin-top: 26px; font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--cut); }
   h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 900; margin: 10px 0 12px; }
   .sub { color: var(--ink-soft); font-size: 15.5px; line-height: 1.9; max-width: 560px; }
   .lessons { margin-top: 48px; display: grid; gap: 18px; }
-  a.card {
+  .card {
     display: block; text-decoration: none; color: inherit;
     background: var(--panel); border: 2px solid var(--ink); border-radius: 14px;
     padding: 22px 26px; box-shadow: 6px 6px 0 var(--grid);
@@ -34,32 +45,34 @@
   .card h2 { font-size: 21px; font-weight: 900; margin: 6px 0 8px; }
   .card p { font-size: 14px; color: var(--ink-soft); line-height: 1.8; }
   .card .go { display: inline-block; margin-top: 12px; font-size: 13.5px; font-weight: 800; color: var(--cut); }
+  /* 尚未開課的佔位卡 */
+  .card.soon { border-style: dashed; box-shadow: none; opacity: .62; }
+  .card.soon .tag { color: var(--ink-soft); }
   footer { margin-top: 72px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <span class="eyebrow">AI INTERACTIVE CLASSROOM</span>
-  <h1>AI 互動教室</h1>
+  <a class="back" href="/">← 回主題列表</a>
+  <span class="eyebrow">TOPIC · ENGLISH NAME</span>
+  <h1>🧠 主題名稱</h1>
   <p class="sub">
-    左邊讀教學、右邊改程式——每一課的 Python 都直接在你的瀏覽器裡執行，
-    不用登入、不用安裝。先選一個主題開始。
+    主題簡介：這個主題的學習路線一句話講清楚。
   </p>
 
-  <!-- 主題卡片：越新的主題放越上面（新增主題一律插在最前面） -->
+  <!-- 課程卡片：越新的課放越上面（新增課程一律插在最前面） -->
   <div class="lessons">
-    <a class="card" href="ai-engineering/">
-      <span class="tag">TOPIC · 1 門課</span>
-      <h2>🔌 學 AI 工程</h2>
-      <p>讓 AI 不只會聊天：從 MCP 開始，給模型接上工具、資料與真實系統。</p>
-      <span class="go">進入主題 →</span>
+    <a class="card" href="/LESSON_ID/">
+      <span class="tag">軌道名 · 01</span>
+      <h2>🌳 課名：課卡文案是賣點不是摘要</h2>
+      <p>一句話讓人想點進去，再補一句課程亮點（互動數、挑戰數）。</p>
+      <span class="go">開始上課 →</span>
     </a>
-    <a class="card" href="ml-basics/">
-      <span class="tag">TOPIC · 4 門課</span>
-      <h2>🧠 學基礎機器學習</h2>
-      <p>監督學習、迴歸、分群——經典機器學習的三塊基石，每一課都親手做一遍。</p>
-      <span class="go">進入主題 →</span>
-    </a>
+    <div class="card soon">
+      <span class="tag">軌道名 · 即將開課</span>
+      <h2>📈 規劃中課名</h2>
+      <p>規劃中課程的一句話賣點。</p>
+    </div>
   </div>
 
   <footer>

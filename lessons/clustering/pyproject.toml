@@ -1,0 +1,15 @@
+# 課程專案：分群（clustering）
+[project]
+name = "clustering-lesson"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "marimo==0.23.16",
+    "matplotlib>=3.11.1",
+    "numpy>=2.5.1",
+    "scikit-learn>=1.9.0",
+]
+
+# export 不吃這個設定（build.sh 已用 sed 後處理），留著是給本機 marimo edit 用
+[tool.marimo.runtime]
+auto_instantiate = true
