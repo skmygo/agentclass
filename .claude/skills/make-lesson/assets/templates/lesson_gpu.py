@@ -1,9 +1,9 @@
 # GPU 軌 notebook 模板（雙軌課才需要）
 # ═══════════════════════════════════════
-# 用法：cp 到 lessons/<id>/<id>_gpu.py 後改寫。
+# 用法：cp 到 content/<topic>/<id>/<id>_gpu.py 後改寫（scaffold --gpu 會代勞）。
 # - PEP 723 inline dependencies（下方 /// script 區塊）：molab / marimo sandbox 自動安裝
 # - 課程頁連結規則（零上傳零回填，git push 即更新）：
-#   https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/lessons/<id>/<id>_gpu.py
+#   https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/content/<topic>/<id>/<id>_gpu.py
 #   （repo 必須公開；含私人資訊的參考教材放 ref_data/，已 gitignore）
 # - 本機無 GPU 時驗證到「結構層級」（import 這個模組驗 marimo 格式與語法），
 #   全量驗證請使用者在 molab 實跑

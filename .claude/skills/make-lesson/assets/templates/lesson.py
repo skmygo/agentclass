@@ -1,6 +1,6 @@
 # 瀏覽器軌 notebook 模板（marimo 純 .py 格式）
 # ═══════════════════════════════════════════
-# 用法：cp 到 lessons/<id>/lesson.py 後改寫。骨架示範的是「踩過坑之後的正確寫法」：
+# 用法：cp 到 content/<topic>/<id>/lesson.py 後改寫（scaffold 會代勞）。骨架示範的是「踩過坑之後的正確寫法」：
 # - 每個 md 章節標題帶 1️⃣2️⃣… emoji：左頁 .golab 按鈕靠它捲動錨定，兩邊要一致
 # - matplotlib 圖一律當 cell 的「最後運算式」——包在 mo.vstack([...]) 裡不會渲染，
 #   說明文字拆到下一個 cell（要共用數值就 return 變數）

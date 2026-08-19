@@ -1,4 +1,4 @@
-// WASM 冒煙測試模板：cp 到 lessons/<id>/smoke-test.mjs，改頂部兩個常數。
+// WASM 冒煙測試模板：cp 到 content/<topic>/<id>/smoke-test.mjs（scaffold 會代勞），改頂部兩個常數。
 // 開啟匯出的 marimo notebook，等 Pyodide 載入 + 全部 cell 執行，
 // 驗證無錯誤輸出、圖表有渲染。用法：node smoke-test.mjs <url>
 // （playwright 是 repo 根目錄的 devDependency：npm install 即得）

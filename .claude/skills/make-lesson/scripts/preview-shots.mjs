@@ -24,7 +24,7 @@ for (const path of args) {
   await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const isLesson = await page.locator("#nb-status").count();
   if (isLesson) {
-    // 課程頁：等右欄狀態列變綠（= READY_FIGURES 張圖都渲染出來）
+    // 課程頁：等右欄狀態列變綠（= data-ready-figures 張圖都渲染出來）
     await page.waitForSelector("#nb-status.ready", { timeout: 180_000 });
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `preview-shots/${name}.png` });

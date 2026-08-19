@@ -1,8 +1,8 @@
 # 工程底線：管線、WASM 限制、GPU 軌道、驗證、部署
 
-全部出自前兩堂課（decision-tree、sft）的實測。那些課程可能已從 repo 移除——
-**不要假設 repo 內有現成課可以抄**，起手一律複製本 skill 的 `assets/templates/`
-（模板已內建所有踩坑修正）。
+全部出自歷代課程的實測（早期課程可能已從 repo 移除）——
+**不要假設 repo 內有現成課可以抄**，起手一律跑本 skill 的 scaffold
+（`scripts/new-lesson.sh`，模板已內建所有踩坑修正）。
 
 ## 管線（已走通兩次）
 
@@ -48,7 +48,7 @@ Python 依賴是 **repo 根一個 uv 專案**（一個 venv、一個 lock，全�
   純文字課的就緒訊號會失效——設計時留一張真的有教學功能的圖。
 - **首次載入 ~25 秒**（含 wheel 下載）：右欄要有載入狀態提示（現行做法＝狀態列輪詢
   iframe 內 img/canvas 數量，就緒變綠；同源 iframe 才可行；已內建在 page 模板，
-  記得改 `READY_FIGURES`），左頁開頭安排「等待時正好讀完」的第一節。
+  記得改 `<body data-ready-figures>`），左頁開頭安排「等待時正好讀完」的第一節。
 - **matplotlib 無 CJK 字型**：圖內文字（標籤/圖例）一律英文，中文解說走 markdown 與左頁。
 - **效能**：numpy 向量化可以很快（迷你 LM 1500 步預訓練＋800 步 SFT，拉桿重訓 1–2 秒），
   關鍵是別寫 per-sample Python 迴圈（embedding 梯度用 `np.add.at`）。
@@ -67,7 +67,7 @@ Python 依賴是 **repo 根一個 uv 專案**（一個 venv、一個 lock，全�
 ## GPU 軌道（molab）機制
 
 - **網址零上傳零回填**：repo 公開在 GitHub，molab 直讀
-  `https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/lessons/<id>/<id>_gpu.py`，
+  `https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/content/<topic>/<id>/<id>_gpu.py`，
   git push 即更新、網址永不變。因此 **`ref_data/` 絕不能入版控**（已 gitignore）。
 - GPU notebook 帶 **PEP 723 inline dependencies**，molab 自動裝。骨架照
   `assets/templates/lesson_gpu.py`（含 GPU 檢查 cell）。
