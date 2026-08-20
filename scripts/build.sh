@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# 組裝整站 dist/：自動發現 content/<topic>/<lesson>/lesson.py，不需手動維護課程清單。
+# 組裝整站 dist/：自動發現兩種課，不需手動維護課程清單。
+#   純瀏覽器課：content/<topic>/<id>/lesson.py     → WASM 匯出 + 教學頁
+#   外部軌課  ：content/<topic>/<id>/<id>_ext.py   → 教學頁 + notebook 原檔（無 WASM）
+# 一課只能一版程式（兩者並存＝錯誤）；<id>_gpu.py 是舊雙軌課的遺留尾綴，僅隨附複製。
 #
 # URL 映射（檔案擺在主題下，但課程網址永遠在根層——分享連結不因搬主題而斷）：
 #   content/index.html            → /
 #   content/<topic>/index.html    → /<topic>/
-#   content/<topic>/<id>/         → /<id>/（教學頁 index.html + lesson.py + nb/）
+#   content/<topic>/<id>/         → /<id>/（教學頁 index.html + notebook .py [+ nb/]）
 #   content/shared/               → /shared/（骨架 CSS/JS + 共用 WASM assets）
 #
 # marimo export 出來的 698 個 assets 每課完全相同（檔名含 content hash），
@@ -43,7 +46,31 @@ share_assets() {
   fi
 }
 
-# ── 自動發現並編譯每一課（全部課共用 repo 根的 uv 專案／venv）
+# ── 外部軌課：唯一一份 notebook 在 molab 執行，這裡只放教學頁與 .py 原檔
+#   （放在瀏覽器課迴圈之前，「一課兩版」的防呆才會先攔到、訊息才準確）
+for ext_py in "$ROOT"/content/*/*/*_ext.py; do
+  [ -e "$ext_py" ] || continue
+  dir="$(dirname "$ext_py")"
+  id="$(basename "$dir")"
+  echo "── external lesson: $id"
+  if [ -f "$dir/lesson.py" ]; then
+    echo "   ✗ $id 同時有 lesson.py 與 $(basename "$ext_py")——一課只能一版程式（瀏覽器或外部）" >&2
+    exit 1
+  fi
+  if [ "$(basename "$ext_py")" != "${id}_ext.py" ]; then
+    echo "   ✗ 外部 notebook 檔名必須是 ${id}_ext.py：$(basename "$ext_py")" >&2
+    exit 1
+  fi
+  if [ -d "$DIST/$id" ]; then
+    echo "   ✗ 課程 id 重複：$id（課程網址在根層，id 必須全站唯一）" >&2
+    exit 1
+  fi
+  mkdir -p "$DIST/$id"
+  cp "$dir/index.html" "$DIST/$id/index.html"
+  cp "$ext_py" "$DIST/$id/"
+done
+
+# ── 純瀏覽器課：自動發現並編譯（全部課共用 repo 根的 uv 專案／venv）
 for lesson_py in "$ROOT"/content/*/*/lesson.py; do
   dir="$(dirname "$lesson_py")"
   id="$(basename "$dir")"
@@ -59,7 +86,7 @@ for lesson_py in "$ROOT"/content/*/*/lesson.py; do
   share_assets "$DIST/$id/nb" "$id"
   cp "$dir/index.html" "$DIST/$id/index.html"
   cp "$dir/lesson.py" "$DIST/$id/lesson.py"
-  # 雙軌課：GPU notebook 一併放上（頁面的「下載 <id>_gpu.py」連結用）
+  # 舊雙軌課遺留：<id>_gpu.py 一併放上（頁面的下載連結用）；新課不再產生這種檔
   [ -f "$dir/${id}_gpu.py" ] && cp "$dir/${id}_gpu.py" "$DIST/$id/"
 done
 

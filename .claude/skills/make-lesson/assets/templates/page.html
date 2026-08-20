@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <!--
-  課程教學頁模板（左教學 / 右 notebook）——瘦身版：版面骨架都在 /shared/lesson.css 與
-  /shared/lesson.js（全站一份），本檔只剩「內容」。scaffold 會代換 placeholder 並複製到
-  content/<topic>/<id>/index.html。
+  純瀏覽器課教學頁模板（左教學 / 右內嵌 notebook）——瘦身版：版面骨架都在
+  /shared/lesson.css 與 /shared/lesson.js（全站一份），本檔只剩「內容」。
+  scaffold 會代換 placeholder 並複製到 content/<topic>/<id>/index.html。
+  （Pyodide 跑不了的課用 page_ext.html——外部軌課，本模板不適用）
   - 【必改】<title>、meta description、<body data-ready-figures="N">（= notebook 圖表數）、
     hero、各 section、課末導覽
   - 【勿刪】header 品牌連結、下載 .py、單獨開啟實驗場、#nb-status 狀態列、
     lesson.css / lesson.js / splitter.js 三個引用
-  - 【GPU 軌道課才需要】標記為 GPU 的區塊（純瀏覽器課由 scaffold 自動剝除；
-    這行說明不能寫出字面標記，否則會被剝除邏輯誤傷——實測踩過）
   - 課程語義色與 hero 樣式寫進下方 <style>；章節、互動、教學法完全自由
   - 課程頁不寫平台系統說明（學員需要的操作提示用自然口吻融入文案）
 -->
@@ -34,7 +33,6 @@
   <a class="topic" href="/TOPIC_SLUG/">‹ 主題名稱</a>
   <div class="spacer"></div>
   <a class="tool dl" href="lesson.py" download>下載 .py</a>
-  <!-- [GPU] --><a class="tool gpu" href="#s-gpu" id="jump-gpu">GPU 軌道 🚀</a><!-- [/GPU] -->
   <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
 </header>
 
@@ -107,37 +105,6 @@
   <button class="golab" data-nb="2️⃣">到右邊的實驗區開工</button>
 </section>
 
-<!-- [GPU] 左頁 GPU 軌道區（雙軌課才需要；id 要跟頂列 #jump-gpu 的 href 一致） -->
-<section id="s-gpu">
-  <span class="eyebrow">GPU 軌道 🚀</span>
-  <h2>跑真的：在雲端 GPU 上重演一次</h2>
-  <p>
-    瀏覽器內的迷你版教概念；<b>真實版</b>在本課附的 <code>LESSON_ID_gpu.py</code>，
-    借用 molab（marimo 官方雲）的 GPU 執行。
-  </p>
-  <div class="gpu-card">
-    <b>在 molab 用雲端 GPU 跑（約 X–Y 分鐘）</b>
-    <ol>
-      <li>登入 <b>molab</b>（marimo 帳號，可用 GitHub/Google）</li>
-      <li>在<b>新分頁</b>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
-      <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
-      <li>從第一格往下全部執行</li>
-    </ol>
-    <div class="btns">
-      <!-- molab 網址規則：https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/content/<topic>/<id>/<id>_gpu.py（git push 即更新，網址永不變） -->
-      <a class="btn primary" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/content/TOPIC_SLUG/LESSON_ID/LESSON_ID_gpu.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
-      <a class="btn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
-      <a class="btn" href="LESSON_ID_gpu.py" download>下載 LESSON_ID_gpu.py</a>
-    </div>
-  </div>
-  <p class="note">
-    誠實說明：GPU 軌道是<b>選配延伸</b>，不跑它也能完整理解本課。
-    GPU 供應與額度依 molab 帳號方案而定；molab 連不上時，下載
-    <code>LESSON_ID_gpu.py</code> 在任何有 NVIDIA GPU 的機器
-    <code>uvx marimo edit LESSON_ID_gpu.py</code> 也能跑。
-  </p>
-</section>
-<!-- [/GPU] -->
 
 <!-- 課末導覽：下一課（同主題內有的話）＋回主題。本課上線後記得回頭把前一課的下一課連結補上 -->
 <div class="endnav">
@@ -158,39 +125,8 @@
 
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
-  <!-- [GPU] 右欄分頁列（分頁切換行為在共用 lesson.js，偵測到 #lab-tabs 才啟用） -->
-  <div id="lab-tabs" role="tablist">
-    <button class="labtab active" role="tab" aria-selected="true" data-tab="wasm">🧪 互動實驗</button>
-    <button class="labtab gpu" role="tab" aria-selected="false" data-tab="molab">⚡ GPU 軌道</button>
-  </div>
-  <!-- [/GPU] -->
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
   <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
-  <!-- [GPU] molab 導流面板（實測 molab 無法 iframe 嵌入：登入態進不去、預覽渲染失敗） -->
-  <div id="molab-panel" hidden>
-    <div class="panel-inner">
-      <span class="eyebrow">GPU TRACK · MOLAB</span>
-      <h3>真實版在 molab 的 GPU 上跑</h3>
-      <p>
-        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
-        所以 GPU 版要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
-      </p>
-      <ol>
-        <li>登入 molab（GitHub / Google）</li>
-        <li>開啟課程 notebook，<b>Fork 成自己的副本</b></li>
-        <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
-        <li>Run all，約 X–Y 分鐘</li>
-      </ol>
-      <div class="panel-btns">
-        <a class="pbtn primary" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/content/TOPIC_SLUG/LESSON_ID/LESSON_ID_gpu.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
-        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
-        <a class="pbtn" href="LESSON_ID_gpu.py" download>下載 LESSON_ID_gpu.py</a>
-      </div>
-      <p class="panel-note">沒有 molab 帳號或 GPU 額度？下載 <code>LESSON_ID_gpu.py</code> 在任何有 NVIDIA GPU 的機器
-        <code>uvx marimo edit LESSON_ID_gpu.py</code>。</p>
-    </div>
-  </div>
-  <!-- [/GPU] -->
 </div>
 </main>
 

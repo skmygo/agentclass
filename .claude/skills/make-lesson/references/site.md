@@ -8,8 +8,9 @@
 ```
 content/index.html                →  /              首頁（主題列表）
 content/<topic>/index.html        →  /<topic>/      主題頁（課程列表）
-content/<topic>/<lesson-id>/      →  /<lesson-id>/  課程（index.html 教學頁 + lesson.py + smoke-test.mjs + NOTES.md）
-                                     /<lesson-id>/nb/   marimo WASM notebook（build.sh 產）
+content/<topic>/<lesson-id>/      →  /<lesson-id>/  課程（index.html 教學頁 + notebook .py + smoke-test.mjs + NOTES.md）
+                                     /<lesson-id>/nb/   marimo WASM notebook（純瀏覽器課；build.sh 產）
+                                     外部軌課無 nb/：notebook 是 <id>_ext.py，在 molab 執行
 content/shared/                   →  /shared/       全站共用（lesson.css/lesson.js/topic.css/splitter.js + WASM assets）
 ```
 
@@ -19,10 +20,13 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 
 ## 共用骨架（重要：頁面只寫內容）
 
-- 課程頁版面（CSS）與行為（golab 捲動、就緒輪詢、GPU 分頁）都在
+- 課程頁版面（CSS）與行為（golab 捲動、就緒輪詢、分頁切換）都在
   `/shared/lesson.css` 與 `/shared/lesson.js`，**全站一份**；課程頁只放內容、
   課程語義色覆蓋、hero 專屬樣式與互動 JS。
-- 就緒門檻用 `<body data-ready-figures="N">` 宣告（N = notebook 圖表數，至少 1）。
+- 純瀏覽器課：就緒門檻用 `<body data-ready-figures="N">` 宣告（N = notebook 圖表數，至少 1）。
+- 外部軌課：**不引 `/shared/lesson.js`**（那是內嵌 notebook 的行為，外部課用不到，
+  引了反而在無 `#nb-frame` 的頁面產生 console 噪音）；右欄 `#molab-panel` 的
+  版型樣式在共用 lesson.css。
 - 首頁與主題頁共用 `/shared/topic.css`。
 - **改共用檔＝改全站**，動之前想清楚；課程專屬需求寫在該課頁面的 `<style>`/inline script。
 
@@ -41,15 +45,29 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 
 ## 課程頁必備（工程底線）
 
-以下全部已內建在 `assets/templates/page.html`＋共用骨架，從 scaffold 起手就不會漏：
+以下全部已內建在模板＋共用骨架，從 scaffold 起手就不會漏。
 
-- `/shared/lesson.css`、`/shared/lesson.js`、`/shared/splitter.js` 三個引用
-- 「下載 .py」與「單獨開啟實驗場 ↗」入口
-- 右欄載入狀態提示（`#nb-status`）；左頁第一節在等待時間內讀得完
-- `<body data-ready-figures="N">`（就緒門檻＝notebook 圖表數）
+兩種課共通：
+
+- `/shared/lesson.css`、`/shared/splitter.js` 引用
+- 「下載 .py」入口（學員帶得走）
 - 窄螢幕（≤980px）上下疊降級、`prefers-reduced-motion`、`:focus-visible`（都在共用 CSS）
 - `lang="zh-Hant"`、有意義的 `<title>`（課名 · AI 互動教室）、meta description
 - 影片（選配）：YouTube 非公開 + `youtube-nocookie.com` 嵌入，版型在 page 模板的 `.video-box` 區塊
+
+純瀏覽器課（`assets/templates/page.html`）另有：
+
+- `/shared/lesson.js` 引用（golab 捲動、就緒輪詢）
+- 「單獨開啟實驗場 ↗」入口
+- 右欄載入狀態提示（`#nb-status`）；左頁第一節在等待時間內讀得完
+- `<body data-ready-figures="N">`（就緒門檻＝notebook 圖表數）
+
+外部軌課（`assets/templates/page_ext.html`）另有：
+
+- 右欄常駐 molab 導流面板（`#molab-panel`）：執行步驟＋三個行動按鈕
+  （新分頁開 notebook / 登入 molab / 下載 .py）
+- header 的「開啟實戰 notebook ↗」入口
+- 不需要 GPU 的課要在面板寫明「免費 CPU 環境即可」，並刪掉「選 GPU Server」步驟
 
 ## 禁止：平台系統說明文字
 

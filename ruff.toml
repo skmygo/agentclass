@@ -4,3 +4,5 @@
 [lint.per-file-ignores]
 "content/*/*/lesson.py" = ["B018", "PLR1711"]
 "content/*/*/*_gpu.py" = ["B018", "PLR1711"]
+"content/*/*/*_ext.py" = ["B018", "PLR1711"]
+".claude/skills/make-lesson/assets/templates/*.py" = ["B018", "PLR1711"]

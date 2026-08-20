@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<!--
+  外部軌課教學頁模板（左教學 / 右 molab 導流面板）——給 Pyodide 跑不了的課
+  （需 GPU、套件無 WASM wheel、需真網路後端）。唯一一份 notebook 在 molab 執行，
+  本頁沒有內嵌 notebook：右欄是常駐導流面板，左頁照樣完整教學。
+  - 【必改】<title>、meta description、hero、各 section、molab 面板的執行說明、課末導覽
+  - 【勿刪】header 品牌連結、下載 LESSON_ID_ext.py、lesson.css / splitter.js 兩個引用、
+    右欄 #molab-panel（版型樣式在共用 lesson.css）
+  - 本模板不引 /shared/lesson.js（那是內嵌 notebook 的行為：分頁切換、golab 捲動、
+    就緒輪詢——本頁都用不到）；也沒有 data-ready-figures
+  - 左頁行動點用 <a class="golab"> 開 molab（樣式共用，本頁 <style> 已補 a 版微調）
+  - 課程語義色與 hero 樣式寫進下方 <style>；章節、互動、教學法完全自由
+  - 課程頁不寫平台系統說明（學員需要的操作提示用自然口吻融入文案）
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>課程標題 · AI 互動教室</title>
+<meta name="description" content="一句話課程簡介（搜尋結果與分享預覽會用到）">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 課程語義色（一個概念一個顏色，左頁與 notebook 圖表共用）——自由改；
+     不覆蓋就用全站預設：--c1 藍 --c2 橘 --c3 綠 --cut 紅 */
+  /* :root { --c1: #4C72B0; --c2: #DD8452; } */
+
+  /* 行動點是 <a> 不是 <button>（共用 .golab 樣式，補上連結微調） */
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero 互動玩具的專屬樣式寫這裡 */
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/TOPIC_SLUG/">‹ 主題名稱</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="LESSON_ID_ext.py" download>下載 .py</a>
+  <a class="tool gpu" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/content/TOPIC_SLUG/LESSON_ID/LESSON_ID_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+
+<section id="hero">
+  <span class="eyebrow">ENGLISH EYEBROW · 中文副標</span>
+  <h1>課程主標題</h1>
+  <p style="margin-top:18px">
+    開場一段：丟出這堂課的核心張力。第一屏就要有可以動手的東西
+    （純 HTML/SVG/JS 小互動，不依賴任何後端），別用三段文字暖場。
+  </p>
+
+  <div class="hero-demo">
+    <!-- 開場互動：自由發揮（SVG + 按鈕/滑桿的小玩具，預告本課的 aha 時刻） -->
+  </div>
+
+  <p class="note">
+    本課的實作在 molab（免費）執行——右欄有三步驟說明，
+    左頁每一節都對應 notebook 裡的一節，邊讀邊在那邊動手。
+  </p>
+</section>
+
+<!-- ── 每節的固定骨架：eyebrow + h2 + 內容 + 行動點 ── -->
+<section id="s1">
+  <span class="eyebrow">01 · 章節性質</span>
+  <h2>章節標題</h2>
+  <p>
+    內容自由發揮。原則：讀與做交替——每節結尾指到 notebook 的對應章節
+    （用一致的 emoji 編號 1️⃣2️⃣3️⃣…）；左頁描述的每個行為、每個數字，
+    notebook 都要真的存在且為真（先 uv run 驗過再寫）。
+    真實程式碼可以放 .codeblock 展示（不執行，執行版在 notebook）。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/content/TOPIC_SLUG/LESSON_ID/LESSON_ID_ext.py" target="_blank" rel="noopener">到 notebook 的 1️⃣ 節動手</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>課末給分級挑戰（先做得到 → 有點難 → 開放式），挑戰在 notebook 末節：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>簡單改個參數就看得到效果的挑戰。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>需要理解本課概念才做得對的挑戰。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>開放式挑戰（換資料、換方法、先猜再驗證）。</p>
+  </div>
+</section>
+
+<!-- 課末導覽：下一課（同主題內有的話）＋回主題。本課上線後記得回頭把前一課的下一課連結補上 -->
+<div class="endnav">
+  <!-- 同主題沒有下一課時，刪掉這顆（NEXT_ID = 下一課的 slug，scaffold 不代換）
+  <a href="/NEXT_ID/">
+    <span class="tag">下一課</span>
+    <b>下一課標題 →</b>
+  </a>
+  -->
+  <a href="/TOPIC_SLUG/">
+    <span class="tag">主題</span>
+    <b>‹ 回「主題名稱」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：molab 導流面板（常駐，無內嵌 notebook） ══════════════ -->
+<div id="lab">
+  <div id="molab-panel">
+    <div class="panel-inner">
+      <span class="eyebrow">HANDS-ON · MOLAB</span>
+      <h3>實作在 molab 跑（免費）</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 notebook 要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）</li>
+        <!-- 需要 GPU 的課才留這行；不需要就刪，並在上面說明「免費 CPU 環境即可」 -->
+        <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/content/TOPIC_SLUG/LESSON_ID/LESSON_ID_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="LESSON_ID_ext.py" download>下載 LESSON_ID_ext.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>LESSON_ID_ext.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox LESSON_ID_ext.py</code>，依賴會自動安裝。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：自由發揮（純 JS/SVG，不依賴任何後端）═══ */
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>
