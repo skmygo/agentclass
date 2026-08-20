@@ -66,6 +66,18 @@ Python 依賴是 **repo 根一個 uv 專案**（一個 venv、一個 lock，全�
 
 ## GPU 軌道（molab）機制
 
+- **molab 軌道不限 GPU 課**：`_gpu.py` 命名只是管線慣例（build.sh 靠它自動放檔）。
+  框架課（fastmcp 等 Pyodide 上不了的套件）可開「實戰軌道」：molab **免費 CPU**
+  環境跑真套件＋真外部 API，頁面文案不叫 GPU、模板的 GPU 檢查 cell 改成
+  「不需要 GPU」說明。fastmcp 課實測全程可跑。
+- **學員自備 API key 的課**：notebook 用 `mo.ui.text(kind="password")` ＋ env var
+  fallback（本機驗證時 export 前設 env 即可全跑）；實測 password 初值不會進
+  export html 產物，但 repo/dist 仍要全文掃描 key 零外洩才部署。
+  NIM key 免費申請（build.nvidia.com）；tool calling 用 `openai/gpt-oss-120b`
+  （llama-3.3-70b 會挑爛中文關鍵字）。
+- **prerelease 套件入 PEP 723**：傳依賴的 prerelease pin 會卡 uv（如 fastmcp 4 beta
+  的 `fastmcp-slim`）→ 把傳依賴一起釘進 dependencies 就不需要 prerelease flag。
+
 - **網址零上傳零回填**：repo 公開在 GitHub，molab 直讀
   `https://molab.marimo.io/github/{owner}/{repo}/blob/{branch}/content/<topic>/<id>/<id>_gpu.py`，
   git push 即更新、網址永不變。因此 **`ref_data/` 絕不能入版控**（已 gitignore）。

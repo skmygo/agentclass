@@ -35,6 +35,7 @@
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
   <a class="topic" href="/ai-engineering/">‹ 學 AI 工程</a>
   <div class="spacer"></div>
+  <a class="tool gpu" href="#s-real" id="jump-gpu">實戰軌道 ⚡</a>
   <a class="tool dl" href="lesson.py" download>下載 .py</a>
   <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
 </header>
@@ -159,11 +160,10 @@ if __name__ == "__main__":
     <li><b>新舊通吃</b>：同一台伺服器自動跟新舊兩代協定的客戶端協商。</li>
   </ul>
   <p class="note">
-    誠實說明：FastMCP 4 目前是 <b>beta</b>（最新 4.0.0b3），官方建議釘死版本號。
-    想在自己電腦跑真的：穩定版 <code>uv add fastmcp</code>、
-    嘗鮮版 <code>uv add "fastmcp==4.0.0b3"</code>，
-    把第 2 節那段程式存成 server.py 後 <code>uv run server.py</code> 就是一台伺服器。
-    另外 4.0 移除了 <code>ctx.sample()</code> 與 <code>ctx.list_roots()</code>，升級前先查遷移指南。
+    誠實說明：FastMCP 4 目前是 <b>beta</b>（最新 4.0.0b3），官方建議釘死版本號；
+    4.0 也移除了 <code>ctx.sample()</code> 與 <code>ctx.list_roots()</code>，升級前先查遷移指南。
+    這裡的迷你版先把概念演給你看——<b>真的 fastmcp 套件</b>等一下在
+    <a href="#s-real">實戰軌道</a>跑給你看，一行都不用裝在這台電腦上。
   </p>
   <button class="golab" data-nb="4️⃣">到右邊重播請求，看置物櫃分身術</button>
 </section>
@@ -189,6 +189,40 @@ if __name__ == "__main__":
   <button class="golab" data-nb="5️⃣">到右邊的實驗區開工</button>
 </section>
 
+<section id="s-real">
+  <span class="eyebrow">實戰軌道 ⚡</span>
+  <h2>跑真的：真 fastmcp、真 LLM</h2>
+  <p>
+    迷你版把魔法拆給你看了；本課附的 <code>fastmcp_gpu.py</code> 全部來真的——
+    真的 <code>fastmcp</code> 4.0 套件、真的 in-memory 連線，
+    壓軸再接上一顆雲端 LLM：你出需求，<b>AI 自己查菜單、自己下單</b>，
+    每一步工具呼叫都攤開給你看。它在 molab（marimo 官方雲）執行，
+    <b>不需要 GPU</b>，免費環境就能全程跑完。
+  </p>
+  <div class="gpu-card">
+    <b>在 molab 跑（免費，約 3–5 分鐘）</b>
+    <ol>
+      <li>登入 <b>molab</b>（marimo 帳號，可用 GitHub/Google）</li>
+      <li>在<b>新分頁</b>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+      <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）</li>
+      <li>最後一節要一把免費的 NVIDIA 金鑰：到
+          <a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a>
+          用信箱註冊（免綁卡），任一模型頁點 <b>Get API Key</b></li>
+    </ol>
+    <div class="btns">
+      <a class="btn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/ai-engineering/fastmcp/fastmcp_gpu.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+      <a class="btn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+      <a class="btn" href="fastmcp_gpu.py" download>下載 fastmcp_gpu.py</a>
+    </div>
+  </div>
+  <p class="note">
+    誠實說明：實戰軌道是<b>選配延伸</b>，不跑它也能完整理解本課。
+    金鑰只存在你自己的 notebook 執行階段，本站與 notebook 都不會上傳它。
+    不想用 molab 的話，下載 <code>fastmcp_gpu.py</code> 在自己電腦
+    <code>uvx marimo edit --sandbox fastmcp_gpu.py</code> 一樣能跑。
+  </p>
+</section>
+
 <!-- 課末導覽 -->
 <div class="endnav">
   <a href="/ai-engineering/">
@@ -202,8 +236,36 @@ if __name__ == "__main__":
 
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
+  <div id="lab-tabs" role="tablist">
+    <button class="labtab active" role="tab" aria-selected="true" data-tab="wasm">🧪 互動實驗</button>
+    <button class="labtab gpu" role="tab" aria-selected="false" data-tab="molab">⚡ 實戰軌道</button>
+  </div>
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
   <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <div id="molab-panel" hidden>
+    <div class="panel-inner">
+      <span class="eyebrow">REAL TRACK · MOLAB</span>
+      <h3>真伺服器＋真 LLM，在 molab 跑</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以實戰版要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+        <b>不需要 GPU</b>，免費環境即可。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b></li>
+        <li>從第一格往下全部執行（首次約 1–2 分鐘）</li>
+        <li>最後一節貼上你的 NVIDIA 金鑰（<a href="https://build.nvidia.com" target="_blank" rel="noopener">build.nvidia.com</a> 免費申請），看 AI 自己點單</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/ai-engineering/fastmcp/fastmcp_gpu.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="fastmcp_gpu.py" download>下載 fastmcp_gpu.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>fastmcp_gpu.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox fastmcp_gpu.py</code>，依賴會自動安裝。</p>
+    </div>
+  </div>
 </div>
 </main>
 
