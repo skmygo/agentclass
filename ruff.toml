@@ -6,3 +6,5 @@
 "content/*/*/*_gpu.py" = ["B018", "PLR1711"]
 "content/*/*/*_ext.py" = ["B018", "PLR1711"]
 ".claude/skills/make-lesson/assets/templates/*.py" = ["B018", "PLR1711"]
+# 定軌實測腳本：刻意的寬 except／硬編 key／印東西，不是課程程式
+"content/*/_spikes/*.py" = ["S102", "C402", "B018", "BLE001", "S110", "S112", "T201", "E501", "E402", "F401", "PLR", "C901", "S101", "B007", "UP", "PTH", "SIM", "I001", "F841", "S603", "S607", "ERA001", "D", "N", "ANN", "EM", "TRY", "RET", "ARG", "PERF", "RUF", "FBT", "INP001"]

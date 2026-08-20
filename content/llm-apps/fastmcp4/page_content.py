@@ -1,0 +1,249 @@
+"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/fastmcp4
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "FastMCP 4：把函式變成 AI 工具，一發請求不用握手"
+DESCRIPTION = "用 FastMCP 4.0 beta 蓋 MCP 工具伺服器：一個裝飾器自動生成說明書；在 notebook 裡起真的 HTTP 伺服器側錄新舊協定，親眼看見無狀態（sessionless）與 SessionId 的有狀態應用。"
+NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4/fastmcp4_ext.py"
+
+STYLE = r"""
+  /* 語義色：藍＝新協定（無狀態）、橘＝舊協定（握手＋session）、綠＝伺服器副本、紅＝session 綁定 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：握手 vs 一發 */
+  #st-demo .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  #st-demo button { font: inherit; font-size: 13.5px; padding: 7px 14px; border: 2px solid var(--ink); border-radius: 10px; background: var(--ink); color: #fff; font-weight: 800; cursor: pointer; }
+  #st-demo label { font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+  #st-demo input[type=range] { width: 110px; accent-color: var(--ink); }
+  #st-demo .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #st-demo .lane { border: 1.5px solid var(--grid); border-radius: 12px; padding: 10px 12px; background: var(--panel); }
+  #st-demo .lane h4 { margin: 0 0 8px; font-size: 13px; letter-spacing: .03em; }
+  #st-demo .lane.legacy h4 { color: var(--c2); } #st-demo .lane.modern h4 { color: var(--c1); }
+  #st-demo .reqs { display: flex; flex-direction: column; gap: 5px; min-height: 178px; }
+  #st-demo .req { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 7px; background: var(--chip-bg); opacity: .25; transition: opacity .2s, transform .2s; }
+  #st-demo .req.on { opacity: 1; transform: translateX(2px); }
+  #st-demo .req .m { flex: 1; }
+  #st-demo .req .sid { font-size: 10.5px; font-weight: 800; color: #fff; background: var(--cut); border-radius: 5px; padding: 1px 6px; }
+  #st-demo .req .srv { font-size: 10.5px; font-weight: 800; border-radius: 5px; padding: 1px 6px; background: var(--c3); color: #fff; }
+  #st-demo .sum { margin-top: 8px; font-size: 13px; font-weight: 800; min-height: 20px; }
+  #st-demo .servers { display: flex; gap: 6px; margin-top: 8px; }
+  #st-demo .server { flex: 1; text-align: center; font-size: 11.5px; font-weight: 800; border: 1.5px dashed var(--c3); color: var(--c3); border-radius: 8px; padding: 4px; }
+  @media (max-width: 560px) { #st-demo .lanes { grid-template-columns: 1fr; } }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+"""
+
+WRAP = r'''
+<section id="hero">
+  <span class="eyebrow">FASTMCP 4.0 · SESSIONLESS PROTOCOL</span>
+  <h1>FastMCP 4：把函式變成 AI 工具，<br>一發請求不用握手</h1>
+  <p style="margin-top:18px">
+    上一課你手寫工具說明書、手組兩回合。<b>MCP</b> 把這件事標準化：你蓋一台工具伺服器，
+    Claude Desktop、Claude Code、Cursor 都能直接接上來用你的函式；<b>FastMCP</b> 讓這台伺服器只剩一個裝飾器。
+    而 4.0 最大的改版是協定變<b>無狀態</b>——同樣「呼叫一次 add」，舊協定要握手、發 session id、綁死同一台伺服器；
+    新協定每個請求自帶一切。按下去比較：
+  </p>
+
+  <div class="hero-demo" id="st-demo">
+    <div class="row">
+      <button id="st-play">▶ 呼叫一次 add(1, 2)</button>
+      <label>伺服器副本數 <input type="range" id="st-rep" min="1" max="3" value="1"> <span id="st-rep-v">1</span></label>
+    </div>
+    <div class="lanes">
+      <div class="lane legacy">
+        <h4>舊協定（握手時代）</h4>
+        <div class="reqs" id="st-legacy"></div>
+        <div class="servers" id="st-srv-l"></div>
+        <div class="sum" id="st-sum-l"></div>
+      </div>
+      <div class="lane modern">
+        <h4>新協定（4.0 預設）</h4>
+        <div class="reqs" id="st-modern"></div>
+        <div class="servers" id="st-srv-m"></div>
+        <div class="sum" id="st-sum-m"></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    這堂課的 notebook 不連任何外部服務——它會在 molab 裡<b>真的起一台 HTTP 伺服器</b>並側錄每個請求，
+    上面這張圖的每一列都是實測結果。本課用 <span class="kbd">fastmcp==4.0.0b1</span>。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 一個裝飾器</span>
+  <h2>說明書自動生成、參數自動把關</h2>
+  <div class="codeblock">from fastmcp import FastMCP
+
+mcp = FastMCP("茶飲店")
+
+@mcp.tool
+def search_menu(keyword: str, limit: int = 3) -> list[dict]:
+    """依關鍵字搜尋菜單，回傳最多 limit 筆品項（含價格）。"""
+    return [m for m in MENU if keyword in m["name"]][:limit]</div>
+  <p>
+    你<b>沒有寫任何 schema</b>。FastMCP 從型別提示、預設值與 docstring 生成說明書：
+    <span class="kbd">limit</span> 有 <span class="kbd">default: 3</span>、<span class="kbd">keyword</span> 在 <span class="kbd">required</span>。
+    用 <span class="kbd">Client(mcp)</span> 直接連同一個 process 裡的伺服器（不開網路）就能
+    <span class="kbd">list_tools()</span>、<span class="kbd">call_tool()</span>；故意把 <span class="kbd">a</span> 給成 <span class="kbd">"two"</span>，
+    pydantic 在進你的函式<b>之前</b>就擋下，回一個 <span class="kbd">ToolError</span> 說明哪個欄位錯。
+  </p>
+  <p>
+    工具之外還有兩種東西：<b>resource</b>（給 AI 讀的資料，URI 定址如 <span class="kbd">menu://today</span>，
+    URI 放 <span class="kbd">{name}</span> 就是 template）與 <b>prompt</b>（帶參數的話術範本）。
+    tool 是模型主動呼叫、resource 是應用決定要不要餵、prompt 是使用者挑選。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 1️⃣–2️⃣ 節：蓋伺服器、連上去、加 resources 與 prompts</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 無狀態協定</span>
+  <h2>同一台伺服器、兩種協定，側錄給你看</h2>
+  <p>
+    notebook 用 <span class="kbd">mcp.http_app()</span>（標準 ASGI app）在背景起一台真的 HTTP 伺服器，前面塞一個只側錄不干擾的中介層。
+    <span class="kbd">Client(網址)</span> 自動協商最新協定，<span class="kbd">mode="legacy"</span> 強制舊的。兩邊各呼叫一次 <span class="kbd">add</span>：
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>舊協定 <span class="kbd">2025-11-25</span></th><th>新協定 <span class="kbd">2026-07-28</span></th></tr>
+    <tr><td>HTTP 請求數</td><td>6（initialize → initialized → GET 長連線 → tools/call → tools/list → DELETE）</td><td>3（server/discover → tools/call → tools/list）</td></tr>
+    <tr><td>session id</td><td>initialize 後伺服器發 <span class="kbd">mcp-session-id</span>，之後每發都帶</td><td>無</td></tr>
+    <tr><td>請求自帶什麼</td><td>只有 JSON-RPC body</td><td>header <span class="kbd">mcp-method</span>／<span class="kbd">mcp-name</span>＋body 的 <span class="kbd">_meta</span> 信封（協定版本、客戶端能力）</td></tr>
+    <tr><td>可以落到哪台副本</td><td>只能回到發 session 的那台</td><td>任何一台</td></tr>
+  </table>
+  <p>最有感的證明：不用 SDK、不握手，<b>一發 <span class="kbd">httpx.post</span> 就能呼叫工具</b>——</p>
+  <div class="codeblock">meta = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {}}
+r = httpx.post("http://127.0.0.1:8765/mcp",
+    json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+          "params": {"name": "add", "arguments": {"a": 40, "b": 2}, "_meta": meta}},
+    headers={"Accept": "application/json, text/event-stream",
+             "MCP-Protocol-Version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "add"})
+# → 200  {"result": 42}
+# 同一個 body 不宣告新協定 → 400  "Bad Request: Missing session ID"</div>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 3️⃣ 節：起伺服器、側錄表、裸 POST</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 有狀態應用</span>
+  <h2>傳輸無狀態，應用照樣記得你：SessionId</h2>
+  <p>
+    購物車、多步驟流程怎麼辦？4.0 的答案是把狀態綁在一把<b>鑰匙</b>上而不是連線上：
+    裝上 <span class="kbd">SessionProvider()</span>，伺服器自動多出 <span class="kbd">create_session()</span>（發一把猜不到的 uuid）
+    與 <span class="kbd">end_session()</span>；你的工具宣告 <span class="kbd">session_id: SessionId</span>，用
+    <span class="kbd">get_session(session_id)</span> 拿到可 <span class="kbd">get</span>／<span class="kbd">set</span> 的小儲存格。
+  </p>
+  <div class="codeblock">mcp.add_provider(SessionProvider())
+
+@mcp.tool
+async def add_to_cart(session_id: SessionId, item: str) -> list[str]:
+    s = await get_session(session_id)
+    items = await s.get("items", default=[])
+    items.append(item)
+    await s.set("items", items)
+    return items</div>
+  <p>
+    實測：拿鑰匙加兩樣東西 → <b>換一條全新連線</b>帶同一把鑰匙 → 購物車還在；亂猜一把 → <span class="kbd">Invalid or unknown session</span>。
+    FastMCP 還會在 <span class="kbd">session_id</span> 的 schema 裡自動寫一段給 AI 看的說明（先建 session、之後每次帶著）。
+    另一個選項 <span class="kbd">session: UserSession</span> 自動注入、不進 schema，但要有認證身分——它把狀態綁在登入的使用者上。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 4️⃣ 節：購物車、換連線、亂猜鑰匙</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 上線</span>
+  <h2>接給真的 AI 客戶端</h2>
+  <div class="codeblock"># server.py 結尾
+if __name__ == "__main__":
+    mcp.run(transport="http", host="0.0.0.0", port=8000)
+
+# 終端機
+uv run --with "fastmcp==4.0.0b1" --with "fastmcp-slim==4.0.0b1" python server.py
+claude mcp add --transport http tea http://localhost:8000/mcp</div>
+  <p>
+    接上之後對 AI 說「幫我找有茶的飲料」，它會自己呼叫 <span class="kbd">search_menu</span>。
+    4.0 還拿掉了 <span class="kbd">ctx.sample()</span>、<span class="kbd">ctx.list_roots()</span> 這類需要活連線的反向呼叫、
+    新增多回合互動工具與背景任務——細節在 notebook 末節，知道有就好。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：部署方式與 4.0 其他改動</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>加一個 <span class="kbd">place_order(item: str, qty: int = 1)</span> 工具，重跑 <span class="kbd">list_tools()</span> 確認說明書自動更新。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>購物車加 <span class="kbd">checkout(session_id)</span>：算總價、清空、回傳收據。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>改裸 POST 去呼叫 <span class="kbd">tools/list</span> 與 <span class="kbd">resources/read</span>（讀 <span class="kbd">menu://today</span>）——查 MCP 規格找出 params 格式。</p>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/qdrant-basics/">
+    <span class="tag">下一課</span>
+    <b>Qdrant：向量資料庫，記憶體裡就能跑 →</b>
+  </a>
+  <a href="/llm-apps/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 LLM 應用開發」課程列表</b>
+  </a>
+</div>
+'''
+
+SCRIPT = r"""
+/* ═══ hero 互動：握手 vs 一發（純 JS；序列來自 notebook 的實測側錄）═══ */
+(function () {
+  const LEGACY = [
+    { m: "POST initialize", sid: "→ 發 session id" },
+    { m: "POST notifications/initialized", sid: "session" },
+    { m: "GET  (長連線收通知)", sid: "session" },
+    { m: "POST tools/call add", sid: "session" },
+    { m: "POST tools/list", sid: "session" },
+    { m: "DELETE (結束 session)", sid: "session" },
+  ];
+  const MODERN = [
+    { m: "POST server/discover" },
+    { m: "POST tools/call add  (+_meta)" },
+    { m: "POST tools/list  (+_meta)" },
+  ];
+  const rep = document.getElementById("st-rep"), repV = document.getElementById("st-rep-v");
+  const L = document.getElementById("st-legacy"), M = document.getElementById("st-modern");
+  const SL = document.getElementById("st-srv-l"), SM = document.getElementById("st-srv-m");
+  const sumL = document.getElementById("st-sum-l"), sumM = document.getElementById("st-sum-m");
+  let timers = [];
+  function servers(n) { return Array.from({ length: n }, (_, i) => `<div class="server">副本 ${String.fromCharCode(65 + i)}</div>`).join(""); }
+  function build() {
+    const n = +rep.value; repV.textContent = n;
+    SL.innerHTML = servers(n); SM.innerHTML = servers(n);
+    L.innerHTML = LEGACY.map(r => `<div class="req"><span class="m">${r.m}</span><span class="srv">A</span><span class="sid">${r.sid}</span></div>`).join("");
+    M.innerHTML = MODERN.map((r, i) => `<div class="req"><span class="m">${r.m}</span><span class="srv">${String.fromCharCode(65 + (n === 1 ? 0 : (i * 2 + 1) % n))}</span></div>`).join("");
+    sumL.textContent = ""; sumM.textContent = "";
+  }
+  function play() {
+    timers.forEach(clearTimeout); timers = [];
+    build();
+    const lr = L.querySelectorAll(".req"), mr = M.querySelectorAll(".req");
+    lr.forEach((el, i) => timers.push(setTimeout(() => { el.classList.add("on"); if (i === lr.length - 1) sumL.textContent = `6 個請求，全部綁在副本 A（session 在那裡）`; }, 220 * (i + 1))));
+    mr.forEach((el, i) => timers.push(setTimeout(() => { el.classList.add("on"); if (i === mr.length - 1) sumM.textContent = +rep.value === 1 ? "3 個請求，沒有 session" : `3 個請求，落到哪台都對`; }, 220 * (i + 1))));
+  }
+  document.getElementById("st-play").addEventListener("click", play);
+  rep.addEventListener("input", play);
+  build();
+})();
+"""
+
+PANEL_STEPS = """
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU</li>
+"""

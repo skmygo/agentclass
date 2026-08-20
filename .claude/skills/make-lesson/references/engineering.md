@@ -25,15 +25,30 @@ watchfiles 等 Rust 擴充無純 wheel）；numpy／pandas／sklearn／matplotli
 ## 管線
 
 ```
-bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic> "<主題名>" [--external]
-                       # ↑ 模板複製＋代換＋生成自檢＋root uv sync（純瀏覽器課）一次做完
-→ 純瀏覽器課：寫 lesson.py ＋ Edit index.html 內容區
-  外部軌課  ：寫 <id>_ext.py ＋ Edit index.html 內容區（左頁教學＋右欄 molab 面板）
-→ 驗證（見下方「驗證」一節，兩軌不同）
-→ scripts/build.sh                    # 自動發現兩種課：WASM 匯出／教學頁複製 + 組裝 dist/
+content/<topic>/_spikes/spike_*.py    # 先寫程式定軌：PEP 723 檔頭、uv run --script 可跑、不部署、進版控
+bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic> "<主題名>" [--external [--gpu]]
+                       # ↑ 模板複製＋代換＋CPU/GPU 二選一＋生成自檢＋root uv sync（純瀏覽器課）
+→ 寫 notebook（lesson.py 或 <id>_ext.py）＋ page_content.py
+→ python .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>   # 內容區填進 index.html（可重跑）
+→ 驗證：外部軌 verify-ext.sh <topic> <id> [關鍵字]；純瀏覽器 marimo export html（CPython）
+→ bash .claude/skills/make-lesson/scripts/smoke-all.sh --build   # build + 起 server + 全站冒煙 + 收 server
+→ node .claude/skills/make-lesson/scripts/preview-shots.mjs / /<topic>/ "/<id>/@#按鈕"   # 預覽（可先點 hero）
 → npx wrangler pages deploy dist --project-name=agentclass          # 憑證見 homelab-infra skill
+→ smoke-all.sh --base https://agentclass.pages.dev                   # 線上冒煙（CDN 冷資產自動重試）
 → 外部軌課另需 git push（molab 直讀 GitHub main）
 ```
+
+### skill 內建工具一覽（scripts/）
+
+| 工具 | 做什麼 | 為什麼存在（實測） |
+|---|---|---|
+| `new-lesson.sh` | scaffold 三件套；`--external` 預設純 CPU，`--gpu` 才留 GPU 步驟與檢查 cell | 以前要手刪 GPU `<li>` 與 cell，常漏 |
+| `page-fill.py` | 把 `page_content.py` 的常數填進 index.html 的內容區，骨架自檢 | 六頁一次產時 Edit 太碎；模板註解含 `<style>` 字樣、re.sub 的 `\u` escape 都踩過 |
+| `nb-outputs.py` | 印出 export 後的渲染輸出／錯誤（讀 `__marimo__/session/*.json`） | export 的 HTML 只嵌程式碼，看不到輸出 |
+| `verify-ext.sh` | 從 repo 根跑 sandbox export ＋ nb-outputs 掃描，有錯 exit 1 | 背景工作 cwd 跑掉會 `Failed to spawn: marimo` 默默失敗 |
+| `smoke-all.sh` | 起 dist server → 自動發現每課 smoke-test.mjs 用正確 URL 跑 → 收 server；`--base` 打線上 | 手動起 server／殺 server／逐課跑 URL 每輪都重做 |
+| `preview-shots.mjs` | 截圖；`path@selector` 先點再截 | hero 互動要看「按下去之後」 |
+| `pyodide-spike.mjs` | 套件裝不裝得進 Pyodide | 定軌依據 |
 
 build.sh **自動發現**：`content/*/*/lesson.py`（純瀏覽器課：WASM 匯出、
 `auto_instantiate` 後處理、698 個 assets 抽共用）與 `content/*/*/<id>_ext.py`
@@ -134,8 +149,13 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 - **外部軌 notebook 的輸出怎麼驗**：`export --sandbox` 產的 HTML 只嵌程式碼；渲染結果在
   `content/<topic>/<id>/__marimo__/session/<id>_ext.py.json`（gitignored），grep 那裡看數字最快。
   sandbox 會裝最新 marimo（非全站釘版）——外部軌不共用 assets，無妨。
-- **教學頁用 regex 只換內容區時**：先拿掉 page_ext 模板頂部的說明註解（含 `<style>`、`#molab-panel`
-  字樣會干擾比對）；`re.sub` 替換字串用 lambda（內容含 `\u` 會被當 escape 炸掉）。
+- **教學頁內容區**：用 `page-fill.py`＋`page_content.py`（上述坑已內建：先移除模板註解、lambda 替換）。
+- **背景工作（run_in_background）裡不要 `cd`**：cwd 跑掉後 `uv run marimo` 找不到專案會
+  `Failed to spawn: marimo`、exit 2 但沒有明顯錯誤——用 `verify-ext.sh`（自己 cd 到 repo 根）。
+- **一次建系列課的順序**：六課全部 spike → 六份 notebook 逐一寫完就丟背景 verify（LLM 課一份要
+  1–10 分鐘，nemotron 類更久）→ 同時寫 page_content → 最後 smoke-all 一次。別等一份驗完才寫下一份。
+- **換模型的代價很真實**：第一版 gpt-oss → ultra → lightning，每次都要重跑 spike、改四份 notebook
+  ＋四頁文案、重驗。所以：模型名只出現在一格常數；左頁不寫點估計；行為宣稱標「實測（模型名）」。
 - **LiteLLM gateway**（`https://litellm.itsmygo.uk/v1`，教學 virtual key 課後撤銷）：
   免費池某家 402（月額度用完）LiteLLM **不重試不換家**（已由 gateway 端移除＋fallbacks 修掉）。
   系列預設模型由使用者指定（現為 `nemotron-3.5-lightning`）：**推理型模型 `max_tokens` 一律 4096**
@@ -166,13 +186,15 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   1. `uv run marimo export html content/<topic>/<id>/lesson.py -o check.html`（CPython 全 cell）
   2. build 後 headless Playwright 冒煙（`smoke-test.mjs`：等圖表數、驗錯誤文字、console）
 - **外部軌課**：
-  1. `uv run marimo export html --sandbox content/<topic>/<id>/<id>_ext.py -o check_ext.html`
-     ——自動建 PEP 723 環境、全 cell 執行。**GPU cell 與 key-gated cell 要能在
-     無 GPU／無 key 環境優雅降級（mo.stop ＋指引），不能 Traceback**。
-     帶 key 全跑：export 前設對應 env var。
-  2. build 後頁面冒煙（`smoke-test-ext.mjs`：h1 可見、molab 連結指對檔、.py fetch 200、
-     console 乾淨）。
-  3. 部署後 git push，請使用者在 molab 實跑一次（molab 環境本機碰不到）。
+  1. `bash .claude/skills/make-lesson/scripts/verify-ext.sh <topic> <id> [關鍵字...]`
+     ——從 repo 根跑 `marimo export html --sandbox`（自動建 PEP 723 環境、全 cell 執行）
+     再用 `nb-outputs.py` 掃渲染輸出，有 error 就 exit 1；關鍵字給了會印出左頁要引用的數字。
+     **GPU cell 與 key-gated cell 要能在無 GPU／無 key 環境優雅降級（mo.stop ＋指引），
+     不能 Traceback**。帶 key 全跑：export 前設對應 env var。
+  2. `bash .claude/skills/make-lesson/scripts/smoke-all.sh --build`（全站頁面冒煙：h1 可見、
+     molab 連結指對檔、.py fetch 200、console 乾淨）。
+  3. 部署後 `smoke-all.sh --base https://agentclass.pages.dev`、git push，請使用者在 molab
+     實跑一次（molab 環境本機碰不到）。
 
 ### Playwright 通則
 

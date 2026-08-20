@@ -6,6 +6,8 @@
   - 【必改】<title>、meta description、hero、各 section、molab 面板的執行說明、課末導覽
   - 【勿刪】header 品牌連結、下載 LESSON_ID_ext.py、lesson.css / splitter.js 兩個引用、
     右欄 #molab-panel（版型樣式在共用 lesson.css）
+  - 面板步驟裡的「選 GPU Server」與「免費 CPU 環境即可」用 HTML 註解標記包著，
+    scaffold 依 --gpu 有無自動二選一，不用手動刪
   - 本模板不引 /shared/lesson.js（那是內嵌 notebook 的行為：分頁切換、golab 捲動、
     就緒輪詢——本頁都用不到）；也沒有 data-ready-figures
   - 左頁行動點用 <a class="golab"> 開 molab（樣式共用，本頁 <style> 已補 a 版微調）
@@ -124,9 +126,8 @@
       <ol>
         <li>登入 molab（GitHub / Google）</li>
         <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
-        <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）</li>
-        <!-- 需要 GPU 的課才留這行；不需要就刪，並在上面說明「免費 CPU 環境即可」 -->
-        <li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）<!--CPU-ONLY-->——<b>免費 CPU 環境即可</b>，不需要 GPU<!--/CPU-ONLY--></li>
+        <!--GPU-ONLY--><li>執行環境選 <b>Server / GPU</b>（例如 RTX Pro 6000）</li><!--/GPU-ONLY-->
       </ol>
       <div class="panel-btns">
         <a class="pbtn primary" href="https://molab.marimo.io/github/OWNER/REPO/blob/main/content/TOPIC_SLUG/LESSON_ID/LESSON_ID_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>

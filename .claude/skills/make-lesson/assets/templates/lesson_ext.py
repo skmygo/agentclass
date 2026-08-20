@@ -17,10 +17,14 @@
 #   （repo 必須公開；含私人資訊的參考教材放 ref_data/，已 gitignore）
 # - 學員自備 API key：mo.ui.text(kind="password") ＋ env var fallback、mo.stop 擋空值；
 #   實測 password 初值不進 export 產物，但部署前仍要全文掃描 key 零外洩
-# - 驗證：repo 根執行
-#   uv run marimo export html --sandbox content/<topic>/<id>/<id>_ext.py -o check_ext.html
-#   （自動建 PEP 723 環境、全 cell 執行；需要 GPU 的 cell 要能在無 GPU 環境優雅降級
+# - 驗證：bash .claude/skills/make-lesson/scripts/verify-ext.sh <topic> <id> [左頁要引用的關鍵字]
+#   （sandbox 全 cell 執行＋渲染輸出掃描；需要 GPU 的 cell 要能在無 GPU 環境優雅降級
 #   ——mo.stop ＋清楚指引，不能 Traceback）
+# - 會打外部 API／LLM 的 cell：
+#   * 模型名、max_tokens 等「會換」的設定集中在一格常數（CHAT_MODEL = "..."），全 notebook 只引用它
+#   * 學員互動觸發的呼叫（按鈕／輸入框）包 try/except → mo.callout 解釋＋「再跑一次」，
+#     不要讓 429／5xx 變成 Traceback；主線示範格可以直接呼叫（失敗就該看到錯）
+#   * 推理型模型 max_tokens 給足（4096 起跳），輸出數字會飄 → 左頁寫範圍與方向，不寫點估計
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
@@ -55,6 +59,7 @@ def _():
     return (mo,)
 
 
+# --GPU-CELL-START--（scaffold 預設移除整格；--gpu 才保留）
 @app.cell
 def _(mo):
     # 【GPU 課才需要這格；純 CPU 課整格刪掉】啟用方式：
@@ -74,6 +79,7 @@ def _(mo):
         _msg = "ℹ️ 這格是 GPU 檢查佔位：GPU 課照上方註解啟用，純 CPU 課整格刪掉。"
     mo.md(_msg)
     return
+# --GPU-CELL-END--
 
 
 @app.cell(hide_code=True)
@@ -105,9 +111,30 @@ def _(mo):
     2. **LEVEL 2**：需要理解本課概念才做得對的挑戰。
     3. **LEVEL 3**：開放式挑戰（換資料、換方法、先猜再驗證）。
 
+    先自己試，卡住再展開下面的提示與參考解答。
     帶得走：下載本檔後 `uvx marimo edit --sandbox 檔名.py`
     在自己電腦繼續玩（依賴會自動安裝）。
     """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答：學員先做再看。LEVEL 1/2 給完整可貼的程式碼，LEVEL 3 給方向與驗證方法就好
+    # （開放式題目沒有唯一解；給「怎麼判斷自己做對了」比給答案更重要）。
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答": mo.md(
+                r"""
+    ```python
+    # 把要改的那行貼在這裡，加一句「你應該看到…」
+    ```
+    """
+            ),
+            "💡 LEVEL 2 參考解答": mo.md(r"""（完整程式碼 + 預期輸出）"""),
+            "💡 LEVEL 3 提示": mo.md(r"""（方向、陷阱、以及怎麼驗證自己做對了）"""),
+        }
     )
     return
 

@@ -1,0 +1,276 @@
+"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/litellm-basics
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "LiteLLM：一個網址、一把 key，打遍八家模型"
+DESCRIPTION = "用官方 openai SDK 兩行設定連上 LiteLLM gateway：列模型、對話、推理型模型的 max_tokens 坑、串流、embeddings，再同時發 12 個請求親眼看見同名兩來源在輪替。"
+NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-basics/litellm-basics_ext.py"
+
+STYLE = r"""
+  /* 語義色：藍＝gateway／你的程式、橘＝上游供應商、綠＝成功回應、紅＝失敗 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：一個插座、八家電力公司 */
+  #gw-demo .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  #gw-demo select, #gw-demo button { font: inherit; font-size: 13.5px; }
+  #gw-demo select { padding: 6px 10px; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--panel); }
+  #gw-demo button { padding: 7px 14px; border: 2px solid var(--ink); border-radius: 10px; background: var(--c1); color: #fff; font-weight: 800; cursor: pointer; }
+  #gw-demo button:hover { filter: brightness(1.08); }
+  #gw-demo .stage { position: relative; height: 154px; margin: 6px 0 4px; }
+  #gw-demo .node { position: absolute; border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; font-size: 12.5px; font-weight: 800; background: var(--panel); text-align: center; transition: all .25s; }
+  #gw-demo .client { left: 0; top: 54px; width: 96px; border-color: var(--c1); color: var(--c1); }
+  #gw-demo .gate { left: 150px; top: 44px; width: 120px; padding: 12px 10px; background: var(--c1); color: #fff; }
+  #gw-demo .prov { right: 0; width: 150px; opacity: .28; padding: 4px 8px; font-size: 12px; }
+  #gw-demo .prov.on { opacity: 1; border-color: var(--c2); }
+  #gw-demo .prov.hit { background: var(--c2); color: #fff; transform: scale(1.06); }
+  #gw-demo .pkt { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--c3); border: 2px solid var(--ink); top: 64px; left: 92px; opacity: 0; }
+  #gw-demo .verdict { min-height: 22px; }
+  #gw-demo .dist { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; font-family: var(--mono); }
+  #gw-demo .dist span { background: var(--chip-bg); border-radius: 6px; padding: 2px 8px; }
+  @media (max-width: 560px) { #gw-demo .prov { width: 118px; font-size: 11px; } #gw-demo .gate { left: 112px; width: 100px; } }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+"""
+
+WRAP = r"""
+<section id="hero">
+  <span class="eyebrow">LITELLM GATEWAY · 模型閘道</span>
+  <h1>LiteLLM：一個網址、一把 key，<br>打遍八家模型</h1>
+  <p style="margin-top:18px">
+    你寫過打 OpenAI API 的程式嗎？那你已經會用 LiteLLM 了。它是一個<b>長得跟 OpenAI 一模一樣的入口</b>，
+    背後卻接著 NVIDIA、Google、Groq、Cloudflare、OpenRouter……八家供應商。
+    程式碼寫死 <span class="kbd">model="nemotron-3.5-lightning"</span>，每一發請求會被分到這顆模型的兩個來源之一
+    （NVIDIA NIM／OpenRouter），哪家慢、哪家限流就換家——你的程式完全無感。先按幾次看看：
+  </p>
+
+  <div class="hero-demo" id="gw-demo">
+    <div class="row">
+      <label style="font-size:13.5px;font-weight:800">model =</label>
+      <select id="gw-model">
+        <option value="nemotron-3.5-lightning">"nemotron-3.5-lightning"（2 個來源備援）</option>
+        <option value="nemotron-3-ultra">"nemotron-3-ultra"（3 個來源備援）</option>
+        <option value="gemini-3.5-flash">"gemini-3.5-flash"（指名單一家）</option>
+      </select>
+      <button id="gw-send">送出一個請求</button>
+      <button id="gw-burst" style="background:var(--panel);color:var(--ink)">同時送 12 個</button>
+    </div>
+    <div class="stage" id="gw-stage">
+      <div class="node client">你的程式<br><small style="font-weight:400">openai SDK</small></div>
+      <div class="node gate">LiteLLM<br><small style="font-weight:400">一個網址・一把 key</small></div>
+      <div class="pkt" id="gw-pkt"></div>
+    </div>
+    <div class="verdict" id="gw-verdict">把 model 換成別的字串，亮起來的來源就會變。</div>
+    <div class="dist" id="gw-dist"></div>
+  </div>
+
+  <p class="note">
+    右欄的 notebook 會<b>真的</b>打這個 gateway——課程提供一把教學用 key（只開免費模型，
+    課後會撤銷），不用申請任何帳號。每一節讀完就到 notebook 的同號章節動手。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 為什麼要一個閘道</span>
+  <h2>免費額度池化、模型名穩定、金鑰收斂</h2>
+  <p>
+    免費方案的共同特性是<b>單家限流都很小</b>：分鐘級 RPM、日配額都低，稍微跑個批次就 429。
+    gateway 把同一顆模型在不同供應商的免費額度掛在同一個名字下，一家撞牆就換下一家。
+    但池化只是第一個好處：
+  </p>
+  <table class="cmp">
+    <tr><th>你寫的</th><th>gateway 幫你做的</th></tr>
+    <tr><td><span class="kbd">model="nemotron-3.5-lightning"</span></td><td>同一顆 30B-A3B 輕量推理模型、兩個來源（NIM／OpenRouter）隨機分流，429／5xx 自動重試換家——本系列全程用它</td></tr>
+    <tr><td><span class="kbd">model="nemotron-3-ultra"</span></td><td>550B 旗艦，三個來源備援（想得慢，當對照組）</td></tr>
+    <tr><td><span class="kbd">model="gemini-3.5-flash"</span></td><td>指名單一供應商（需要特定能力時用，例如看圖）</td></tr>
+    <tr><td>一把 virtual key</td><td>八把上游金鑰只存在 gateway；每把子 key 可設預算、限模型、看用量、隨時撤銷</td></tr>
+    <tr><td>一份程式碼</td><td>上游漲價、換家、出新模型，只改 gateway 設定，所有程式立刻生效</td></tr>
+  </table>
+  <p>連線只要兩行設定，SDK 是官方 <span class="kbd">openai</span> 套件、一行都沒改：</p>
+  <div class="codeblock">from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://litellm.itsmygo.uk/v1",   # 指到 gateway
+    api_key="sk-FiIRnuzLH7ypgf29LTpHNw",        # 教學用 virtual key
+)
+models = sorted(m.id for m in client.models.list())   # 8 個模型名</div>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 0️⃣–1️⃣ 節：連上去、列出模型</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 第一次對話</span>
+  <h2>回應物件裡藏了什麼，以及一個空字串的坑</h2>
+  <p>
+    <span class="kbd">client.chat.completions.create(model=..., messages=[...])</span> 拿回一個
+    <span class="kbd">ChatCompletion</span>：回答在 <span class="kbd">choices[0].message.content</span>，
+    <span class="kbd">usage</span> 是 token 帳單，<span class="kbd">model</span> 是實際回應的模型。
+    notebook 裡有一個可以換模型、改問題的小面板——同一段程式碼，換的只是那個字串。
+  </p>
+  <p>
+    然後是這個 gateway 上最常見的「沒報錯卻沒答案」：<span class="kbd">nemotron-3.5-lightning</span> 是<b>推理型</b>模型，
+    先在心裡想、再開口，而且想得不少（一句自我介紹先想 600 多個 token）。<span class="kbd">max_tokens=20</span> 問 1+1，
+    實測回來的 content 是 <span class="kbd">"Here's a thinking process: 1. Analyze User Input…"</span>——
+    那不是答案，是<b>被切斷的思考過程</b>被當成 content 吐出來，<span class="kbd">finish_reason='length'</span>。
+    給到 4096，答案 <span class="kbd">1+1=2</span> 在 content，思考在非標準欄位 <span class="kbd">reasoning_content</span>。
+    <span class="kbd">reasoning_tokens</span> 只有部分來源回報（OpenRouter 會、NIM 是 <span class="kbd">None</span>）——
+    同一個模型名、不同上游的痕跡。結論：對推理型模型 <span class="kbd">max_tokens</span> 要裝得下思考＋答案（本系列一律 4096）。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 2️⃣–3️⃣ 節：發話、踩坑</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 串流與向量</span>
+  <h2>兩個同一個入口就能用的能力</h2>
+  <p>
+    <b>串流</b>（<span class="kbd">stream=True</span>）：回傳的不是一個物件而是一串 chunk，
+    每個 <span class="kbd">delta.content</span> 是新增的幾個字。notebook 會把每個 chunk 的到達時間畫成階梯圖，
+    推理型模型的圖常有個特徵：<b>前面一段是平的</b>（它在想，思考過程不會串流出來），
+    想完文字才一口氣湧出——有時幾秒、有時不到一秒，看落到哪個來源。做聊天介面時，那段空白就是該放「思考中…」的地方。
+  </p>
+  <p>
+    <b>向量</b>（<span class="kbd">client.embeddings.create</span>）：同一把 key、同一個入口，
+    模型換成 <span class="kbd">qwen3-embedding-0.6b</span>，任何一段文字變成 1024 個數字。
+    意思相近的句子方向相近：實測「貓咪喜歡曬太陽」vs「小貓在窗邊打盹」餘弦相似度 <b>0.54</b>，
+    vs「今天股市大跌」只有 <b>0.21</b>。這個模型回傳的已經是單位向量，內積就是 cosine。
+    這是後面 Qdrant 與 RAG 兩課的地基。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 4️⃣–5️⃣ 節：串流階梯圖、相似度熱圖</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 並發與可觀察性</span>
+  <h2>同時發 12 個，親眼看見輪替</h2>
+  <p>
+    批次推論的標準寫法是 <span class="kbd">AsyncOpenAI</span> + <span class="kbd">asyncio.gather</span>：
+    12 發同時出去，牆鐘時間 ≈ 最慢那一發，不是 12 倍（實測序跑要 55–90 秒、並發約 15–20 秒）。
+    但你怎麼知道 gateway 真的在換家？LiteLLM 每個回應都帶一個 header
+    <span class="kbd">x-litellm-model-api-base</span>，用 <span class="kbd">with_raw_response</span>
+    讀出來，「隨機輪替」就從黑盒變成一張分佈圖。
+  </p>
+  <p>
+    同時盯著每一發的秒數：同一顆模型在不同來源的延遲不一樣——實測多數 2–5 秒，偶爾一發要等 10–30 秒。
+    失敗的也算進統計（紅色長條）。<b>看見失敗與慢，本身就是可觀察性</b>：
+    一家慢了、倒了，另一家照跑，你的程式碼一個字不用改，這正是 gateway 存在的理由。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 6️⃣ 節：12 發並發、輪替分佈圖</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>挑戰在 notebook 末節，由淺到深：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>加一則 <span class="kbd">system</span> 訊息「你只會用文言文回答」，看同一個問題的回答風格怎麼變。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>把相似度熱圖的四句話換成你自己的（三句同主題、一句離題），先猜熱圖長相再跑；再換成 2048 維的 <span class="kbd">nemotron-3-embed-1b</span> 比較。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>對 <span class="kbd">nemotron-3-ultra</span>（550B、三個來源）發 12 發，比較延遲與分佈跟 lightning 的差別；再算各來源的平均秒數——哪家最快、哪家最飄？</p>
+  </div>
+  <p class="note">
+    離開這堂課前記住兩件事：任何認得 <span class="kbd">OPENAI_BASE_URL</span> / <span class="kbd">OPENAI_API_KEY</span>
+    的工具（curl、LangChain、Open WebUI、aider）兩個變數指過來就能用；
+    正式專案請到 gateway 管理介面自己發一把 key，別用教學用的。
+  </p>
+</section>
+
+<div class="endnav">
+  <a href="/litellm-tools/">
+    <span class="tag">下一課</span>
+    <b>讓模型做事：Tool calling、結構化輸出與看圖 →</b>
+  </a>
+  <a href="/llm-apps/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 LLM 應用開發」課程列表</b>
+  </a>
+</div>
+"""
+
+SCRIPT = r"""
+/* ═══ hero 互動：一個插座、八家電力公司（純 JS，不打任何 API）═══ */
+(function () {
+  const PROV = {
+    "nemotron-3.5-lightning": ["NVIDIA NIM", "OpenRouter"],
+    "nemotron-3-ultra": ["NVIDIA NIM", "OpenRouter", "Ollama Cloud"],
+    "gemini-3.5-flash": ["Google Gemini"],
+  };
+  const SLOW = {   // 實測延遲範圍（ms）：lightning 2–15 秒；ultra 的 Ollama 最慢可到 60 秒
+    "nemotron-3.5-lightning": { "NVIDIA NIM": [1500, 15000], "OpenRouter": [2000, 11000] },
+    "nemotron-3-ultra": { "NVIDIA NIM": [1500, 30000], "OpenRouter": [2000, 20000], "Ollama Cloud": [3000, 60000] },
+  };
+  const stage = document.getElementById("gw-stage");
+  const sel = document.getElementById("gw-model");
+  const verdict = document.getElementById("gw-verdict");
+  const dist = document.getElementById("gw-dist");
+  const pkt = document.getElementById("gw-pkt");
+  const ALL = ["NVIDIA NIM", "OpenRouter", "Ollama Cloud", "Google Gemini"];
+  const nodes = {};
+  ALL.forEach((name, i) => {
+    const d = document.createElement("div");
+    d.className = "node prov";
+    d.style.top = (i * 30) + "px";
+    d.textContent = name;
+    stage.appendChild(d);
+    nodes[name] = d;
+  });
+  const counts = {};
+  function refresh() {
+    const on = new Set(PROV[sel.value]);
+    ALL.forEach(n => {
+      nodes[n].classList.toggle("on", on.has(n));
+      nodes[n].classList.remove("hit");
+    });
+  }
+  function renderDist() {
+    const keys = Object.keys(counts);
+    dist.innerHTML = keys.length ? keys.map(k => `<span>${k} ${"█".repeat(counts[k])} ${counts[k]}</span>`).join("") : "";
+  }
+  function fire(cb) {
+    const pool = PROV[sel.value];
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const target = nodes[pick];
+    const ok = true;
+    pkt.style.transition = "none"; pkt.style.opacity = 1; pkt.style.left = "92px"; pkt.style.top = "64px"; pkt.style.background = "var(--c3)";
+    requestAnimationFrame(() => {
+      pkt.style.transition = "left .35s ease, top .35s ease, background .2s";
+      pkt.style.left = "140px";
+      setTimeout(() => {
+        pkt.style.left = (stage.clientWidth - 165) + "px";
+        pkt.style.top = (target.offsetTop + 6) + "px";
+        if (!ok) pkt.style.background = "var(--cut)";
+        setTimeout(() => {
+          target.classList.add("hit");
+          pkt.style.opacity = 0;
+          const [lo, hi] = (SLOW[sel.value] || {})[pick] || [800, 2500];
+          const ms = (lo + Math.random() * (hi - lo)).toFixed(0);
+          counts[pick] = (counts[pick] || 0) + 1;
+          verdict.innerHTML = `✅ 回應來自 <b>${pick}</b>（${ms} ms）——你的程式只知道它問了 <code>${sel.value}</code>。`;
+          renderDist();
+          setTimeout(() => target.classList.remove("hit"), 600);
+          if (cb) cb();
+        }, 380);
+      }, 360);
+    });
+  }
+  document.getElementById("gw-send").addEventListener("click", () => fire());
+  document.getElementById("gw-burst").addEventListener("click", () => {
+    let n = 0;
+    (function next() { if (n++ < 12) fire(next); })();
+  });
+  sel.addEventListener("change", () => { Object.keys(counts).forEach(k => delete counts[k]); renderDist(); refresh();
+    verdict.textContent = `現在 "${sel.value}" 背後有 ${PROV[sel.value].length} 個來源。`; });
+  refresh();
+})();
+"""
+
+PANEL_STEPS = """
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU</li>
+"""
