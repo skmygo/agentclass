@@ -80,7 +80,8 @@ def _():
     def get_weather(city: str) -> dict:
         """假的天氣查詢——真實專案這裡會去打氣象 API。"""
         _FAKE = {"台北": {"weather": "晴", "temp_c": 31}, "高雄": {"weather": "多雲", "temp_c": 33}}
-        return _FAKE.get(city, {"weather": "未知城市", "temp_c": None})
+        _ALIAS = {"taipei": "台北", "kaohsiung": "高雄"}   # 模型有時會把城市名翻成英文
+        return _FAKE.get(_ALIAS.get(city.strip().lower(), city), {"weather": "未知城市", "temp_c": None})
 
     TOOLS = [{
         "type": "function",
@@ -105,8 +106,9 @@ def _(mo):
 
     把 `tools=TOOLS` 一起送出去。看回應：`message.content` 是空的（`None` 或 `''`，依供應商），
     `message.tool_calls` 裡有一筆 `get_weather`，`arguments` 是一段 JSON 字串——
-    模型自己從「台北現在天氣怎麼樣？」抽出了 `city="台北"`。本課預設模型 `nemotron-3-ultra`
-    是推理型，每一發可能要等幾秒到幾十秒。
+    模型自己從「台北現在天氣怎麼樣？」抽出了 `city`（實測 `nemotron-3.5-lightning` 有時會自作主張
+    翻成 `"Taipei"`——所以上面的 `get_weather` 多加了一層英文別名）。本課預設模型是推理型，
+    `max_tokens` 一律給 4096 讓它想得完。
     """
     )
     return
@@ -115,7 +117,7 @@ def _(mo):
 @app.cell
 def _(TOOLS, client, json, mo):
     QUESTION = [{"role": "user", "content": "台北現在天氣怎麼樣？"}]
-    round1 = client.chat.completions.create(model="nemotron-3-ultra", messages=QUESTION, tools=TOOLS, max_tokens=512)
+    round1 = client.chat.completions.create(model="nemotron-3.5-lightning", messages=QUESTION, tools=TOOLS, max_tokens=4096)
     first_call = round1.choices[0].message.tool_calls[0]
     mo.md(
         f"""
@@ -165,7 +167,7 @@ def _(QUESTION, TOOLS, client, first_call, get_weather, json, mo):
         {"role": "tool", "tool_call_id": first_call.id,   # 你執行工具後的結果
          "content": json.dumps(tool_result, ensure_ascii=False)},
     ]
-    round2 = client.chat.completions.create(model="nemotron-3-ultra", messages=messages_round2, tools=TOOLS, max_tokens=512)
+    round2 = client.chat.completions.create(model="nemotron-3.5-lightning", messages=messages_round2, tools=TOOLS, max_tokens=4096)
     mo.md(
         f"""
     工具回傳：`{tool_result}`
@@ -194,12 +196,12 @@ def _(mo):
 def _(TOOLS, client, get_weather, json):
     AVAILABLE = {"get_weather": get_weather}   # 工具名 → 真的 Python 函式
 
-    def run_with_tools(question: str, model: str = "nemotron-3-ultra", max_rounds: int = 5):
+    def run_with_tools(question: str, model: str = "nemotron-3.5-lightning", max_rounds: int = 5):
         """回傳 (最終答案, 追蹤紀錄)。追蹤紀錄記每一次工具呼叫。"""
         _msgs = [{"role": "user", "content": question}]
         _trace = []
         for _ in range(max_rounds):
-            _r = client.chat.completions.create(model=model, messages=_msgs, tools=TOOLS, max_tokens=512)
+            _r = client.chat.completions.create(model=model, messages=_msgs, tools=TOOLS, max_tokens=4096)
             _m = _r.choices[0].message
             if not _m.tool_calls:                       # 沒有工具請求 → 這就是最終答案
                 return (_m.content or "").strip(), _trace
@@ -250,7 +252,7 @@ def _(QUESTION, TOOLS, chat_models, client, json, mo, time):
     for _name in chat_models:
         _t0 = time.perf_counter()
         try:
-            _r = client.chat.completions.create(model=_name, messages=QUESTION, tools=TOOLS, max_tokens=512)
+            _r = client.chat.completions.create(model=_name, messages=QUESTION, tools=TOOLS, max_tokens=4096)
             _calls = _r.choices[0].message.tool_calls
             if _calls and _calls[0].function.name == "get_weather":
                 _args = json.loads(_calls[0].function.arguments)
@@ -282,7 +284,7 @@ def _(mo):
 @app.cell
 def _(client, mo):
     PROMPT = [{"role": "user", "content": "小明今年12歲，住在台北，喜歡籃球跟圍棋。請抽取人物資料。"}]
-    _free = client.chat.completions.create(model="nemotron-3-ultra", messages=PROMPT, max_tokens=512)
+    _free = client.chat.completions.create(model="nemotron-3.5-lightning", messages=PROMPT, max_tokens=4096)
     mo.md("**沒有 schema 時的回答**（漂亮，但程式不好解析）：\n\n" + _free.choices[0].message.content)
     return (PROMPT,)
 
@@ -307,8 +309,8 @@ def _(PROMPT, client, json, mo):
             },
         },
     }
-    _strict = client.chat.completions.create(model="nemotron-3-ultra", messages=PROMPT,
-                                             response_format=RESPONSE_FORMAT, max_tokens=512)
+    _strict = client.chat.completions.create(model="nemotron-3.5-lightning", messages=PROMPT,
+                                             response_format=RESPONSE_FORMAT, max_tokens=4096)
     _raw = (_strict.choices[0].message.content or "").strip()
     try:
         person = json.loads(_raw)   # 直接解析，不用正則去撈
@@ -324,7 +326,7 @@ def _(PROMPT, client, json, mo):
         person = None
         _out = mo.callout(mo.md(
             "這一發**沒有**照 schema 回——原始回答：\n\n" + _raw[:300] +
-            "\n\n`nemotron-3-ultra` 有三個上游，其中有的不支援 `response_format`，gateway 的 `drop_params` "
+            "\n\n同一個模型名背後可能有多個上游，其中有的不支援 `response_format`，gateway 的 `drop_params` "
             "會默默拿掉這個參數。重新執行這格通常就會落到遵守 schema 的來源。這正是下一小節要講的陷阱。"
         ), kind="warn")
     _out
@@ -340,8 +342,9 @@ def _(mo):
     gateway 開了 `drop_params`：某家不認得 `response_format`，這個參數會被**悄悄拿掉**，
     呼叫不報錯、輸出看似正常、實則毫無約束。更麻煩的是像 `nemotron-3-ultra` 這種
     **同一個模型名背後有多個上游**的情況：這一發嚴格遵守、下一發回一張 markdown 表格，
-    取決於落到哪家。所以驗收標準不是「有沒有報錯」，而是**逐欄驗證輸出**——
-    下面對每個模型都檢查四個欄位的型別（多跑幾次，結果會變）。
+    取決於落到哪家（`nemotron-3.5-lightning` 的兩個來源實測都遵守，但別把這當保證）。
+    所以驗收標準不是「有沒有報錯」，而是**逐欄驗證輸出**——下面對每個模型都檢查四個欄位的型別
+    （多跑幾次，結果會變）。
     """
     )
     return
@@ -363,7 +366,7 @@ def _(PROMPT, RESPONSE_FORMAT, chat_models, client, json, mo, time):
     for _name in chat_models:
         _t0 = time.perf_counter()
         try:
-            _r = client.chat.completions.create(model=_name, messages=PROMPT, response_format=RESPONSE_FORMAT, max_tokens=512)
+            _r = client.chat.completions.create(model=_name, messages=PROMPT, response_format=RESPONSE_FORMAT, max_tokens=4096)
             _mark, _detail = validate((_r.choices[0].message.content or "").strip())
         except Exception as _e:  # noqa: BLE001
             _mark, _detail = "❌", str(_e)[:70]
@@ -415,7 +418,7 @@ def _(VISION_MESSAGES, chat_models, client, mo, time):
     for _name in chat_models:
         _t0 = time.perf_counter()
         try:
-            _r = client.chat.completions.create(model=_name, messages=VISION_MESSAGES, max_tokens=512)
+            _r = client.chat.completions.create(model=_name, messages=VISION_MESSAGES, max_tokens=4096)
             _ans = (_r.choices[0].message.content or "").strip().replace("\n", " ")
             _correct = ("紅" in _ans or "red" in _ans.lower()) and ("圓" in _ans or "circle" in _ans.lower())
             vision_scan.append({"模型": _name, "結果": "✅" if _correct else "⚠️ 沒看到圖在瞎掰",
@@ -426,7 +429,7 @@ def _(VISION_MESSAGES, chat_models, client, mo, time):
     mo.vstack([
         mo.ui.table(vision_scan, selection=None),
         mo.md("結論：圖片任務要**指名**看得懂圖的模型（實測只有 `gemini-3.5-flash`；本系列預設的 "
-              "`nemotron-3-ultra` 不吃圖），別丟給多來源的群組名——它會輪到不吃圖的家。"),
+              "`nemotron-3.5-lightning` 不吃圖），別丟給多來源的群組名——它會輪到不吃圖的家。"),
     ])
     return (vision_scan,)
 

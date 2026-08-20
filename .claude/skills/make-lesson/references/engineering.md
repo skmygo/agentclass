@@ -137,9 +137,13 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 - **教學頁用 regex 只換內容區時**：先拿掉 page_ext 模板頂部的說明註解（含 `<style>`、`#molab-panel`
   字樣會干擾比對）；`re.sub` 替換字串用 lambda（內容含 `\u` 會被當 escape 炸掉）。
 - **LiteLLM gateway**（`https://litellm.itsmygo.uk/v1`，教學 virtual key 課後撤銷）：
-  免費池某家 402（月額度用完）LiteLLM **不重試不換家**，`free-chat` 約 1/7 機率失敗——使用者決定
-  系列一律用 `nemotron-3-ultra`（三來源備援，但延遲 2–60 秒很飄，agent 每題 10–50 秒；
-  `gpt-oss-120b` 快 10 倍，作對照組）。**同一模型名多上游 ⇒ 行為不一致**（structured output 有的家
+  免費池某家 402（月額度用完）LiteLLM **不重試不換家**（已由 gateway 端移除＋fallbacks 修掉）。
+  系列預設模型由使用者指定（現為 `nemotron-3.5-lightning`）：**推理型模型 `max_tokens` 一律 4096**
+  ——給太小時有的來源會把截斷的思考塞進 `content`（"Here's a thinking process…"），像答案其實不是；
+  答案與思考分別在 `content`／`reasoning_content`。小模型會把 tool 參數、搜尋詞翻成英文
+  （`"Taipei"`、`"parking"`）→ 假函式加英文別名、工具 docstring 註明「query 請用繁體中文」。
+  教學 virtual key 的模型白名單要用 master key `POST /key/update` 加；Dokploy 改 mount 後
+  redeploy 不一定重讀 config，`/model/info` 沒看到新模型就要重啟容器。**同一模型名多上游 ⇒ 行為不一致**（structured output 有的家
   遵守有的回 markdown、`reasoning_tokens` 有的家不回報）——示範格要寫成失敗可解釋、不崩潰。
   推理型模型 `max_tokens` 給小 content 會被截斷或空字串（教學點）；回應 `model` 欄位是群組名，
   辨識上游靠 `x-litellm-model-api-base` header；

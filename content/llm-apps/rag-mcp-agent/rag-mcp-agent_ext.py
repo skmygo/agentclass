@@ -37,7 +37,7 @@ def _(mo):
 
     跟上一課的差別只有一個，但很關鍵：上一課是**我們**決定每題都先檢索；
     這一課把檢索包成 MCP 工具，**模型自己決定**要不要查、查什麼關鍵字、查幾段——
-    問「1+1」它不查（雖然回答有點太「守規矩」），問「週二想去順便停車」它一次查到兩個章節。
+    問「1+1」它多半不查，問「週二想去順便停車」它一次查到兩個章節。
 
     1. 知識庫就緒（上一課的手冊、切段、向量化、Qdrant，濃縮成一格）
     2. 把檢索包成 FastMCP 工具：`search_handbook`、`list_sections`
@@ -98,7 +98,7 @@ def _(Distance, OpenAI, PointStruct, QdrantClient, VectorParams, mo):
         api_key="sk-FiIRnuzLH7ypgf29LTpHNw",        # 教學用 virtual key（只開免費模型，課後撤銷）
     )
     EMBED_MODEL = "qwen3-embedding-0.6b"
-    CHAT_MODEL = "nemotron-3-ultra"   # 本系列預設；推理型，每一步可能要等幾秒到幾十秒
+    CHAT_MODEL = "nemotron-3.5-lightning"   # 本系列預設；推理型，max_tokens 給足讓它想得完
 
     HANDBOOK = """
     # 山茶屋貓咪咖啡廳 店務手冊（2026 版）
@@ -166,6 +166,8 @@ def _(mo):
     - `list_sections()`：列出所有章節標題（讓模型知道手冊涵蓋什麼）。
 
     **docstring 就是給模型看的使用說明**——寫清楚「什麼情況該呼叫」，模型的決策品質差很多。
+    最後那句「query 請用繁體中文」是實測加上的：沒有它，模型有時會用英文 `"parking"` 去搜繁體中文手冊，
+    當然搜不到週二公休——說明書的一句話就能改掉這種行為。
     `FastMCP(..., instructions=...)` 則是整台伺服器的使用說明，客戶端可以拿去當 system prompt 的一部分。
     """
     )
@@ -182,7 +184,8 @@ def _(FastMCP, chunks, retrieve):
     @mcp.tool
     def search_handbook(query: str, top_k: int = 3) -> list[dict]:
         """在山茶屋店務手冊裡做語意搜尋，回傳最相關的段落（含相似度分數 0–1）。
-        回答任何關於營業時間、規定、貓咪、會員、停車、活動的問題前都應先呼叫。"""
+        回答任何關於營業時間、規定、貓咪、會員、停車、活動的問題前都應先呼叫。
+        query 請用繁體中文、可以放多個關鍵字（手冊是繁體中文寫的）。"""
         return [{"title": h.payload["title"], "score": round(h.score, 3), "text": h.payload["text"]}
                 for h in retrieve(query, top_k)]
 
@@ -266,7 +269,7 @@ def _(CHAT_MODEL, Client, client, json, mcp, openai_tools, time):
         async with Client(mcp) as _c:
             for _step in range(1, max_steps + 1):
                 _t0 = time.perf_counter()
-                _r = client.chat.completions.create(model=CHAT_MODEL, messages=_msgs, tools=openai_tools, max_tokens=800)
+                _r = client.chat.completions.create(model=CHAT_MODEL, messages=_msgs, tools=openai_tools, max_tokens=4096)
                 _m = _r.choices[0].message
                 if not _m.tool_calls:
                     _trace.append({"step": _step, "kind": "answer", "detail": (_m.content or "").strip(),
@@ -327,8 +330,8 @@ def _(mo):
 
     - **需要合併兩個章節**的問題（週二公休 + 停車）——看它查一次還是兩次、答案有沒有兩個來源。
     - **問手冊結構**的問題——它應該改用 `list_sections` 而不是語意搜尋。
-    - **跟店務無關**的問題——它應該**不呼叫任何工具**。實測 `nemotron-3-ultra` 確實沒查手冊，
-      但回答是「手冊裡沒有寫基本數學運算」——它把 system prompt 的「查不到就說沒寫」套用過頭了。
+    - **跟店務無關**的問題——它應該**不呼叫任何工具**。實測 `nemotron-3.5-lightning` 多數時候直接答 2，
+      但偶爾會字面地遵守「先查手冊」去搜一次 `1+1`、再說手冊裡沒有——小模型對規矩更字面。
       這是提示詞要調的地方，也是 LEVEL 3 挑戰的起點。
 
     `top_k` 的值也值得注意：說明書裡預設是 3，但模型有時會自己決定給 5。

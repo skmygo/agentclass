@@ -65,7 +65,7 @@
   <div class="hero-demo" id="ag-demo">
     <div class="qs" id="ag-qs"></div>
     <div class="pipe">
-      <div class="box llm" data-b="llm">LLM<small>nemotron-3-ultra · 經 LiteLLM</small></div>
+      <div class="box llm" data-b="llm">LLM<small>nemotron-3.5-lightning · 經 LiteLLM</small></div>
       <div class="box mcp" data-b="client">MCP Client<small>agent 迴圈</small></div>
       <div class="box mcp" data-b="server">FastMCP 伺服器<small>search_handbook()</small></div>
       <div class="box qd" data-b="qd">Qdrant<small>embedding + 最近鄰</small></div>
@@ -127,14 +127,14 @@ msgs.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(res.da
   <span class="eyebrow">03 · 觀察決策</span>
   <h2>它什麼時候查、查什麼、怎麼合併</h2>
   <div class="recap">
-    <div><b>合併兩個章節</b>「週二中午想去順便停車」→ 一次查 <span class="kbd">query="週二 中午 營業時間 停車"</span>（top_k 有時自己提高到 5），答案引「營業時間」＋「交通與停車」兩個來源。</div>
+    <div><b>合併兩個章節</b>「週二中午想去順便停車」→ 一次查 <span class="kbd">query="週二 中午 停車"</span>，答案引「營業時間」＋「交通與停車」兩個來源。</div>
     <div><b>換一個工具</b>「手冊有哪些章節？」→ 不做語意搜尋，改呼叫 <span class="kbd">list_sections</span>。</div>
-    <div><b>不用工具</b>「1+1 等於多少？」→ 零次工具呼叫——但答「手冊裡沒有寫基本數學運算」：把 system prompt 的規矩套用過頭了。</div>
+    <div><b>不用工具</b>「1+1 等於多少？」→ 多半零次工具呼叫直接答 2；偶爾會字面地先查一次 <span class="kbd">1+1</span> 再說手冊裡沒有。</div>
   </div>
   <p>
-    這三個行為都不是我們寫的 if-else，是模型讀了說明書與 system prompt 之後的判斷。說明書的預設 <span class="kbd">top_k=3</span>，
-    它有時自己決定給 5——這是好事也是風險，LEVEL 2 的挑戰就在處理它；第三個問題則示範提示詞寫太死的副作用，LEVEL 3 讓你調它。
-    notebook 末尾有輸入框，換你問客服。
+    這三個行為都不是我們寫的 if-else，是模型讀了說明書與 system prompt 之後的判斷。說明書是有用的：
+    沒加「query 請用繁體中文」那句之前，它會用英文 <span class="kbd">"parking"</span> 去搜繁中手冊、漏掉週二公休；
+    加一句就改掉了。第三個問題則示範小模型對規矩更字面，LEVEL 3 讓你調它。notebook 末尾有輸入框，換你問客服。
   </p>
   <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/rag-mcp-agent/rag-mcp-agent_ext.py" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：三個問題的時間軸、換你問</a>
 </section>
@@ -223,19 +223,19 @@ claude mcp add --transport http shancha http://localhost:8000/mcp</div>
 (function () {
   const RUNS = [
     { q: "我週二中午想去，順便停車，要注意什麼？", steps: [
-      { b: "llm", cls: "llm", k: "STEP 1 · LLM 決定呼叫工具", t: "<code>search_handbook(query=\"週二 中午 營業時間 停車\", top_k=5)</code>" },
+      { b: "llm", cls: "llm", k: "STEP 1 · LLM 決定呼叫工具", t: "<code>search_handbook(query=\"週二 中午 停車\", top_k=3)</code>" },
       { b: "client", cls: "", k: "MCP CLIENT · 轉給伺服器", t: "<code>await c.call_tool(\"search_handbook\", {...})</code>" },
       { b: "server", cls: "", k: "FASTMCP · 執行工具", t: "query 先經 embedding 模型變向量，再問 Qdrant" },
-      { b: "qd", cls: "qd", k: "QDRANT · 最近鄰", t: "營業時間 0.52 → 交通與停車 → …（5 段）" },
-      { b: "llm", cls: "final", k: "STEP 2 · 最終回答", t: "山茶屋<b>週二公休</b>，不營業，無法在週二中午前往。（來源：營業時間）店內無附設停車場，建議停在對面<b>饒河停車場</b>，消費滿 500 元可折抵一小時停車費。（來源：交通與停車）" },
+      { b: "qd", cls: "qd", k: "QDRANT · 最近鄰", t: "營業時間 0.38 → 交通與停車 → …（3 段）" },
+      { b: "llm", cls: "final", k: "STEP 2 · 最終回答", t: "山茶屋每週二公休，週二中午無法前往（來源：營業時間）。若改日前往，請注意店內無附設停車場，建議停在對面的饒河停車場，消費滿 500 元可折抵一小時停車費（來源：交通與停車）。" },
     ]},
     { q: "你們手冊有哪些章節？", steps: [
       { b: "llm", cls: "llm", k: "STEP 1 · LLM 改選另一個工具", t: "<code>list_sections()</code>" },
       { b: "client", cls: "", k: "MCP CLIENT → FASTMCP", t: "不做語意搜尋，直接回傳 10 個標題" },
-      { b: "llm", cls: "final", k: "STEP 2 · 最終回答", t: "手冊包含以下章節：1. 營業時間 2. 入場規定 3. Wi-Fi 4. 店貓介紹：麻糬 5. 店貓介紹：煤球 6. 店貓介紹：奶蓋 7. 會員制度 8. 交通與停車 9. 貓咪領養 10. 特殊活動（來源：手冊章節列表）" },
+      { b: "llm", cls: "final", k: "STEP 2 · 最終回答", t: "手冊中的章節有：營業時間、入場規定、Wi-Fi、店貓介紹：麻糬、店貓介紹：煤球、店貓介紹：奶蓋、會員制度、交通與停車、貓咪領養、特殊活動（來源：章節列表）" },
     ]},
     { q: "1+1 等於多少？", steps: [
-      { b: "llm", cls: "final", k: "STEP 1 · 零次工具呼叫（但規矩套用過頭）", t: "手冊裡沒有寫基本數學運算。（來源：無相關章節）　← 沒查手冊是對的，回答卻被 system prompt 的「查不到就說沒寫」綁住——LEVEL 3 挑戰就是調這裡" },
+      { b: "llm", cls: "final", k: "STEP 1 · 零次工具呼叫", t: "1+1 等於 2。（來源：手冊中未找到相關章節）　← 沒查手冊、直接回答；偶爾它會字面地先搜一次 1+1 再說沒有——LEVEL 3 挑戰就是調這裡" },
     ]},
   ];
   const qs = document.getElementById("ag-qs"), trace = document.getElementById("ag-trace");

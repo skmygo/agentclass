@@ -90,12 +90,12 @@ def _(mo):
     ## 1️⃣ 這個 gateway 有哪些模型？
 
     `client.models.list()` 問 gateway 「你會哪些模型」。注意每個名字背後可能**不只一家**：
-    `nemotron-3-ultra` 是同一顆 550B 模型的**三個來源**（NVIDIA NIM／OpenRouter／Ollama Cloud）
-    互相備援，本系列課程全部用它；`free-chat` 是七家免費模型的輪替群組；
-    名字含 `embed` 的是文字向量模型，其餘是對話模型。
+    `nemotron-3.5-lightning` 是同一顆 30B-A3B 輕量推理模型的**兩個來源**（NVIDIA NIM／OpenRouter）
+    互相備援，本系列課程全部用它；`nemotron-3-ultra` 是 550B 旗艦的三來源備援；
+    `free-chat` 是多家免費模型的輪替群組；名字含 `embed` 的是文字向量模型，其餘是對話模型。
 
     模型名是**穩定的約定**：之後上游漲價、換家、出新模型，只要 gateway 那邊改設定，
-    你的程式裡的 `"nemotron-3-ultra"` 一個字都不用動。
+    你的程式裡的 `"nemotron-3.5-lightning"` 一個字都不用動。
     """
     )
     return
@@ -106,8 +106,9 @@ def _(client, mo):
     model_names = sorted(m.id for m in client.models.list())
 
     _KIND = {
-        "free-chat": "對話 · 7 家免費模型輪替",
-        "nemotron-3-ultra": "對話 · 550B 旗艦，3 家同名備援（本系列預設）",
+        "free-chat": "對話 · 多家免費模型輪替",
+        "nemotron-3.5-lightning": "對話 · 30B-A3B 輕快推理型，2 家同名備援（本系列預設）",
+        "nemotron-3-ultra": "對話 · 550B 旗艦，3 家同名備援",
         "gemini-3.5-flash": "對話 · Google（唯一看得懂圖的）",
         "gpt-oss-120b": "對話 · Groq（快、tool calling 穩）",
         "cf-gpt-oss-120b": "對話 · Cloudflare Workers AI",
@@ -136,9 +137,9 @@ def _(mo):
     回答在 `choices[0].message.content`；`usage` 告訴你這發花了多少 token；
     `model` 是實際回應的模型。
 
-    下面這格用 `nemotron-3-ultra`。這顆是**推理型**模型——會先在心裡想再開口，
-    所以同一個問題的耗時從 2 秒到 30 秒都有可能（也跟這一發落到哪個來源有關，
-    第 6 節會把這件事變成看得見的統計）。
+    下面這格用 `nemotron-3.5-lightning`。這顆是**推理型**模型——會先在心裡想再開口，
+    而且想得不少（一句自我介紹可能先想 600 多個 token），所以 `max_tokens` 要給足
+    （本系列一律 4096）；耗時也跟這一發落到哪個來源有關，第 6 節會把這件事變成看得見的統計。
     """
     )
     return
@@ -148,9 +149,9 @@ def _(mo):
 def _(client, mo, time):
     _t0 = time.perf_counter()
     first_reply = client.chat.completions.create(
-        model="nemotron-3-ultra",
+        model="nemotron-3.5-lightning",
         messages=[{"role": "user", "content": "用一句話介紹你自己，說明你是什麼模型。"}],
-        max_tokens=512,
+        max_tokens=4096,
     )
     _dt = time.perf_counter() - _t0
     mo.md(
@@ -185,7 +186,7 @@ def _(mo):
 def _(mo, model_names):
     pick_model = mo.ui.dropdown(
         options=[n for n in model_names if "embed" not in n],
-        value="nemotron-3-ultra",
+        value="nemotron-3.5-lightning",
         label="模型",
     )
     ask_text = mo.ui.text(value="台灣最高的山是哪一座？一句話回答。", label="問題", full_width=True)
@@ -202,7 +203,7 @@ def _(ask_btn, ask_text, client, mo, pick_model, time):
         _r = client.chat.completions.create(
             model=pick_model.value,
             messages=[{"role": "user", "content": ask_text.value}],
-            max_tokens=512,
+            max_tokens=4096,
         )
         _out = mo.md(
             f"**[{pick_model.value}]** {_r.choices[0].message.content}\n\n"
@@ -221,11 +222,14 @@ def _(mo):
     ## 3️⃣ 經典坑：推理型模型的 `max_tokens`
 
     這個 gateway 上的免費模型多數是**推理型**（reasoning model）：它們先在心裡「想」，
-    想的過程也算 completion token。`max_tokens` 給太小，答案不是**被截斷**就是**空字串**
-    （token 全花在思考上），`finish_reason` 是 `length`——不報錯，只是話沒說完。
+    想的過程也算 completion token。`max_tokens` 給太小，token 全花在思考上就被切斷——
+    `finish_reason` 是 `length`，而且有的來源會**把切到一半的思考當 content 吐給你**
+    （開頭是 "Here's a thinking process…"），看起來像答案其實不是。
 
-    下面故意只給 20 個 token。`reasoning_tokens` 欄位不是每個來源都回報
-    （NVIDIA NIM 會、其他家可能是 `None`），這也是「同一模型名、不同上游」的痕跡。
+    給夠的話，答案在 `content`，思考過程在一個非標準欄位 `reasoning_content`
+    （`getattr(message, "reasoning_content", None)` 拿得到）。下面兩格對照 20 與 4096。
+    `reasoning_tokens` 不是每個來源都回報（OpenRouter 會、NIM 是 `None`），
+    這也是「同一模型名、不同上游」的痕跡。
     """
     )
     return
@@ -234,25 +238,38 @@ def _(mo):
 @app.cell
 def _(client, mo):
     tiny = client.chat.completions.create(
-        model="nemotron-3-ultra",
+        model="nemotron-3.5-lightning",
         messages=[{"role": "user", "content": "1+1=?"}],
         max_tokens=20,
     )
-    _details = tiny.usage.completion_tokens_details
-    _reasoning = getattr(_details, "reasoning_tokens", None) if _details else None
+    enough = client.chat.completions.create(
+        model="nemotron-3.5-lightning",
+        messages=[{"role": "user", "content": "1+1=?"}],
+        max_tokens=4096,
+    )
+
+    def _row(r):
+        _m = r.choices[0].message
+        _d = r.usage.completion_tokens_details
+        return (repr((_m.content or "")[:60]), r.choices[0].finish_reason, r.usage.completion_tokens,
+                getattr(_d, "reasoning_tokens", None) if _d else None,
+                repr((getattr(_m, "reasoning_content", None) or "")[:40]))
+
+    _a, _b = _row(tiny), _row(enough)
     mo.md(
         f"""
-    | 欄位 | 值 |
-    |---|---|
-    | `content` | `{tiny.choices[0].message.content!r}` |
-    | `finish_reason` | `{tiny.choices[0].finish_reason}` |
-    | `completion_tokens` | {tiny.usage.completion_tokens} |
-    | 其中 `reasoning_tokens` | {_reasoning} |
+    | 欄位 | `max_tokens=20` | `max_tokens=4096` |
+    |---|---|---|
+    | `content` | `{_a[0]}` | `{_b[0]}` |
+    | `finish_reason` | `{_a[1]}` | `{_b[1]}` |
+    | `completion_tokens` | {_a[2]} | {_b[2]} |
+    | `reasoning_tokens` | {_a[3]} | {_b[3]} |
+    | `reasoning_content` | `{_a[4]}` | `{_b[4]}` |
 
-    → 結論：對推理型模型，`max_tokens` 至少給幾百起跳（本系列一律 512）。
+    → 結論：對推理型模型，`max_tokens` 要給到思考＋答案都裝得下（本系列一律 4096）。
     """
     )
-    return (tiny,)
+    return enough, tiny
 
 
 @app.cell(hide_code=True)
@@ -278,9 +295,9 @@ def _(client, time):
     _t0 = time.perf_counter()
     stream_chunks = []   # (到達秒數, 這一塊的文字)
     for _chunk in client.chat.completions.create(
-        model="nemotron-3-ultra",
+        model="nemotron-3.5-lightning",
         messages=[{"role": "user", "content": "用三句話介紹台北。"}],
-        max_tokens=512,
+        max_tokens=4096,
         stream=True,
     ):
         if _chunk.choices and _chunk.choices[0].delta.content:
@@ -386,10 +403,10 @@ def _(mo, sentences, sim):
 def _(mo):
     mo.md(
         r"""
-    ## 6️⃣ 並發批次：親眼看見「同名三來源」在分流
+    ## 6️⃣ 並發批次：親眼看見「同名兩來源」在分流
 
-    免費方案的共同特性是**單家限流都很小**。gateway 把 `nemotron-3-ultra` 的三個來源
-    （NVIDIA NIM／OpenRouter／Ollama Cloud）掛在同一個名字下，用 `simple-shuffle` 隨機分流、
+    免費方案的共同特性是**單家限流都很小**。gateway 把 `nemotron-3.5-lightning` 的兩個來源
+    （NVIDIA NIM／OpenRouter）掛在同一個名字下，用 `simple-shuffle` 隨機分流、
     撞到 429/5xx 自動重試換家。可是……你怎麼知道它真的在換？
 
     兩個技巧：
@@ -400,8 +417,8 @@ def _(mo):
       `x-litellm-model-api-base`，告訴你這一發實際落在哪家上游。
 
     失敗的也算進統計——**看見失敗本身就是可觀察性**。另外盯著每一發的秒數：
-    同一顆模型在不同來源的延遲差很多（實測 NIM 約 2–30 秒、Ollama Cloud 最慢可到 60 秒），
-    這格可能要跑一分鐘左右。
+    同一顆模型在不同來源的延遲不一樣（實測多數 2–5 秒，偶爾一發要等 10–30 秒），
+    12 發並發牆鐘約 15–20 秒。
     """
     )
     return
@@ -425,9 +442,9 @@ async def _(API_KEY, AsyncOpenAI, BASE_URL, asyncio, time, urlparse):
         _t0 = time.perf_counter()
         try:
             _raw = await aclient.chat.completions.with_raw_response.create(
-                model="nemotron-3-ultra",
+                model="nemotron-3.5-lightning",
                 messages=[{"role": "user", "content": f"只回一個數字：{i}+{i}=?"}],
-                max_tokens=512,
+                max_tokens=4096,
             )
             _host = urlparse(_raw.headers.get("x-litellm-model-api-base", "")).netloc
             return {"#": i, "provider": _PROVIDER.get(_host, _host), "ok": True,
@@ -469,7 +486,7 @@ def _(Counter, batch_rows, plt):
     _colors = ["#C44E52" if n.startswith("failed") else "#4C72B0" for n in _names]
     _ax.barh(_names, _vals, color=_colors)
     _ax.set_xlabel("requests")
-    _ax.set_title("nemotron-3-ultra: where did 12 concurrent requests land?")
+    _ax.set_title("nemotron-3.5-lightning: where did 12 concurrent requests land?")
     _ax.spines[["top", "right"]].set_visible(False)
     _fig.tight_layout()
     _fig
@@ -482,7 +499,7 @@ def _(mo):
         r"""
     `simple-shuffle` 是隨機分流不是輪盤，單次分佈不均勻是正常的；多跑幾次（重新執行上面
     那格）分佈會攤平。表格裡同一個來源的秒數也會差很多——這正是 gateway 存在的理由：
-    一家慢了、限流了、倒了，其他兩家照跑，你的程式碼一個字都不用改。
+    一家慢了、限流了、倒了，另一家照跑，你的程式碼一個字都不用改。
 
     ## 7️⃣ 零程式碼整合：任何 OpenAI 相容工具都能用
 
@@ -493,8 +510,8 @@ def _(mo):
     export OPENAI_API_KEY="<你的 virtual key>"
     ```
 
-    - **curl**：`curl $OPENAI_BASE_URL/chat/completions -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" -d '{"model":"nemotron-3-ultra","messages":[{"role":"user","content":"hi"}]}'`
-    - **LangChain**：`ChatOpenAI(base_url=..., api_key=..., model="nemotron-3-ultra")`
+    - **curl**：`curl $OPENAI_BASE_URL/chat/completions -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" -d '{"model":"nemotron-3.5-lightning","messages":[{"role":"user","content":"hi"}]}'`
+    - **LangChain**：`ChatOpenAI(base_url=..., api_key=..., model="nemotron-3.5-lightning")`
     - **Open WebUI / aider / Cursor**：設定裡填 base URL 與 key，模型清單自動出現
 
     ## 🏆 延伸挑戰
@@ -503,8 +520,8 @@ def _(mo):
        看 system prompt 怎麼改變回答風格。
     2. **LEVEL 2**：把 5️⃣ 的四句話換成你自己的（例如三句同主題、一句離題），先猜熱圖長相再跑。
        再把模型換成 `nemotron-3-embed-1b`（2048 維）比較結果。
-    3. **LEVEL 3**：修改 6️⃣ 的 `run_batch`，對 `gemini-3.5-flash`（單一來源、非推理型）發 12 發，
-       比較延遲分佈與 `nemotron-3-ultra` 的差別；再算三個來源各自的平均秒數，哪家最快、哪家最飄？
+    3. **LEVEL 3**：修改 6️⃣ 的 `run_batch`，對 `nemotron-3-ultra`（550B、三個來源）發 12 發，
+       比較延遲與分佈跟 lightning 的差別；再算各來源的平均秒數，哪家最快、哪家最飄？
 
     帶得走：下載本檔後 `uvx marimo edit --sandbox litellm-basics_ext.py`
     在自己電腦繼續玩（依賴會自動安裝）。下一課：讓模型**做事**——tool calling、

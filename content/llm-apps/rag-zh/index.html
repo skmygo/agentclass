@@ -64,7 +64,7 @@
 
   <p class="note">
     資料是一份十小節的繁體中文店務手冊；向量用第 1 課 gateway 的 <span class="kbd">qwen3-embedding-0.6b</span>，
-    索引用上一課的記憶體 Qdrant，生成用 <span class="kbd">nemotron-3-ultra</span>。notebook 從切段到評測每一步都量化。
+    索引用上一課的記憶體 Qdrant，生成用 <span class="kbd">nemotron-3.5-lightning</span>。notebook 從切段到評測每一步都量化。
   </p>
 </section>
 
@@ -72,8 +72,9 @@
   <span class="eyebrow">01 · 問題與切段</span>
   <h2>先看它怎麼瞎掰，再決定怎麼切</h2>
   <p>
-    notebook 第一格就問「Wi-Fi 密碼是多少？」——模型會給一個煞有介事的密碼（實測拿過 <span class="kbd">camelliahouse</span>、
-    <span class="kbd">CatCafe2024</span>），問「哪隻貓最怕生」會發明一隻叫「豆漿」或「小米」的貓。這不是模型壞，是它<b>沒有你的資料</b>。
+    notebook 第一格就問「Wi-Fi 密碼是多少？」——模型會給一個煞有介事的密碼（實測拿過 <span class="kbd">sakura2024</span>、
+    <span class="kbd">camelliahouse</span>），問「哪隻貓最怕生」要嘛發明一隻叫「豆漿」的貓、要嘛打太極說每隻貓都有個性。
+    這不是模型壞，是它<b>沒有你的資料</b>。
   </p>
   <p>
     RAG 的第一個設計決策是<b>怎麼切</b>：切太大帶進無關內容，切太小失去上下文。
@@ -130,10 +131,10 @@ context = "\n\n".join(f"[{i+1}] {h.payload['text']}" for i, h in enumerate(hits)
   </p>
   <table class="cmp">
     <tr><th>問題</th><th>沒 RAG（實測節錄）</th><th>有 RAG</th></tr>
-    <tr><td>Wi-Fi 密碼是多少？</td><td>❌ Wi‑Fi 密碼是 camelliahouse（全小寫）</td><td>✅ meow2026</td></tr>
-    <tr><td>貓咪讀書會什麼時候？</td><td>❌ 每月第二、四個週六下午 2:00</td><td>✅ 每月第一個週六晚上 19:00</td></tr>
-    <tr><td>領養一隻貓要多少錢？</td><td>❌ 約 3,000～8,000 元（含疫苗、晶片…）</td><td>✅ 1500 元</td></tr>
-    <tr><td>你們有賣牛排嗎？（手冊沒有）</td><td>沒有喔（矇對，但無從分辨是知道還是猜）</td><td>✅ 手冊裡沒有寫（檢索分數全部 &lt; 0.4）</td></tr>
+    <tr><td>Wi-Fi 密碼是多少？</td><td>❌ 山茶屋的 Wi-Fi 密碼是：sakura2024</td><td>✅ meow2026</td></tr>
+    <tr><td>山茶屋週日幾點打烊？</td><td>❌ 週日 18:00 打烊</td><td>✅ 21:00</td></tr>
+    <tr><td>領養一隻貓要多少錢？</td><td>❌ 約新臺幣 2,000~5,000 元，已包含疫苗…</td><td>✅ 1500 元</td></tr>
+    <tr><td>你們有賣牛排嗎？（手冊沒有）</td><td>沒有販售牛排（矇對，但無從分辨是知道還是猜）</td><td>✅ 手冊裡沒有寫（檢索分數全部 &lt; 0.4）</td></tr>
   </table>
   <p>
     最後一列是 RAG 最被低估的價值：檢索永遠會回最近的幾段（哪怕都不相關），
@@ -204,10 +205,10 @@ context = "\n\n".join(f"[{i+1}] {h.payload['text']}" for i, h in enumerate(hits)
 /* ═══ hero 互動：問客服（純 JS；回答與分數是 notebook 的實測紀錄）═══ */
 (function () {
   const QA = [
-    { q: "Wi-Fi 密碼是多少？", plain: "歡迎光臨山茶屋！Wi-Fi 密碼是 camelliahouse（全小寫），請慢用。", rag: "Wi-Fi 密碼是 meow2026。", ctx: ["Wi-Fi 0.70", "會員制度 0.31", "店貓介紹：奶蓋 0.26"] },
-    { q: "哪一隻貓最怕生？", plain: "目前是「豆漿」（黑白相間那隻）最怕生喔！通常會躲在吧台高處或貓塔最頂層觀察，需要多一點耐心才會下來探頭。", rag: "煤球（參考資料 [1] 提到牠「非常怕生」）", ctx: ["店貓介紹：煤球 0.53", "店貓介紹：麻糬 0.51", "店貓介紹：奶蓋 0.51"] },
-    { q: "領養一隻貓要多少錢？", plain: "領養費用通常在 3,000～8,000 元左右（含疫苗、晶片、絕育、驅蟲等醫療費用）。若透過收容所或救援團體領養，多為「捐款制」而非買賣。", rag: "領養費用為 1500 元，全數捐給流浪動物協會。", ctx: ["貓咪領養 0.72", "特殊活動 0.53", "店貓介紹：煤球 0.47"] },
-    { q: "你們有賣牛排嗎？", plain: "沒有喔，我們是貓咪咖啡廳，主要提供飲品、輕食跟貓咪陪伴唷（這題它矇對了——但你無從分辨它是知道還是在猜）", rag: "手冊裡沒有寫", ctx: ["店貓介紹：麻糬 0.37", "店貓介紹：奶蓋 0.35", "入場規定 0.32"] },
+    { q: "Wi-Fi 密碼是多少？", plain: "山茶屋的 Wi-Fi 密碼是：sakura2024，歡迎使用！", rag: "CamelliaCat，密碼是 meow2026。", ctx: ["Wi-Fi 0.70", "會員制度 0.31", "店貓介紹：奶蓋 0.26"] },
+    { q: "哪一隻貓最怕生？", plain: "每隻貓都有自己的性格，歡迎您來山茶屋認識他們！（打太極——它根本不知道店裡有哪些貓）", rag: "最怕生的貓是煤球。", ctx: ["店貓介紹：煤球 0.53", "店貓介紹：麻糬 0.51", "店貓介紹：奶蓋 0.51"] },
+    { q: "領養一隻貓要多少錢？", plain: "領養費用視貓貓年齡與健康狀況而定，通常約新臺幣 2,000~5,000 元，已包含疫苗及體檢費用。", rag: "認養費用為 1500 元。", ctx: ["貓咪領養 0.72", "特殊活動 0.53", "店貓介紹：煤球 0.47"] },
+    { q: "你們有賣牛排嗎？", plain: "很抱歉，我們目前沒有販售牛排，主要提供飲料與點心。（這題它矇對了——但你無從分辨它是知道還是在猜）", rag: "手冊裡沒有寫。", ctx: ["店貓介紹：麻糬 0.37", "店貓介紹：奶蓋 0.35", "入場規定 0.32"] },
   ];
   const qs = document.getElementById("rg-qs"), tog = document.getElementById("rg-tog"), state = document.getElementById("rg-state");
   const ctx = document.getElementById("rg-ctx"), ans = document.getElementById("rg-ans");

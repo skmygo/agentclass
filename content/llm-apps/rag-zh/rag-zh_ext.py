@@ -67,7 +67,7 @@ def _(OpenAI):
         api_key="sk-FiIRnuzLH7ypgf29LTpHNw",        # 教學用 virtual key（只開免費模型，課後撤銷）
     )
     EMBED_MODEL = "qwen3-embedding-0.6b"   # 1024 維
-    CHAT_MODEL = "nemotron-3-ultra"        # 550B 推理型，三個來源備援（每題可能要等幾秒到幾十秒）
+    CHAT_MODEL = "nemotron-3.5-lightning"  # 30B-A3B 輕量推理型，兩個來源備援
     return CHAT_MODEL, EMBED_MODEL, client
 
 
@@ -92,7 +92,7 @@ def _(CHAT_MODEL, client, mo):
             {"role": "system", "content": "你是山茶屋貓咪咖啡廳的店員。用繁體中文簡短回答顧客問題。"},
             {"role": "user", "content": "Wi-Fi 密碼是多少？"},
         ],
-        max_tokens=512,
+        max_tokens=4096,
     )
     naive_answer = _r.choices[0].message.content.strip()
     mo.callout(mo.md(f"**沒有 RAG 的回答**：{naive_answer}"), kind="danger")
@@ -275,7 +275,7 @@ def _(CHAT_MODEL, client, retrieve):
         _r = client.chat.completions.create(
             model=CHAT_MODEL,
             messages=[{"role": "system", "content": _system}, {"role": "user", "content": question}],
-            max_tokens=600,
+            max_tokens=4096,
         )
         return _r.choices[0].message.content.strip(), _hits
     return SYSTEM_PLAIN, SYSTEM_RAG, answer

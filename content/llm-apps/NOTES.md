@@ -14,9 +14,21 @@ Pyodide，瀏覽器軌道只能用 JS fetch 重寫，不符「課程程式＝學
 - 教學 key 看得到 8 個模型名：free-chat / nemotron-3-ultra / gemini-3.5-flash / gpt-oss-120b /
   cf-gpt-oss-120b / deepseek-v4-flash / qwen3-embedding-0.6b(1024) / nemotron-3-embed-1b(2048)。
 - **free-chat 的 HuggingFace 部署月額度用完回 402，LiteLLM 不重試也不換家**（402 不在預設重試清單，
-  20 發約 2 發失敗）。`deepseek-v4-flash` 直打同樣 402。**使用者決定：全系列一律用 `nemotron-3-ultra`，
-  不用 free-chat**（2026-08-20 第二輪）。gateway 端若要修：從 free-chat 拿掉 HF 部署，或 router_settings
-  加 `fallbacks`／對 402 做 cooldown。
+  20 發約 2 發失敗）。`deepseek-v4-flash` 直打同樣 402。使用者同日已在 gateway 移除 HF 並加
+  `fallbacks: free-chat → gpt-oss-120b`。**使用者決定：全系列一律用 `nemotron-3.5-lightning`**
+  （第二輪先改 nemotron-3-ultra，第三輪改 lightning；兩者都實測過）。
+- **nemotron-3.5-lightning（30B-A3B，NIM＋OpenRouter:free 雙部署）實測特性**：
+  想很多（自我介紹 646 reasoning token、1+1 約 100–150）→ **`max_tokens` 一律 4096**；給太小時
+  `content` 是被截斷的思考文字（"Here's a thinking process…"），給夠則答案在 `content`、思考在
+  `reasoning_content`（非標準欄位，`getattr(message, "reasoning_content", None)`）；`reasoning_tokens`
+  OpenRouter 回報、NIM 是 None。延遲多數 2–5 秒、偶爾 10–15 秒，12 發並發牆鐘約 15 秒（序跑 55 秒）。
+  tool calling OK 但會把城市名翻成 `"Taipei"`（假天氣函式加英文別名）；agent 的搜尋詞也會變英文
+  （`"parking"`）→ 工具 docstring 加「query 請用繁體中文」後就正常；「1+1」多半不查、偶爾字面地先查一次。
+  structured output 兩個來源都遵守；不吃圖；RAG 0/7 → 7/7；回答偶有簡體字或 `�` 雜訊。
+- **教學 key 白名單**要手動加新模型：`POST /key/update`（master key 在容器 env：
+  `docker exec litellm-gw-xkpqch-litellm-1 printenv LITELLM_MASTER_KEY`；.10 的 `.env` 備份已不同步）。
+  Dokploy 改 file mount 後 redeploy **不一定會讓 litellm 重讀 config**（container 沒重建）——
+  `/model/info` 沒有新模型、`/health?model=` 回 healthy 0／unhealthy 0 就是這個症狀，要重啟容器。
 - **nemotron-3-ultra 實測特性**：三個來源延遲差很大（NIM 1.6–30 秒、Ollama Cloud 最慢 60 秒；12 發並發
   牆鐘約 60 秒、序跑 200 秒）；`max_tokens=20` 回 `'1 + 1'` 被截斷（不是空字串）、`reasoning_tokens`
   只有 NIM 回報（其他家 None）；串流首 chunk 要等思考完（約 6 秒）再一口氣湧出；tool call 回合的
