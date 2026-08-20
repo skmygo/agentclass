@@ -127,6 +127,33 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   `mcp.add_provider(SessionProvider())` ＋ `session_id: SessionId` ＋ `get_session()`。
 - 工具錯誤要以 tool role message 回饋給 LLM 讓它自我修正，別讓 ToolError 炸掉 loop。
 
+### 實測可用的 LLM 應用課素材（llm-apps 系列：LiteLLM／FastMCP 4／Qdrant／RAG，2026-08-20）
+
+- **軌道**：`openai`、`qdrant-client`、`fastmcp` 三個套件 Pyodide spike 全 FAIL（無純 Python wheel）
+  ＋需真網路 → 整個系列外部軌。gateway 有開 CORS，但瀏覽器軌只能用 JS fetch 重寫、學員帶不走，放棄。
+- **外部軌 notebook 的輸出怎麼驗**：`export --sandbox` 產的 HTML 只嵌程式碼；渲染結果在
+  `content/<topic>/<id>/__marimo__/session/<id>_ext.py.json`（gitignored），grep 那裡看數字最快。
+  sandbox 會裝最新 marimo（非全站釘版）——外部軌不共用 assets，無妨。
+- **教學頁用 regex 只換內容區時**：先拿掉 page_ext 模板頂部的說明註解（含 `<style>`、`#molab-panel`
+  字樣會干擾比對）；`re.sub` 替換字串用 lambda（內容含 `\u` 會被當 escape 炸掉）。
+- **LiteLLM gateway**（`https://litellm.itsmygo.uk/v1`，教學 virtual key 課後撤銷）：
+  免費池某家 402（月額度用完）LiteLLM **不重試不換家**，`free-chat` 約 1/7 機率失敗——使用者決定
+  系列一律用 `nemotron-3-ultra`（三來源備援，但延遲 2–60 秒很飄，agent 每題 10–50 秒；
+  `gpt-oss-120b` 快 10 倍，作對照組）。**同一模型名多上游 ⇒ 行為不一致**（structured output 有的家
+  遵守有的回 markdown、`reasoning_tokens` 有的家不回報）——示範格要寫成失敗可解釋、不崩潰。
+  推理型模型 `max_tokens` 給小 content 會被截斷或空字串（教學點）；回應 `model` 欄位是群組名，
+  辨識上游靠 `x-litellm-model-api-base` header；
+  `qwen3-embedding-0.6b` 回傳單位向量（內積＝cosine）；structured output 在不支援的家會被
+  `drop_params` 默默拿掉（nemotron-3-ultra 回 markdown 表，教學點）；vision 只有 gemini-3.5-flash。
+- **FastMCP 4.0.0b1**：新協定 `2026-07-28` 首發 `server/discover`，每發帶 `mcp-method`／`mcp-name`
+  header ＋ `params._meta` 信封、零 session id；`mode="legacy"` → `2025-11-25`，呼叫一次工具 6 個 HTTP
+  請求（initialize→initialized→GET→call→list→DELETE）。裸 `httpx.post` 單發成功三要件：
+  `MCP-Protocol-Version` header、`mcp-method` header、`_meta` 信封。`SessionProvider()` 自動註冊
+  `create_session`／`end_session`，`create_session()` 回 **str**。marimo cell 裡 daemon thread 跑
+  uvicorn（`mcp.http_app()`）在 sandbox export 正常，重跑前先探 port。
+- **RAG 數字會飄**：沒 RAG 的「矇對」題數每次不同（0–2），左頁寫範圍不寫死；有 RAG 7/7 穩定。
+- matplotlib 圖內別放 emoji（缺字警告），分類標籤用 ASCII。
+
 ## 驗證細節
 
 ### 兩軌的驗證矩陣

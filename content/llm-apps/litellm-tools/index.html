@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>讓模型做事：Tool calling、結構化輸出與看圖 · AI 互動教室</title>
+<meta name="description" content="經 LiteLLM gateway 實測三種「讓模型做事」的能力：tool calling 兩回合與迴圈、json_schema 結構化輸出（含 drop_params 陷阱）、圖片輸入，並掃遍模型產出誰能用的結論表。">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝使用者／你的程式、橘＝模型的 tool call、綠＝工具結果與最終答案、紅＝失敗 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：兩回合對話機 */
+  #tc-demo .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  #tc-demo button { font: inherit; font-size: 13.5px; padding: 7px 14px; border: 2px solid var(--ink); border-radius: 10px; background: var(--panel); cursor: pointer; font-weight: 700; }
+  #tc-demo button.q.active { background: var(--c1); color: #fff; }
+  #tc-demo button.go { background: var(--ink); color: #fff; font-weight: 800; }
+  #tc-demo button:disabled { opacity: .4; cursor: default; }
+  #tc-demo .log { display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+  #tc-demo .msg { border-left: 4px solid var(--grid); padding: 8px 12px; background: var(--chip-bg); border-radius: 0 10px 10px 0; font-size: 13.5px; line-height: 1.65; animation: tc-in .25s ease; }
+  #tc-demo .msg .who { font-size: 11.5px; font-weight: 800; letter-spacing: .05em; margin-bottom: 2px; }
+  #tc-demo .msg.user { border-color: var(--c1); } #tc-demo .msg.user .who { color: var(--c1); }
+  #tc-demo .msg.call { border-color: var(--c2); } #tc-demo .msg.call .who { color: var(--c2); }
+  #tc-demo .msg.tool { border-color: var(--c3); } #tc-demo .msg.tool .who { color: var(--c3); }
+  #tc-demo .msg.final { border-color: var(--ink); background: var(--panel); border: 1.5px solid var(--ink); border-left-width: 4px; }
+  #tc-demo code { font-family: var(--mono); font-size: 12.5px; }
+  @keyframes tc-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #tc-demo .msg { animation: none; } }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/llm-apps/">‹ 學 LLM 應用開發</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="litellm-tools_ext.py" download>下載 .py</a>
+  <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">TOOL CALLING · STRUCTURED OUTPUT · VISION</span>
+  <h1>讓模型做事：<br>Tool calling、結構化輸出與看圖</h1>
+  <p style="margin-top:18px">
+    上一課模型只是回話。要把它放進程式裡<b>做事</b>，關鍵是這個動作：模型不直接回答，
+    而是回一個「請幫我呼叫 <span class="kbd">get_weather(city="台北")</span>」的結構化請求，
+    你執行完把結果餵回去，它再寫最終答案。這就是所有 Agent 的地基。先看一次完整的兩回合：
+  </p>
+
+  <div class="hero-demo" id="tc-demo">
+    <div class="row">
+      <span style="font-size:13.5px;font-weight:800">問：</span>
+      <button class="q active" data-q="weather">台北現在天氣怎麼樣？</button>
+      <button class="q" data-q="math">1+1=?</button>
+      <span style="flex:1"></span>
+      <button class="go" id="tc-step">▶ 送出問題</button>
+    </div>
+    <div class="log" id="tc-log"></div>
+  </div>
+
+  <p class="note">
+    這三種能力都走同一個 gateway、同一把 key，但<b>各家支援程度差很多</b>——
+    notebook 的每一節除了示範，都會掃一遍可用模型產出「誰能用」的結論表。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · TOOL CALLING</span>
+  <h2>說明書、兩回合、然後把它包成迴圈</h2>
+  <p>
+    工具對模型來說是一份<b>說明書</b>：名字、做什麼、參數長什麼樣（JSON Schema）。
+    這是 OpenAI 訂的格式，gateway 會翻譯給各家。第一回合帶著 <span class="kbd">tools=</span> 送出，
+    回應的 <span class="kbd">message.content</span> 是空的、<span class="kbd">tool_calls</span> 裡有一筆
+    <span class="kbd">get_weather</span>，<span class="kbd">arguments</span> 是 JSON <b>字串</b>（要 <span class="kbd">json.loads</span>）。
+  </p>
+  <p>第二回合最容易搞錯：對話紀錄要按順序塞三樣東西——</p>
+  <div class="codeblock">messages = QUESTION + [
+    {"role": "assistant", "content": "",          # ① 模型的 tool call 回合（手組 dict）
+     "tool_calls": [{"id": call.id, "type": "function",
+                     "function": {"name": call.function.name,
+                                  "arguments": call.function.arguments}}]},
+    {"role": "tool", "tool_call_id": call.id,     # ② 你的執行結果，id 要對上
+     "content": json.dumps({"weather": "晴", "temp_c": 31}, ensure_ascii=False)},
+]
+r2 = client.chat.completions.create(model=..., messages=messages, tools=TOOLS)   # ③ 再問一次</div>
+  <p>
+    為什麼手組 dict 而不是直接塞 SDK 物件？序列化後 <span class="kbd">content</span> 是 <span class="kbd">null</span>、
+    欄位齊全度依供應商而異，有的相容層會 400。手組最可攜。真實程式把兩回合包成一個迴圈：
+    只要模型還在要求工具就執行、餵回、再問；問「1+1」它會直接回答——<b>用不用工具是模型自己判斷的</b>。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py" target="_blank" rel="noopener">到 notebook 的 1️⃣–3️⃣ 節：說明書、兩回合、run_with_tools</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 跨模型實測</span>
+  <h2>誰能可靠地呼叫工具？</h2>
+  <p>
+    同一段程式、同一個問題，掃遍教學 key 能用的對話模型。實測（2026-08-20）：
+  </p>
+  <table class="cmp">
+    <tr><th>模型</th><th>結果</th><th>備註</th></tr>
+    <tr><td><span class="kbd">nemotron-3-ultra</span></td><td>✅</td><td>本系列預設模型；推理型，1–5 秒不等，tool call 回合的 <span class="kbd">content</span> 是 <span class="kbd">None</span></td></tr>
+    <tr><td><span class="kbd">gpt-oss-120b</span>（Groq）</td><td>✅</td><td>約 1 秒</td></tr>
+    <tr><td><span class="kbd">gemini-3.5-flash</span></td><td>✅</td><td>約 1.3 秒</td></tr>
+    <tr><td><span class="kbd">cf-gpt-oss-120b</span></td><td>✅</td><td>參數裡的中文被 <span class="kbd">\u</span> 跳脫，<span class="kbd">json.loads</span> 後一樣</td></tr>
+    <tr><td><span class="kbd">deepseek-v4-flash</span></td><td>❌</td><td>HTTP 402：上游（HuggingFace）月額度用完</td></tr>
+  </table>
+  <p>
+    這張表在 notebook 裡是<b>活的</b>——你執行時會重跑一次，結果可能跟今天不同。
+    這正是重點：供應商行為會變，pipeline 要依賴某個能力之前，自己掃一遍。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py" target="_blank" rel="noopener">到 notebook 的 4️⃣ 節：掃描所有模型</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · STRUCTURED OUTPUT</span>
+  <h2>逼模型吐合法 JSON，以及一個「默默失效」的陷阱</h2>
+  <p>
+    沒有約束時，問「抽取人物資料」模型會回一段漂亮的 markdown、欄位名還自己取（「姓名」「興趣」）。
+    加上 <span class="kbd">response_format={"type": "json_schema", ...}</span> 並設 <span class="kbd">strict: True</span>，
+    輸出就是一行嚴格照 schema 的 JSON：<span class="kbd">{"name":"小明","age":12,"city":"台北","hobbies":["籃球","圍棋"]}</span>，
+    <span class="kbd">age</span> 是真的 <span class="kbd">int</span>。
+  </p>
+  <p>
+    陷阱：gateway 開了 <span class="kbd">drop_params</span>——某家不認得 <span class="kbd">response_format</span>，
+    這個參數會被<b>悄悄拿掉</b>，呼叫不報錯、輸出看似正常、實則毫無約束。更陰險的是
+    <span class="kbd">nemotron-3-ultra</span> 這種<b>同一個模型名背後三個上游</b>的情況：實測這一發嚴格照 schema、
+    下一發回一張 markdown 表格（<span class="kbd">json.loads</span> 當場炸掉），取決於落到哪家。
+    所以驗收標準不是「有沒有報錯」，而是<b>逐欄驗證輸出型別</b>——notebook 的 <span class="kbd">validate()</span> 就在做這件事，
+    示範格也寫成「解析失敗就解釋原因」而不是直接崩潰。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：schema、逐欄驗證、掃描</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · VISION</span>
+  <h2>把圖片塞進訊息——用已知答案驗證</h2>
+  <p>
+    多模態訊息 = <span class="kbd">content</span> 變成一個陣列：文字塊 + 圖片塊（data URL 或公開網址）。
+    為了確認模型「真的看到圖」而不是瞎掰，notebook 當場用 Pillow 畫一張<b>白底紅色圓形</b>——
+    答案已知，答對才算。實測只有 <span class="kbd">gemini-3.5-flash</span> 答「圖片中是一個紅色的圓形」；
+    其他模型不是 400 就是 404（本系列預設的 <span class="kbd">nemotron-3-ultra</span> 也不吃圖）。
+    結論：圖片任務要<b>指名</b>看得懂圖的模型，別丟給多來源的群組名，它會輪到不吃圖的家。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py" target="_blank" rel="noopener">到 notebook 的 6️⃣ 節：畫圖、問圖、掃描</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>加第二個工具 <span class="kbd">convert_currency(amount, from, to)</span>（匯率寫死），問「100 美元換台幣多少？」——模型會挑對工具嗎？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>在 schema 加一個原文沒有的 <span class="kbd">email</span> 欄位，看嚴格模式下模型被迫填什麼——這就是 schema 要留 optional／null 的理由。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>讓 <span class="kbd">run_with_tools</span> 在工具失敗時把錯誤訊息當 tool 結果餵回去（查一個不存在的城市），觀察模型會不會自我修正或誠實說查不到。</p>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/fastmcp4/">
+    <span class="tag">下一課</span>
+    <b>FastMCP 4：把函式變成 AI 工具，一發請求不用握手 →</b>
+  </a>
+  <a href="/llm-apps/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 LLM 應用開發」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：molab 導流面板（常駐，無內嵌 notebook） ══════════════ -->
+<div id="lab">
+  <div id="molab-panel">
+    <div class="panel-inner">
+      <span class="eyebrow">HANDS-ON · MOLAB</span>
+      <h3>實作在 molab 跑（免費）</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 notebook 要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="litellm-tools_ext.py" download>下載 litellm-tools_ext.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>litellm-tools_ext.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox litellm-tools_ext.py</code>，依賴會自動安裝。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：兩回合對話機（純 JS；內容是 notebook 實測紀錄）═══ */
+(function () {
+  const SCRIPTS = {
+    weather: [
+      { cls: "user", who: "USER", html: "台北現在天氣怎麼樣？" },
+      { cls: "call", who: "ASSISTANT · tool_calls（content 是空的）", html: "<code>get_weather({\"city\": \"台北\"})</code> ← 模型自己從問題抽出參數" },
+      { cls: "tool", who: "TOOL · 你執行函式後餵回", html: "<code>{\"weather\": \"晴\", \"temp_c\": 31}</code>" },
+      { cls: "final", who: "ASSISTANT · 最終答案", html: "台北現在是<b>晴天</b>，氣溫約 <b>31°C</b>。外出記得防曬、補充水分喔！" },
+    ],
+    math: [
+      { cls: "user", who: "USER", html: "1+1=?" },
+      { cls: "final", who: "ASSISTANT · 直接回答（tool_calls = None）", html: "1+1 = 2　← 不需要工具的問題，模型自己判斷不呼叫" },
+    ],
+  };
+  const LABELS = ["▶ 送出問題", "▶ 執行工具並餵回", "▶ 再問一次", "↻ 重來"];
+  const log = document.getElementById("tc-log");
+  const btn = document.getElementById("tc-step");
+  let q = "weather", step = 0;
+  function render() {
+    const s = SCRIPTS[q];
+    log.innerHTML = s.slice(0, step).map(m => `<div class="msg ${m.cls}"><div class="who">${m.who}</div>${m.html}</div>`).join("")
+      || `<div class="msg" style="border-color:var(--grid);color:var(--ink-soft)">按「送出問題」開始。</div>`;
+    if (step >= s.length) btn.textContent = "↻ 重來";
+    else if (q === "math") btn.textContent = step === 0 ? "▶ 送出問題" : "▶ 再問一次";
+    else btn.textContent = LABELS[Math.min(step, 2)];
+  }
+  btn.addEventListener("click", () => {
+    const s = SCRIPTS[q];
+    if (step >= s.length) { step = 0; render(); return; }
+    step = q === "weather" ? (step === 0 ? 2 : step === 2 ? 3 : 4) : 2;
+    render();
+  });
+  document.querySelectorAll("#tc-demo .q").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#tc-demo .q").forEach(x => x.classList.remove("active"));
+    b.classList.add("active"); q = b.dataset.q; step = 0; render();
+  }));
+  render();
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>
