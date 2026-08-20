@@ -45,7 +45,7 @@ id／課名／主題／molab 網址、CPU/GPU 二選一、生成自檢已跑、r
 （TITLE／DESCRIPTION／STYLE／WRAP／SCRIPT／NB／PANEL_STEPS 純字串常數），然後：
 
 ```bash
-python .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
+python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
 ```
 
 它只替換 title／meta／`<style>`／`.wrap` 內容／面板步驟／hero script，骨架不動、可重跑、

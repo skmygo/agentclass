@@ -2,7 +2,7 @@
 """把課程頁的「內容區」從 page_content.py 填進 scaffold 出來的 index.html，骨架不動、可重複執行。
 
 用法（repo 根目錄）：
-    python .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
+    python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
 
 讀 content/<topic>/<id>/page_content.py（純字串常數的 Python 模組，不會被 build.sh 部署）：
     TITLE        課名（不含「· AI 互動教室」後綴）

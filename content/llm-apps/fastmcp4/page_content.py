@@ -1,4 +1,4 @@
-"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/fastmcp4
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/fastmcp4
 build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "FastMCP 4：把函式變成 AI 工具，一發請求不用握手"
@@ -186,12 +186,17 @@ claude mcp add --transport http tea http://localhost:8000/mcp</div>
     <span class="lv">LEVEL 3</span>
     <p>改裸 POST 去呼叫 <span class="kbd">tools/list</span> 與 <span class="kbd">resources/read</span>（讀 <span class="kbd">menu://today</span>）——查 MCP 規格找出 params 格式。</p>
   </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
 <div class="endnav">
   <a href="/qdrant-basics/">
     <span class="tag">下一課</span>
     <b>Qdrant：向量資料庫，記憶體裡就能跑 →</b>
+  </a>
+  <a href="/fastmcp4-auth/">
+    <span class="tag">想深入 4.0 · 補充系列</span>
+    <b>補充 A：認證與授權 → B：狀態與加密 → C：4.0 專屬功能 → D：常見 MCP 服務</b>
   </a>
   <a href="/llm-apps/">
     <span class="tag">主題</span>

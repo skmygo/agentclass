@@ -1,4 +1,4 @@
-"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/qdrant-basics
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/qdrant-basics
 build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "Qdrant：向量資料庫，記憶體裡就能跑"
@@ -144,6 +144,7 @@ hits = qdrant.query_points("dishes", query=[0.2, 0.7, 0.9], limit=3).points   # 
     <span class="lv">LEVEL 3</span>
     <p>把 kind 與 price 也存進真向量的 collection，做「100 元以內、跟『提神』最相關的東西」。想一想：為什麼查詢與資料必須用同一個 embedding 模型？</p>
   </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
 <div class="endnav">

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>常見 MCP 服務：接上別人的伺服器，再合成一台 · AI 互動教室</title>
+<meta name="description" content="MCP 生態系導覽（2026-08 查證）：用 uvx／npx 把官方參考伺服器當子行程跑、連公開的遠端伺服器（DeepWiki、Context7）、把它們跟自己的工具 mount 成一台 HTTP hub，再接給 Claude Code／Claude Desktop／Cursor。">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：紫＝stdio（子行程）、青＝遠端 HTTP、綠＝你的 hub、紅＝封存/警示 */
+  :root { --c1: #7B5EA7; --c2: #2A9D8F; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：選一台伺服器 → 看它的接法、實測結果 */
+  #sv-demo .picks { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  #sv-demo .pick { font: inherit; font-size: 13px; font-weight: 800; padding: 6px 12px; border: 2px solid var(--ink); border-radius: 999px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  #sv-demo .pick.on { background: var(--ink); color: #fff; }
+  #sv-demo .card { border: 1.5px solid var(--grid); border-radius: 12px; padding: 12px 14px; background: var(--panel); display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  #sv-demo .card .row { font-size: 13px; line-height: 1.55; }
+  #sv-demo .card .row b { display: block; font-size: 11px; letter-spacing: .06em; color: var(--ink-soft); margin-bottom: 2px; }
+  #sv-demo .card .wide { grid-column: 1 / -1; }
+  #sv-demo .badge { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 6px; color: #fff; }
+  #sv-demo .badge.stdio { background: var(--c1); } #sv-demo .badge.http { background: var(--c2); } #sv-demo .badge.hub { background: var(--c3); }
+  #sv-demo .badge.old { background: #DD8452; } #sv-demo .badge.new { background: #4C72B0; }
+  #sv-demo pre { margin: 4px 0 0; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; background: var(--chip-bg); border-radius: 8px; padding: 8px 10px; line-height: 1.5; }
+  #sv-demo .tools { display: flex; gap: 5px; flex-wrap: wrap; }
+  #sv-demo .tools span { font-family: var(--mono); font-size: 11.5px; background: var(--chip-bg); border-radius: 6px; padding: 2px 7px; opacity: 0; animation: sv-in .3s ease forwards; }
+  @keyframes sv-in { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { #sv-demo .tools span { animation: none; opacity: 1; } }
+  @media (max-width: 560px) { #sv-demo .card { grid-template-columns: 1fr; } }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.x { color: var(--cut); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .hint { font-size: 13.5px; color: var(--ink-soft); margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/llm-apps/">‹ 學 LLM 應用開發</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="mcp-servers_ext.py" download>下載 .py</a>
+  <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">FASTMCP 4 · 補充 D · MCP ECOSYSTEM</span>
+  <h1>常見 MCP 服務：接上別人的伺服器，再合成一台</h1>
+  <p style="margin-top:18px">
+    前面每一課都在<b>自己蓋</b> MCP 伺服器。但 MCP 的價值在生態系：查時區、抓網頁、讀檔案、操作 git、翻最新文件、開瀏覽器……
+    這些別人寫好了、上千個客戶端在用。這堂課反過來——<b>接上別人蓋好的</b>，最後把它們跟你的工具合成一台，給 Claude 用。
+    選一台伺服器，看它怎麼接、實測拿到什麼（內容是 notebook 的實測紀錄）：
+  </p>
+
+  <div class="hero-demo" id="sv-demo">
+    <div class="picks" id="sv-picks"></div>
+    <div class="card" id="sv-card"></div>
+  </div>
+
+  <p class="note">
+    本課<b>需要網路</b>（<span class="kbd">uvx</span> 下載伺服器套件、連兩台公開的遠端伺服器），molab 免費 CPU 環境即可。
+    生態系資料 2026-08-20 查證；用 <span class="kbd">fastmcp==4.0.0b1</span>。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 生態系地圖</span>
+  <h2>兩種接法、七個官方參考伺服器、一串要 OAuth 的遠端</h2>
+  <p>
+    MCP 伺服器只有兩種接法：<b>stdio</b>——客戶端把伺服器當<b>子行程</b>拉起來、用管線講 JSON-RPC（<span class="kbd">uvx …</span>／<span class="kbd">npx -y …</span>，跑在你機器上）；
+    <b>HTTP</b>——給你一個網址，多半要 OAuth。官方 <span class="kbd">modelcontextprotocol/servers</span> 目前維護 7 個參考伺服器：
+  </p>
+  <table class="cmp">
+    <tr><th>名稱</th><th>做什麼</th><th>怎麼跑</th></tr>
+    <tr><td><span class="kbd">time</span></td><td>查時區、換算時間</td><td><span class="kbd">uvx mcp-server-time</span></td></tr>
+    <tr><td><span class="kbd">fetch</span></td><td>抓網頁轉 markdown 給模型讀</td><td><span class="kbd">uvx mcp-server-fetch</span></td></tr>
+    <tr><td><span class="kbd">git</span></td><td>讀／搜尋／操作 git repo</td><td><span class="kbd">uvx mcp-server-git --repository …</span></td></tr>
+    <tr><td><span class="kbd">filesystem</span></td><td>受控目錄內的檔案讀寫</td><td><span class="kbd">npx -y @modelcontextprotocol/server-filesystem …</span></td></tr>
+    <tr><td><span class="kbd">memory</span>／<span class="kbd">sequentialthinking</span>／<span class="kbd">everything</span></td><td>知識圖譜記憶／分步推理／協定測試</td><td><span class="kbd">npx -y @modelcontextprotocol/server-*</span></td></tr>
+    <tr><td class="x">GitHub、Slack、PostgreSQL、SQLite、Puppeteer…</td><td class="x">已封存到 <span class="kbd">servers-archived</span>（GitHub 改官方版、Slack 由 Zencoder 接手）</td><td class="x">網路教學還在教的 <span class="kbd">server-github</span> 已不更新</td></tr>
+  </table>
+  <p>
+    第三方：<b>DeepWiki</b>、<b>Context7</b>、Cloudflare Docs 是公開免 token 的 HTTP 伺服器；GitHub 官方（<span class="kbd">api.githubcopilot.com/mcp/</span>）、Notion、Linear、Sentry、Stripe
+    對沒帶 token 的請求一律回 <span class="kbd">401</span>＋<span class="kbd">resource_metadata</span>——就是補充課 A 那套 OAuth 發現流程；
+    Playwright（<span class="kbd">npx @playwright/mcp@latest</span>）讓模型操作真的瀏覽器。完整表在 notebook。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">到 notebook 的 1️⃣ 節：完整生態系表（含要不要 token、查證方式）</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · stdio 與 mcp.json</span>
+  <h2>一個 dict 拉起子行程——這就是 Claude Desktop 的設定檔格式</h2>
+  <div class="codeblock">SERVERS = {"mcpServers": {
+    "time":  {"command": "uvx", "args": ["mcp-server-time"]},
+    "fetch": {"command": "uvx", "args": ["mcp-server-fetch"]},
+}}
+async with Client(SERVERS) as c:
+    print(c.protocol_version)                 # 2025-11-25 ← 老伺服器只會握手協定，client 自動退回
+    print([t.name for t in await c.list_tools()])   # ['time_get_current_time', 'time_convert_time', 'fetch_fetch']
+    await c.call_tool("time_get_current_time", {"timezone": "Asia/Taipei"})</div>
+  <p>
+    <span class="kbd">Client(設定)</span> 自己把子行程拉起來、用完關掉，你不用開終端機、不用管 port。多台時工具自動加<b>伺服器名前綴</b>（<span class="kbd">time_</span>、<span class="kbd">fetch_</span>），一台時不加。
+    兩件 stdio 特有的事：子行程只繼承一小份環境變數白名單（<span class="kbd">HOME</span>、<span class="kbd">PATH</span>…），API key 要用 <span class="kbd">"env"</span> 明傳；
+    首次 <span class="kbd">uvx</span> 要下載套件，多等 10–40 秒。實測連線含子行程啟動 0.5–7 秒（看有沒有快取）。
+  </p>
+  <p>
+    看 <span class="kbd">protocol_version</span>：這些官方伺服器是 MCP Python SDK v1 寫的，只會 <span class="kbd">2025-11-25</span>。FastMCP 4 的 client 先用新協定探一次，老伺服器在 stderr 抱怨一串 pydantic 警告，client 就自動退回握手協定——<b>那串警告是正常的</b>。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">到 notebook 的 2️⃣–3️⃣ 節：time、fetch、工具前綴</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 遠端 HTTP</span>
+  <h2>一個網址就好——而且你正看著協定過渡期</h2>
+  <table class="cmp">
+    <tr><th>伺服器</th><th>網址</th><th>實測 protocol_version</th><th>工具</th></tr>
+    <tr><td><b>DeepWiki</b>（問任何公開 GitHub repo）</td><td><span class="kbd">https://mcp.deepwiki.com/mcp</span></td><td><span class="kbd">2025-11-25</span>（握手協定）</td><td><span class="kbd">read_wiki_structure</span>／<span class="kbd">read_wiki_contents</span>／<span class="kbd">ask_question</span></td></tr>
+    <tr><td><b>Context7</b>（查套件最新版文件）</td><td><span class="kbd">https://mcp.context7.com/mcp</span></td><td><span class="kbd">2026-07-28</span>（無狀態協定）</td><td><span class="kbd">resolve-library-id</span> → <span class="kbd">query-docs</span></td></tr>
+  </table>
+  <p>
+    同一行 <span class="kbd">Client("https://…/mcp")</span>，一台還是舊協定、一台已經是第 3 課學的新協定——這就是 FastMCP 4「一個客戶端同時服務兩個協定時代」的意義。
+    Context7 解的是模型記錯 API 版本的老問題：先 <span class="kbd">resolve-library-id("fastmcp")</span> 對應成 <span class="kbd">/prefecthq/fastmcp</span>，再用自然語言 <span class="kbd">query-docs</span>，回來的是帶原始碼連結的最新文件片段。
+    遠端服務會變，notebook 這格包了 try/except：連不上會顯示說明而不是炸掉。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">到 notebook 的 4️⃣–5️⃣ 節：DeepWiki、Context7、npx filesystem</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 合成一台</span>
+  <h2>自己的工具＋time＋Context7，mount 成一個網址</h2>
+  <div class="codeblock">hub = FastMCP("我的工具 hub")
+
+@hub.tool
+def hello(name: str) -> str: ...
+
+hub.mount(create_proxy({"mcpServers": {"default": TIME_SERVER}}, mode="legacy"), namespace="time")
+hub.mount(create_proxy("https://mcp.context7.com/mcp"), namespace="c7")
+# 客戶端連 hub 看到：['hello', 'time_get_current_time', 'time_convert_time', 'c7_resolve-library-id', 'c7_query-docs']</div>
+  <p>
+    <span class="kbd">create_proxy(目標)</span> 把任何 MCP 伺服器（網址、設定 dict、檔案路徑）變成可 mount 的代理，<span class="kbd">namespace</span> 決定前綴
+    （tool → <span class="kbd">ns_tool</span>、resource → <span class="kbd">data://ns/…</span>）。這同時是 <b>stdio → HTTP 橋接</b>：原本只能被本機子行程拉起來的 <span class="kbd">mcp-server-time</span>，經過 hub 後任何遠端客戶端都用得到。
+  </p>
+  <p>
+    <b>實測踩到的坑</b>：hub 對外是新協定，proxy 預設會「鏡像」客戶端的協定時代去連後端——新協定客戶端 → proxy 用新協定敲 <span class="kbd">mcp-server-time</span> → 老伺服器不會 → 工具清單裡它整個消失。
+    只會握手協定的老伺服器要 <span class="kbd">create_proxy(…, mode="legacy")</span> 釘住；Context7 本身是新協定，不用釘。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">到 notebook 的 6️⃣ 節：起 hub、三個來源的工具一次列出</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 接給 Claude</span>
+  <h2>一行 CLI，或一段 JSON</h2>
+  <div class="codeblock">claude mcp add --transport http hub http://localhost:8000/mcp   # 接 HTTP 的 hub
+claude mcp add time -- uvx mcp-server-time                      # 直接接一台 stdio 伺服器
+claude mcp add playwright -- npx @playwright/mcp@latest         # 讓 Claude 操作瀏覽器
+
+fastmcp install claude-code hub.py:hub        # FastMCP CLI 幫你跑 claude mcp add
+fastmcp install claude-desktop hub.py:hub     # 寫進 claude_desktop_config.json
+fastmcp list http://localhost:8000/mcp        # 不寫程式就看一台伺服器有哪些工具</div>
+  <p>
+    Claude Desktop（<span class="kbd">claude_desktop_config.json</span>）與 Cursor（<span class="kbd">.cursor/mcp.json</span>）吃的就是第 02 節那個 <span class="kbd">mcpServers</span> dict。
+    接上後對 Claude 說「東京現在幾點」它自己呼叫 <span class="kbd">time_get_current_time</span>；問「Qdrant 的 python client 怎麼建 collection」它先 <span class="kbd">c7_resolve-library-id</span> 再 <span class="kbd">c7_query-docs</span>——你一個 agent 迴圈都沒寫。
+    安全常識：stdio 伺服器＝在你機器上跑別人的程式，只裝信得過的；filesystem 永遠限制目錄；hub 對外前掛上補充課 A 的認證。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">到 notebook 的 7️⃣ 節：Claude Code／Desktop／Cursor 設定與 fastmcp CLI</a>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在設定加第三台官方伺服器 <span class="kbd">git</span>（先 <span class="kbd">git init</span> 一個暫存目錄並 commit），看多出哪 12 個 <span class="kbd">git_git_*</span> 工具，用 <span class="kbd">git_git_log</span> 讀出那個 commit。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>用設定檔的 <span class="kbd">"tools"</span> 區塊改造工具：把 <span class="kbd">get_current_time</span> 改名 <span class="kbd">now</span>、<span class="kbd">timezone</span> 預設 <span class="kbd">Asia/Taipei</span> 並隱藏——模型看到的是零參數的 <span class="kbd">now()</span>。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>hub 掛上補充課 A 的 <span class="kbd">StaticTokenVerifier</span>：沒 token 連不上、帶 <span class="kbd">team-token</span> 才看得到 <span class="kbd">c7_*</span>。Context7 不要 token，你的 hub 卻要——「在 hub 層加門」還能加什麼？</p>
+  </div>
+  <p class="hint">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
+</section>
+
+<div class="endnav">
+  <a href="/rag-mcp-agent/">
+    <span class="tag">回到主線壓軸</span>
+    <b>RAG 變成 AI 的工具——那台伺服器現在可以 mount 進 hub、掛上認證，給整個團隊用 →</b>
+  </a>
+  <a href="/llm-apps/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 LLM 應用開發」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：molab 導流面板（常駐，無內嵌 notebook） ══════════════ -->
+<div id="lab">
+  <div id="molab-panel">
+    <div class="panel-inner">
+      <span class="eyebrow">HANDS-ON · MOLAB</span>
+      <h3>實作在 molab 跑（免費）</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 notebook 要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次 uvx 下載伺服器套件約 10–40 秒）——<b>免費 CPU 環境即可</b>，需要網路、不需要 GPU</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="mcp-servers_ext.py" download>下載 mcp-servers_ext.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>mcp-servers_ext.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox mcp-servers_ext.py</code>，依賴會自動安裝。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：選一台伺服器，看接法與實測結果（資料來自 notebook 2026-08-20 實測）═══ */
+(function () {
+  const S = [
+    { k: "time", label: "time（官方）", kind: "stdio", cmd: 'uvx mcp-server-time', proto: "2025-11-25", era: "old",
+      tools: ["get_current_time", "convert_time"],
+      call: 'get_current_time(timezone="Asia/Taipei")\n→ {"timezone": "Asia/Taipei", "datetime": "2026-08-20T23:30:23+08:00", "day_of_week": "Thursday", "is_dst": false}',
+      note: "連線含子行程啟動 0.5–7 秒（有無 uvx 快取）。stderr 會先印一串 pydantic 警告——新協定探測被老伺服器拒絕後自動退回握手協定。" },
+    { k: "fetch", label: "fetch（官方）", kind: "stdio", cmd: 'uvx mcp-server-fetch', proto: "2025-11-25", era: "old",
+      tools: ["fetch"],
+      call: 'fetch(url="https://gofastmcp.com/llms.txt", max_length=400)\n→ "Contents of https://gofastmcp.com/llms.txt: # FastMCP > The fast, Pythonic way to build MCP servers and clients. ## Docs - [FastMCP: The Framework…"',
+      note: "與 time 放進同一個 mcpServers dict 時，工具名變成 fetch_fetch（前綴＝伺服器名）。" },
+    { k: "fs", label: "filesystem（官方）", kind: "stdio", cmd: 'npx -y @modelcontextprotocol/server-filesystem /允許的目錄', proto: "2025-11-25", era: "old",
+      tools: ["read_file", "read_text_file", "read_media_file", "read_multiple_files", "write_file", "edit_file", "create_directory", "list_directory", "list_directory_with_sizes", "directory_tree", "move_file", "search_files", "get_file_info", "list_allowed_directories"],
+      call: 'read_text_file(path=".../note.txt")\n→ "hello from the filesystem server"\nlist_directory(path="...")\n→ "[FILE] note.txt"',
+      note: "目錄用啟動參數鎖死，模型碰不到外面。molab 免費環境不一定有 Node：notebook 會偵測 npx，沒有就顯示在自己電腦怎麼跑。" },
+    { k: "deepwiki", label: "DeepWiki（遠端）", kind: "http", cmd: 'Client("https://mcp.deepwiki.com/mcp")', proto: "2025-11-25", era: "old",
+      tools: ["read_wiki_structure", "read_wiki_contents", "ask_question"],
+      call: 'read_wiki_structure(repoName="PrefectHQ/fastmcp")\n→ "Available pages for PrefectHQ/fastmcp: - 1 Overview - 2 Architecture - 2.1 Component System - 2.2 Provider and Transform Pattern …"',
+      note: "不用 token。實測連線 2–4 秒。還在握手協定——真實世界正處在過渡期。" },
+    { k: "c7", label: "Context7（遠端）", kind: "http", cmd: 'Client("https://mcp.context7.com/mcp")', proto: "2026-07-28", era: "new",
+      tools: ["resolve-library-id", "query-docs"],
+      call: 'resolve-library-id(libraryName="fastmcp", query="mount a proxy with namespace")\n→ "Context7-compatible library ID: /prefecthq/fastmcp …"\nquery-docs(libraryId="/prefecthq/fastmcp", query=…)\n→ "### Using mount() with namespace  Source: https://github.com/prefecthq/fastmcp/blob/main/docs/servers/transforms/namespace.mdx …"',
+      note: "不用 token（有 key 額度較高）。實測連線約 1 秒。已經是第 3 課學的無狀態協定。" },
+    { k: "hub", label: "你的 hub（合成）", kind: "hub", cmd: 'hub.mount(create_proxy({...time...}, mode="legacy"), namespace="time")\nhub.mount(create_proxy("https://mcp.context7.com/mcp"), namespace="c7")', proto: "2026-07-28", era: "new",
+      tools: ["hello", "time_get_current_time", "time_convert_time", "c7_resolve-library-id", "c7_query-docs"],
+      call: 'time_get_current_time(timezone="Asia/Tokyo")   ← stdio 子行程，經 hub 變成 HTTP\n→ {"timezone": "Asia/Tokyo", "datetime": "2026-08-21T00:30:41+09:00", …}\nc7_resolve-library-id(libraryName="qdrant", …)   ← 遠端，經 hub 轉發\n→ "Title: Qdrant Client - Context7-compatible library ID: /qdrant/qdrant-client …"',
+      note: "一個網址、三個來源。老伺服器要 mode=\"legacy\" 釘住，否則新協定客戶端會讓 proxy 用新協定去敲它、工具整個消失。" },
+  ];
+  const KIND = { stdio: ["stdio", "子行程＋管線"], http: ["http", "遠端 HTTP"], hub: ["hub", "FastMCP hub"] };
+  const picks = document.getElementById("sv-picks"), card = document.getElementById("sv-card");
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function show(k) {
+    const s = S.find(x => x.k === k);
+    picks.querySelectorAll(".pick").forEach(b => b.classList.toggle("on", b.dataset.k === k));
+    const [cls, kindLabel] = KIND[s.kind];
+    card.innerHTML =
+      `<div class="row"><b>接法</b><span class="badge ${cls}">${kindLabel}</span></div>` +
+      `<div class="row"><b>實測 protocol_version</b><span class="badge ${s.era}">${s.proto}</span> ${s.era === "old" ? "握手協定（client 自動退回）" : "無狀態協定"}</div>` +
+      `<div class="row wide"><b>啟動／連線</b><pre>${esc(s.cmd)}</pre></div>` +
+      `<div class="row wide"><b>工具（${s.tools.length}）</b><div class="tools">${s.tools.map((t, i) => `<span style="animation-delay:${i * 45}ms">${esc(t)}</span>`).join("")}</div></div>` +
+      `<div class="row wide"><b>一次實測呼叫</b><pre>${esc(s.call)}</pre></div>` +
+      `<div class="row wide"><b>備註</b>${esc(s.note)}</div>`;
+  }
+  picks.innerHTML = S.map(s => `<button class="pick" data-k="${s.k}">${esc(s.label)}</button>`).join("");
+  picks.addEventListener("click", e => { const b = e.target.closest(".pick"); if (b) show(b.dataset.k); });
+  show("time");
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

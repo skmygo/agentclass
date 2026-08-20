@@ -1,4 +1,4 @@
-"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/rag-mcp-agent
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/rag-mcp-agent
 build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "壓軸：RAG 變成 AI 的工具"
@@ -133,6 +133,7 @@ msgs.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(res.da
 
 # 然後
 claude mcp add --transport http shancha http://localhost:8000/mcp</div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
   <p>
     Claude Code 會看到 <span class="kbd">search_handbook</span> 與 <span class="kbd">list_sections</span>，問它山茶屋的事它會自己查——
     <b>不用寫任何 agent 迴圈</b>，客戶端本身就是 agent。第 3 課的無狀態協定在這裡兌現：
@@ -164,6 +165,10 @@ claude mcp add --transport http shancha http://localhost:8000/mcp</div>
 </section>
 
 <div class="endnav">
+  <a href="/fastmcp4-auth/">
+    <span class="tag">下一步 · FastMCP 4 補充系列</span>
+    <b>補充 A：認證與授權——從一把 token 到完整 OAuth 2.1 →</b>
+  </a>
   <a href="/litellm-basics/">
     <span class="tag">從頭複習</span>
     <b>‹ 第 1 課：LiteLLM：一個網址、一把 key，打遍八家模型</b>

@@ -456,5 +456,122 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答：先自己做再打開。LEVEL 1/2 是可直接貼進新 cell 的完整程式碼，LEVEL 3 給方向與驗證方法。
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答：第二個工具 convert_currency": mo.md(
+                r"""
+    兩件事：寫函式、寫說明書，然後把兩份說明書合成一份 `tools` 清單。注意參數**不能**叫 `from`——
+    它是 Python 關鍵字，`fn(**args)` 會炸——所以 schema 跟函式都用 `from_currency`／`to_currency`。
+
+    ```python
+    def convert_currency(amount: float, from_currency: str, to_currency: str) -> dict:
+        _RATE = {("USD", "TWD"): 32.5, ("TWD", "USD"): 1 / 32.5, ("JPY", "TWD"): 0.21}
+        _rate = _RATE.get((from_currency.upper(), to_currency.upper()))
+        if _rate is None:
+            return {"error": f"不支援 {from_currency}→{to_currency}"}
+        return {"amount": amount, "from": from_currency.upper(), "to": to_currency.upper(),
+                "result": round(amount * _rate, 2), "rate": _rate}
+
+    TOOLS2 = TOOLS + [{"type": "function", "function": {
+        "name": "convert_currency",
+        "description": "匯率換算：把某個金額從一種貨幣換成另一種貨幣",
+        "parameters": {"type": "object", "properties": {
+            "amount": {"type": "number", "description": "金額"},
+            "from_currency": {"type": "string", "description": "原幣別代碼，例如 USD"},
+            "to_currency": {"type": "string", "description": "目標幣別代碼，例如 TWD"}},
+            "required": ["amount", "from_currency", "to_currency"]}}}]
+    AVAILABLE2 = {**AVAILABLE, "convert_currency": convert_currency}
+
+    def run_with_tools_v2(question, model="nemotron-3.5-lightning", max_rounds=5):
+        _msgs, _trace = [{"role": "user", "content": question}], []
+        for _ in range(max_rounds):
+            _m = client.chat.completions.create(model=model, messages=_msgs, tools=TOOLS2, max_tokens=4096).choices[0].message
+            if not _m.tool_calls:
+                return (_m.content or "").strip(), _trace
+            _msgs.append({"role": "assistant", "content": _m.content or "",
+                          "tool_calls": [{"id": tc.id, "type": "function",
+                                          "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                                         for tc in _m.tool_calls]})
+            for tc in _m.tool_calls:
+                _args = json.loads(tc.function.arguments or "{}")
+                _out = AVAILABLE2[tc.function.name](**_args)
+                _trace.append((tc.function.name, _args, _out))
+                _msgs.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(_out, ensure_ascii=False)})
+        return "（超過回合上限）", _trace
+
+    [run_with_tools_v2(q) for q in ["100 美元換台幣多少？", "台北現在天氣怎麼樣？"]]
+    ```
+
+    你應該看到（實測，nemotron-3.5-lightning，兩輪都一樣）：匯率題呼叫 `convert_currency(amount=100, from_currency="USD", to_currency="TWD")`
+    → 「100 美元 ≈ 3,250 台幣」；天氣題仍然只呼叫 `get_weather`。模型是靠 `description` 挑工具的——
+    把兩個 description 互換再跑一次，看它會不會挑錯。
+    """
+            ),
+            "💡 LEVEL 2 參考解答：schema 逼它填它不知道的欄位": mo.md(
+                r"""
+    ```python
+    RESPONSE_FORMAT2 = {"type": "json_schema", "json_schema": {"name": "person_info", "strict": True, "schema": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "age": {"type": "integer", "minimum": 0, "maximum": 150},
+            "city": {"type": "string"},
+            "hobbies": {"type": "array", "items": {"type": "string"}},
+            "email": {"type": "string"},                       # 原文沒有 email，卻是必填字串
+        },
+        "required": ["name", "age", "city", "hobbies", "email"],
+        "additionalProperties": False}}}
+
+    _r = client.chat.completions.create(model="nemotron-3.5-lightning", messages=PROMPT,
+                                        response_format=RESPONSE_FORMAT2, max_tokens=4096)
+    _r.choices[0].finish_reason, _r.choices[0].message.content
+    ```
+
+    你應該看到（實測，多跑幾次）：`age` 照樣是 12（`minimum/maximum` 沒造成問題）；`email` 則被**逼著編**——
+    出現過 `"未提供 / Not provided"`、`"generated@example.com"`、`"(此處未提供，視需要補填或跳過)"`。
+    schema 說它是字串，模型就只能給字串；**你的 pipeline 會收到一個看起來合法、其實是假的 email**。
+
+    修法有兩層：(1) 型別改成 `{"type": ["string", "null"]}` 並在 prompt 寫「沒有就填 null」——實測會回 `"email": null`；
+    但也實測到某一發 `finish_reason == "length"`、吐到 4096 token 都沒結束（某個上游對 union 型別的約束解碼卡住了），
+    所以 (2) **一律檢查 `finish_reason` 並逐欄驗證**，就是 5️⃣ `validate()` 做的事。
+    另外實測把 `email` 移出 `required` 也**不會**讓它不填——它照樣塞一個 placeholder。能讓模型老實說「沒有」的只有 `null`。
+    """
+            ),
+            "💡 LEVEL 3 提示：把錯誤餵回去，模型會怎麼做": mo.md(
+                r"""
+    兩個改動：工具遇到不認得的城市要 `raise`（而不是回 `"未知城市"`），迴圈裡用 `try/except` 把例外
+    **包成 tool 結果**餵回去，而不是讓它炸掉：
+
+    ```python
+    def get_weather_strict(city: str) -> dict:
+        _FAKE = {"台北": {"weather": "晴", "temp_c": 31}, "高雄": {"weather": "多雲", "temp_c": 33}}
+        _ALIAS = {"taipei": "台北", "kaohsiung": "高雄"}
+        _key = _ALIAS.get(city.strip().lower(), city)
+        if _key not in _FAKE:
+            raise KeyError(f"查無城市「{city}」，目前只支援：{list(_FAKE)}")
+        return _FAKE[_key]
+
+    # 迴圈裡原本的 _out = AVAILABLE[...](**_args) 改成：
+    #     try:
+    #         _out = AVAILABLE3[tc.function.name](**_args)
+    #     except Exception as _e:
+    #         _out = {"error": f"{type(_e).__name__}: {_e}"}     # 錯誤也是資訊，餵回去
+    ```
+
+    怎麼驗證：問「東京現在天氣怎麼樣？」，trace 應該是一次 `get_weather(city="東京")` 拿到 `{"error": "KeyError: 查無城市…只支援 ['台北', '高雄']"}`，
+    然後模型**不再重試**、直接誠實回答「目前只能查台北和高雄，東京查不到」並建議你換來源（實測兩輪都是這樣）。
+    重點在錯誤訊息的內容：`只支援：['台北', '高雄']` 這句讓它知道邊界在哪；
+    把訊息改成只有 `"error"` 兩個字再試，它可能會換個拼法重試幾次才放棄。
+    壓軸課的 agent 迴圈就是這個寫法。
+    """
+            ),
+        }
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()

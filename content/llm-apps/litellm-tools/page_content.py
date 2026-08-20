@@ -1,4 +1,4 @@
-"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/litellm-tools
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/litellm-tools
 build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "讓模型做事：Tool calling、結構化輸出與看圖"
@@ -158,6 +158,7 @@ r2 = client.chat.completions.create(model=..., messages=messages, tools=TOOLS)  
     <span class="lv">LEVEL 3</span>
     <p>讓 <span class="kbd">run_with_tools</span> 在工具失敗時把錯誤訊息當 tool 結果餵回去（查一個不存在的城市），觀察模型會不會自我修正或誠實說查不到。</p>
   </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
 <div class="endnav">

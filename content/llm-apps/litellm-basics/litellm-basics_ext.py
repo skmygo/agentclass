@@ -531,5 +531,83 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答：先自己做再打開。LEVEL 1/2 是可直接貼進新 cell 的完整程式碼，LEVEL 3 給方向與驗證方法。
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答：system prompt": mo.md(
+                r"""
+    `messages` 是一個依序排列的對話：`system` 擺最前面，是「給模型的工作守則」，使用者看不到。
+    新開一格貼上：
+
+    ```python
+    _r = client.chat.completions.create(
+        model="nemotron-3.5-lightning",
+        messages=[
+            {"role": "system", "content": "你只會用文言文回答"},
+            {"role": "user", "content": "用一句話介紹你自己，說明你是什麼模型。"},
+        ],
+        max_tokens=4096,
+    )
+    _r.choices[0].message.content
+    ```
+
+    你應該看到：同一個問題，回答變成「吾乃一巨大之語言模型，能通文理，應問能答。」這類句子
+    （實測（nemotron-3.5-lightning）每次措辭都不同，但一定是文言文；耗時 15–35 秒，因為它還是會先推理）。
+    system prompt 是最便宜的「改行為」手段——之後 RAG 課的「只能根據參考資料回答」也是寫在這裡。
+    """
+            ),
+            "💡 LEVEL 2 參考解答：自己的句子 + 換 embedding 模型": mo.md(
+                r"""
+    把 5️⃣ 那格的 `sentences` 直接改掉（例如三句講鍵盤、一句講晚餐），存檔後熱圖會自動重畫。
+    要同時比較兩個模型，新開一格：
+
+    ```python
+    _my = ["鍵盤的軸體影響手感", "機械鍵盤敲起來很有節奏", "青軸的聲音特別清脆", "今天晚餐想吃拉麵"]
+    _rows = []
+    for _m in ["qwen3-embedding-0.6b", "nemotron-3-embed-1b"]:
+        _e = np.array([d.embedding for d in client.embeddings.create(model=_m, input=_my).data])
+        _e = _e / np.linalg.norm(_e, axis=1, keepdims=True)   # 保險：先正規化再內積
+        _s = _e @ _e.T
+        _rows.append({"model": _m, "dims": _e.shape[1],
+                      "鍵盤 vs 鍵盤": f"{_s[0, 1]:.2f} / {_s[0, 2]:.2f} / {_s[1, 2]:.2f}",
+                      "鍵盤 vs 拉麵": f"{_s[0, 3]:.2f} / {_s[1, 3]:.2f} / {_s[2, 3]:.2f}"})
+    mo.ui.table(_rows, selection=None)
+    ```
+
+    你應該看到（實測）：`qwen3-embedding-0.6b` 1024 維，同主題 0.58–0.70、離題 0.27–0.38，落差明顯；
+    `nemotron-3-embed-1b` 2048 維，同主題 0.47–0.63、離題卻也有 0.53–0.58——**分數尺度跟模型綁定**，
+    兩個模型的 0.5 意義完全不同，做 RAG 的門檻只能用自己的資料實測，不能跨模型沿用。
+    兩個模型回傳的都是單位向量（norm = 1），所以上面的正規化只是保險。
+    """
+            ),
+            "💡 LEVEL 3 提示：換 nemotron-3-ultra 看三來源的延遲": mo.md(
+                r"""
+    `run_batch` 裡寫死了模型名，最小改法是複製 6️⃣ 那格、把 `_one` 裡的 `model=` 換成 `"nemotron-3-ultra"`、
+    函式名改成 `run_batch_ultra`（marimo 同一個名字不能在兩格定義）。然後分組統計：
+
+    ```python
+    from collections import defaultdict
+    _by = defaultdict(list)
+    for _r in ultra_rows:                    # 你的新 run_batch 回傳的列
+        _by[_r["provider"]].append(_r["sec"])
+    mo.ui.table([{"provider": p, "n": len(s), "mean_sec": round(np.mean(s), 1),
+                  "min": min(s), "max": max(s), "std": round(np.std(s), 1)}
+                 for p, s in sorted(_by.items(), key=lambda kv: np.mean(kv[1]))], selection=None)
+    ```
+
+    怎麼驗證：表格要出現 **三個來源名**（NVIDIA NIM／OpenRouter／Ollama Cloud），而 lightning 只有兩個。
+    實測一次：牆鐘 31 秒、12/12 成功，OpenRouter 平均 1.9 秒最快最穩（std 0.4）、NIM 平均 7.8 秒但 std 10.5
+    （最慢一發 30 秒）、Ollama Cloud 平均 8 秒。**「哪家最飄」看 std 不看 mean**。
+    550B 比 30B 慢是預期內的；但同一家的 1.3 秒到 30 秒落差，才是 gateway 要自動換家的理由。
+    分佈每次都不同——`simple-shuffle` 是隨機的，多跑幾次再下結論。
+    """
+            ),
+        }
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()

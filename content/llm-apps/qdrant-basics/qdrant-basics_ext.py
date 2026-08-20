@@ -382,5 +382,95 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答：先自己做再打開。LEVEL 1/2 是可直接貼進新 cell 的完整程式碼，LEVEL 3 給方向與驗證方法。
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答：加兩道菜": mo.md(
+                r"""
+    最省事的做法是直接改 1️⃣ 那格的 `DISHES`——marimo 會自動重跑所有依賴它的格子（建庫、拉桿查詢、散佈圖）。
+    例如加一道甜甜的冰品、一道偏辣的菜：
+
+    ```python
+    ("芒果冰", [0.85, 0.30, 0.00], "dessert", 120),
+    ("宮保雞丁", [0.30, 0.20, 0.75], "food", 160),
+    ```
+
+    不想動原格也可以新開一格、用 `upsert` 直接加點（id 接著排 8、9）：
+
+    ```python
+    _NEW = [("芒果冰", [0.85, 0.30, 0.00], "dessert", 120), ("宮保雞丁", [0.30, 0.20, 0.75], "food", 160)]
+    qdrant.upsert("dishes", points=[
+        PointStruct(id=8 + i, vector=v, payload={"name": n, "kind": k, "price": p})
+        for i, (n, v, k, p) in enumerate(_NEW)
+    ])
+    qdrant.count("dishes").count, qdrant.query_points("dishes", query=[0.85, 0.3, 0.0], limit=3).points
+    ```
+
+    你應該看到：`count` 變 10；拉桿拉到甜 0.85／酸 0.3／辣 0 時芒果冰以 1.000 登頂、珍珠奶茶 0.974 第二；
+    拉到辣 0.8／甜 0.3 時宮保雞丁第一、麻辣鍋 0.969 第二（實測）。Cosine 只看方向——
+    你填的向量跟查詢向量「比例」一樣，分數就是 1.0，跟數值大小無關。
+    """
+            ),
+            "💡 LEVEL 2 參考解答：must／should／must_not": mo.md(
+                r"""
+    ```python
+    _sweet = [0.9, 0.1, 0.0]
+    _f_must = Filter(must=[                                   # 兩個條件都要成立
+        FieldCondition(key="kind", match=MatchValue(value="food")),
+        FieldCondition(key="price", range=Range(lte=150)),
+    ])
+    _f_should = Filter(should=[                               # 任一成立即可
+        FieldCondition(key="kind", match=MatchValue(value="drink")),
+        FieldCondition(key="kind", match=MatchValue(value="dessert")),
+    ])
+    _f_not = Filter(must_not=[FieldCondition(key="kind", match=MatchValue(value="food"))])   # 排除
+
+    def _show(f):
+        return " → ".join(f"{h.payload['name']}({h.score:.2f}, {h.payload['kind']}, {h.payload['price']})"
+                          for h in qdrant.query_points("dishes", query=_sweet, limit=3, query_filter=f).points)
+
+    mo.md(f"- must：{_show(_f_must)}\n- should：{_show(_f_should)}\n- must_not：{_show(_f_not)}")
+    ```
+
+    你應該看到（原始八道菜）：
+
+    - **must**（`food` 且 `<= 150`）：只回 **2 筆**——泰式酸辣湯 (0.27)、酸辣粉 (0.17)。`limit=3` 卻只有 2 筆，
+      因為符合條件的食物只有兩道；分數都很低，因為沒有任何「甜的食物」在 150 元以內。這就是「先篩再排」。
+    - **should**（飲料或甜點）：珍珠奶茶 (1.00) → 焦糖布丁 (1.00) → 蜂蜜檸檬。
+    - **must_not**（不要食物）：在這組資料裡跟 should 的結果一樣——兩種寫法的集合剛好相同，但語意不同：
+      資料多一個 `kind="soup"` 時 must_not 會把它納入、should 不會。
+    """
+            ),
+            "💡 LEVEL 3 提示：真實向量 + payload 過濾、以及為什麼不能換模型": mo.md(
+                r"""
+    把 6️⃣ 那格的 payload 改成 `{"name": dish_names[i], "kind": DISHES[i][2], "price": DISHES[i][3]}` 存檔即可
+    （整格會重跑，重新 embedding 一次）。然後：
+
+    ```python
+    _hits = qdrant.query_points(
+        "dishes_real", query=embed(["提神"])[0], limit=3,
+        query_filter=Filter(must=[FieldCondition(key="price", range=Range(lte=100))]),
+    ).points
+    [(h.payload["name"], round(h.score, 2), h.payload["price"]) for h in _hits]
+    ```
+
+    怎麼驗證：實測「提神」＋ `price <= 100` 回珍珠奶茶 (0.40)、檸檬紅茶 (0.39)、酸辣粉 (0.39)；不加過濾時
+    第二名會是 350 元的麻辣鍋——過濾確實生效。注意分數擠在 0.39–0.40：菜名只有三四個字，
+    「提神」跟任何一道菜都不算強相關，真實應用要給 payload 放更多描述文字（下一課的 RAG 就是這樣做）。
+
+    **換模型查詢**：`llm_gateway.embeddings.create(model="nemotron-3-embed-1b", input=["提神"]).data[0].embedding`
+    回 **2048 維**，丟進 1024 維的 collection 會直接炸
+    `ValueError: shapes (8,1024) and (2048,) not aligned`（記憶體模式；正式伺服器回 400 `Wrong input: Vector dimension error`）。
+    就算維度剛好相同也不行——兩個模型的座標軸意義完全不同，距離毫無意義。
+    **索引用哪個模型，查詢就必須用同一個模型**；換模型＝整個 collection 重建。
+    """
+            ),
+        }
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()

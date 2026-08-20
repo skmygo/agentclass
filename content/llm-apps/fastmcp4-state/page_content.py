@@ -1,0 +1,237 @@
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/fastmcp4-state
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "FastMCP 4 狀態：無狀態協定上的三種記憶"
+DESCRIPTION = "FastMCP 4 的三種記憶：請求內狀態、伺服器端 session、客戶端攜帶的 requestState。把 requestState 從線路上截下來拆開：AES-256-GCM 密文，竄改、換伺服器、換參數、過期全部被拒；多副本要共用 store 與金鑰。"
+NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-state/fastmcp4-state_ext.py"
+
+STYLE = r"""
+  /* 語義色：藍＝請求內狀態、橘＝伺服器端 session／store、綠＝密文通過驗證、紅＝被拒 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：requestState 攻擊實驗室 */
+  #rs-lab .token { font-family: var(--mono); font-size: 11.5px; word-break: break-all; background: var(--chip-bg); border-radius: 10px; padding: 10px 12px; line-height: 1.55; border: 1.5px solid var(--grid); }
+  #rs-lab .token .pre { color: var(--ink-soft); } #rs-lab .token .kid { color: var(--c2); font-weight: 800; } #rs-lab .token .nonce { color: var(--c1); font-weight: 800; } #rs-lab .token .ct { color: var(--ink); }
+  #rs-lab .token .flip { background: var(--cut); color: #fff; border-radius: 4px; padding: 0 3px; }
+  #rs-lab .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin: 6px 0 12px; color: var(--ink-soft); }
+  #rs-lab .legend b { font-family: var(--mono); } #rs-lab .legend .k { color: var(--c2); } #rs-lab .legend .n { color: var(--c1); }
+  #rs-lab .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  #rs-lab button { font: inherit; font-size: 13px; padding: 7px 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--panel); color: var(--ink); font-weight: 800; cursor: pointer; }
+  #rs-lab button.on { background: var(--ink); color: #fff; }
+  #rs-lab .resp { border-left: 5px solid var(--grid); border-radius: 0 10px 10px 0; padding: 10px 14px; background: var(--panel); min-height: 74px; font-size: 13.5px; line-height: 1.65; }
+  #rs-lab .resp.ok { border-color: var(--c3); } #rs-lab .resp.bad { border-color: var(--cut); }
+  #rs-lab .resp .code { font-family: var(--mono); font-size: 12.5px; font-weight: 800; }
+  #rs-lab .resp.ok .code { color: var(--c3); } #rs-lab .resp.bad .code { color: var(--cut); }
+  #rs-lab .resp .why { margin-top: 6px; color: var(--ink-soft); font-size: 12.5px; }
+  #rs-lab .resp .log { margin-top: 6px; font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .mem { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0; }
+  .mem .m { border: 1.5px solid var(--grid); border-radius: 12px; padding: 10px 12px; background: var(--panel); font-size: 13px; }
+  .mem .m h4 { margin: 0 0 4px; font-size: 13px; } .mem .m.a h4 { color: var(--c1); } .mem .m.b h4 { color: var(--c2); } .mem .m.c h4 { color: var(--c3); }
+  .mem .m p { margin: 4px 0; }
+  @media (max-width: 640px) { .mem { grid-template-columns: 1fr; } }
+"""
+
+WRAP = r'''
+<section id="hero">
+  <span class="eyebrow">FASTMCP 4 · 補充 B · STATE ON A STATELESS PROTOCOL</span>
+  <h1>FastMCP 4 狀態：<br>無狀態協定上的三種記憶</h1>
+  <p style="margin-top:18px">
+    第 3 課你用 <span class="kbd">SessionId</span> 在無狀態協定上做了購物車。這堂課把「無狀態傳輸怎麼有狀態」講完整，
+    並回答一個所有人都會問的問題：<b>狀態在客戶端與伺服器之間傳來傳去，它是加密的嗎？客戶端能不能偷看、能不能改？</b>
+    下面是 notebook 從線路上截下來的一個真的 <span class="kbd">requestState</span>——伺服器發給客戶端、要它下一回合帶回來的東西。
+    選一個攻擊方式，看伺服器怎麼回：
+  </p>
+
+  <div class="hero-demo" id="rs-lab">
+    <div class="token" id="rs-token"></div>
+    <div class="legend"><span><b class="k">■</b> 4 bytes 金鑰指紋</span><span><b class="n">■</b> 12 bytes nonce</span><span><b>■</b> AES-256-GCM 密文＋驗證標籤</span></div>
+    <div class="btns" id="rs-btns"></div>
+    <div class="resp" id="rs-resp"></div>
+  </div>
+
+  <p class="note">
+    上面每一個回應都是 notebook 實測的紀錄（本機起多台 FastMCP 伺服器、用裸 <span class="kbd">httpx.post</span> 一回合一回合發）。
+    本課不連任何外部服務，用 <span class="kbd">fastmcp==4.0.0b1</span>，與第 3 課相同。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 三種記憶</span>
+  <h2>先分清楚：它活在哪、活多久、跨副本要什麼</h2>
+  <div class="mem">
+    <div class="m a"><h4>請求內狀態</h4><p><span class="kbd">ctx.set_state</span>／<span class="kbd">get_state</span></p><p>活在伺服器記憶體、<b>一個請求</b>就沒了：middleware 算好的東西給工具用。</p><p>跨副本：不需要。</p></div>
+    <div class="m b"><h4>Session 狀態</h4><p><span class="kbd">SessionId</span>／<span class="kbd">UserSession</span></p><p>資料在<b>伺服器端的 store</b>，客戶端只拿鑰匙；活到 <span class="kbd">end_session</span> 或 store 的 TTL。</p><p>跨副本：共用 store。</p></div>
+    <div class="m c"><h4>請求狀態</h4><p><span class="kbd">InputRequiredResult.request_state</span></p><p><b>真的經過客戶端</b>：伺服器發、客戶端下一回合帶回；預設 10 分鐘。</p><p>跨副本：共用金鑰。</p></div>
+  </div>
+  <p>
+    前兩種根本不離開伺服器，「要不要加密」的問題不存在——notebook 先用 <span class="kbd">tick</span> 連叫三次證明請求內狀態每次從 0 開始，
+    再用同一個 <span class="kbd">MemoryStore</span> 餵兩台 FastMCP 模擬兩個副本：副本 A 建的購物車、副本 B 讀得到，不共用 store 的副本 C 回
+    <span class="kbd">Invalid or unknown session</span>。要記得它的安全模型：<b>沒有認證時 session id 是一張不記名票</b>——猜不到，但不等於隔離；
+    多租戶隔離要靠認證（補充課 A）。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 1️⃣–2️⃣ 節：tick 三次、兩台副本共用 store</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 多回合工具</span>
+  <h2>工具「回傳一個問題」，客戶端答完再來一次</h2>
+  <p>
+    第三種記憶來自 4.0 的新招。無狀態協定沒有活連線讓工具中途 <span class="kbd">ctx.elicit()</span> 問使用者，所以改成 <b>guard 模式</b>：
+    工具發現還沒拿到答案就<b>回傳</b>一個 <span class="kbd">InputRequiredResult</span>，請求結束；客戶端問完使用者，
+    <b>重新呼叫同一個工具</b>把答案放在 <span class="kbd">inputResponses</span> 帶上；工具從頭再跑一次，這次 <span class="kbd">ctx.input_responses</span> 有值了。
+  </p>
+  <div class="codeblock">@mcp.tool
+async def book_table(ctx: Context) -> str | InputRequiredResult:
+    answers = ctx.input_responses
+    if answers is None:                         # 第 1 回合：問人數
+        return ask("people", "幾位？", "people")
+    if "people" in answers:                     # 第 2 回合：問日期，人數塞進 request_state
+        people = answers["people"].content["people"]
+        return ask("date", f"{people} 位，哪一天？", "date",
+                   request_state=json.dumps({"people": people, "vip": True}))
+    carried = json.loads(ctx.request_state)     # 第 3 回合：人數從 request_state 拿回來
+    return f"已訂位：{carried['people']} 位，{answers['date'].content['date']}"</div>
+  <p>
+    對呼叫端 <span class="kbd">call_tool("book_table")</span> 看起來就是一次呼叫、直接拿到「已訂位：4 位，8/30」——
+    SDK 的 <span class="kbd">elicitation_handler</span> 自動跑完三回合（實測客戶端被問了 2 次）。
+    「第一回合問到的人數」靠 <span class="kbd">request_state</span> 帶到第三回合，<b>它真的經過客戶端</b>。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 3️⃣ 節：三回合訂位、SDK 自動跑完</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 線路實況</span>
+  <h2>把 requestState 截下來——它是密文</h2>
+  <p>
+    notebook 在本機起一台真的 HTTP 伺服器，<b>不用 SDK</b>、用裸 <span class="kbd">httpx.post</span> 一回合一回合發 <span class="kbd">tools/call</span>，
+    把伺服器回來的 <span class="kbd">requestState</span> 原封不動印出來：<span class="kbd">v1.</span> 前綴＋約 270–290 個 base64url 字元。
+    工具放進去的明文是 <span class="kbd">{"people": "4", "vip": true}</span>；解開 base64 之後找不到 <span class="kbd">people</span> 也找不到 <span class="kbd">vip</span>——
+    它不是包起來的 JSON，是 <b>AES-256-GCM 密文</b>：
+  </p>
+  <table class="cmp">
+    <tr><th>位置</th><th>內容</th><th>用途</th></tr>
+    <tr><td><span class="kbd">v1.</span></td><td>格式版本</td><td>綁進 GCM 的 associated data，不能把 token 改頭換面當別的版本用</td></tr>
+    <tr><td>前 4 bytes</td><td>金鑰指紋</td><td>金鑰環上 O(1) 找到該用哪一把（非祕密）</td></tr>
+    <tr><td>接著 12 bytes</td><td>nonce</td><td>每次加密重抽，同樣明文密文也不同</td></tr>
+    <tr><td>其餘</td><td>密文＋驗證標籤</td><td>明文是一個 claims 信封：<span class="kbd">iat</span>／<span class="kbd">exp</span>（預設 10 分鐘）、綁定的 method、工具名、<b>參數摘要</b>、<span class="kbd">aud</span>（伺服器名）、有認證時的使用者指紋，以及你的 <span class="kbd">s</span></td></tr>
+  </table>
+  <p>金鑰由伺服器祕密經 HKDF-SHA256 派生；你在工具裡寫 <span class="kbd">request_state=...</span> 時完全沒碰密碼學——是 <span class="kbd">RequestStateBoundary</span> 中介層在線路邊界自動封裝、自動驗證。</p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 4️⃣ 節：裸 POST 三回合、把 token 拆開</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 五個攻擊實驗</span>
+  <h2>竄改、換伺服器、換參數、換伺服器名、等它過期</h2>
+  <table class="cmp">
+    <tr><th>#</th><th>實驗</th><th>在測什麼</th><th>實測回應</th></tr>
+    <tr><td>1</td><td>把密文改掉一個字元</td><td>完整性（GCM 驗證標籤）</td><td rowspan="5" style="vertical-align:middle"><b style="color:var(--cut)">-32602 Invalid or expired requestState</b><br><span style="color:var(--ink-soft);font-size:12.5px">五個全部同一句；真正原因只進伺服器 log：seal／unknown key／request binding／audience／expired</span></td></tr>
+    <tr><td>2</td><td>同一個 token 打另一台（各自的臨時金鑰）</td><td>金鑰不同就解不開</td></tr>
+    <tr><td>3</td><td>同一個 token，<span class="kbd">arguments</span> 改掉</td><td>綁定：只對同一個工具＋同樣參數有效</td></tr>
+    <tr><td>4</td><td>同一把金鑰、伺服器名不同</td><td><span class="kbd">aud</span>：共用金鑰的兩個服務也不能互換</td></tr>
+    <tr><td>5</td><td><span class="kbd">ttl=2</span>，等 2.5 秒</td><td>過期</td></tr>
+  </table>
+  <p>
+    伺服器故意不說是哪裡錯——不給攻擊者可以逐步修正的線索。回到開頭的問題：<b>傳來傳去的狀態是加密的。</b>
+    客戶端讀不到、改不了、換不了用途、放不久。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：五個實驗一次跑</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 多副本</span>
+  <h2>共用金鑰與輪替</h2>
+  <p>
+    實驗 2 揭露了部署陷阱：<b>預設金鑰是每個 process 啟動時隨機產生的</b>。多回合工具的第 2 回合落到另一台副本、或伺服器重啟，
+    使用者就莫名其妙拿到 <span class="kbd">Invalid or expired requestState</span>。解法：所有副本同一把金鑰（≥ 32 bytes，放環境變數）。
+  </p>
+  <div class="codeblock">mcp = FastMCP("訂位", request_state_security=RequestStateSecurity(
+    keys=[os.environ["REQUEST_STATE_KEY"]],   # 所有副本相同；keys[0] 加密、環上每把都能解
+    ttl=600,
+))
+# 換金鑰不停機：keys=[舊, 新] → keys=[新, 舊] → 等一個 ttl → keys=[新]</div>
+  <p>
+    notebook 證明：共用金鑰的副本 C 發的 token，到副本 D 照樣完成訂位。三種記憶跨副本收斂成一句：
+    <b>請求內狀態不用、session 狀態共用 store、請求狀態共用金鑰。</b>
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 6️⃣–7️⃣ 節：跨副本、金鑰環、該用哪一種記憶</a>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <span class="kbd">ttl=2</span> 改成 60 再等 2.5 秒——這次應該成功；再把副本 C 接上 <span class="kbd">shared_store</span>。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>給 <span class="kbd">book_table</span> 加第三回合「要不要靠窗？」，人數與日期都放進 <span class="kbd">request_state</span>；用裸 POST 看每回合的 token 都不一樣（nonce 重抽）。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>做金鑰輪替：一台 <span class="kbd">keys=[新, 舊]</span>、一台 <span class="kbd">keys=[舊]</span>，證明舊發新收 ✅、新發舊收 🛑，並說出三階段為什麼不能跳。</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft)">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
+</section>
+
+<div class="endnav">
+  <a href="/fastmcp4-features/">
+    <span class="tag">下一課</span>
+    <b>FastMCP 4 專屬功能：背景任務、快取、路由 header、擴充 →</b>
+  </a>
+  <a href="/llm-apps/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 LLM 應用開發」課程列表</b>
+  </a>
+</div>
+'''
+
+SCRIPT = r"""
+/* ═══ hero 互動：requestState 攻擊實驗室（純 JS；token 與回應皆為 notebook 實測紀錄）═══ */
+(function () {
+  // notebook 4️⃣ 截到的真實 token（v1. + base64url：4B kid | 12B nonce | 密文+tag）
+  const TOKEN = "v1.ekTZmGA6CHr-LZ3DsFdyQ4txbtXNL39NXJGbDV2aBkuj1BatcFRDkb9ILzSbgtVDASVXrkP2SmuWnoqXISPWrG-CKq_rTd14UD3pQHjz5bScw52utLYD-KqnUPM5F5FxK3Q1p1KaD2wiWI42t-ztx60wEM7XhoL8_DbbNrV4jPUrgIfwspOWzoAiLgCVDZ4zcfTavF0DnApxPmM-6uzTRL5MHHrbVuKmX4JHQwqRLF_tntQWd93xhmIo3OVCC8EEqZkhbCR9YtN-THZcIKfa9R0hVMR7og";
+  const REJECT = "-32602 Invalid or expired requestState";
+  const CASES = [
+    { k: "ok", label: "原封不動帶回去", cls: "ok", code: "200 · {'result': '已訂位：4 位，8/30（vip=True）'}", why: "解密成功、claims 全部對得上：工具拿到自己放進去的明文，完成第 3 回合。", log: "" },
+    { k: "tamper", label: "竄改一個字元", cls: "bad", code: REJECT, why: "GCM 的驗證標籤對不上——改一個 bit 都會被抓到。", log: "server log: requestState rejected on tools/call: seal" },
+    { k: "other", label: "拿去另一台伺服器", cls: "bad", code: REJECT, why: "每個 process 預設用自己啟動時隨機產生的金鑰，別台解不開（多副本要共用 keys=[...]）。", log: "server log: requestState rejected on tools/call: unknown key" },
+    { k: "args", label: "同 token、改 arguments", cls: "bad", code: REJECT, why: "信封裡綁了 method、工具名與參數摘要——token 只對「同一個工具＋同樣參數」有效。", log: "server log: requestState rejected on tools/call: request binding" },
+    { k: "aud", label: "同金鑰、別的伺服器名", cls: "bad", code: REJECT, why: "信封裡有 aud＝伺服器名；同公司共用金鑰的兩個服務也不能互換 token。", log: "server log: requestState rejected on tools/call: audience" },
+    { k: "ttl", label: "ttl=2，等 2.5 秒", cls: "bad", code: REJECT, why: "exp 到了。預設 ttl 600 秒——它是為一段對話設計的，不是長期記憶。", log: "server log: requestState rejected on tools/call: expired" },
+    { k: "shared", label: "共用金鑰的副本 D", cls: "ok", code: "200 · {'result': '已訂位：2 位，8/30（vip=True）'}", why: "副本 C 與 D 都是 RequestStateSecurity(keys=[同一把])：C 發的 token，D 解得開也驗得過。", log: "" },
+  ];
+  const tokenEl = document.getElementById("rs-token"), btns = document.getElementById("rs-btns"), resp = document.getElementById("rs-resp");
+  function renderToken(flip) {
+    const body = TOKEN.slice(3);
+    // base64url：4B kid ≈ 前 6 字元、12B nonce ≈ 接著 16 字元（示意切分，讓結構看得見）
+    const kid = body.slice(0, 6), nonce = body.slice(6, 22);
+    let ct = body.slice(22);
+    if (flip) ct = ct.slice(0, -2) + `<span class="flip">${ct[ct.length - 2] === "A" ? "B" : "A"}</span>` + ct.slice(-1);
+    tokenEl.innerHTML = `<span class="pre">v1.</span><span class="kid">${kid}</span><span class="nonce">${nonce}</span><span class="ct">${ct}</span>`;
+  }
+  function show(c) {
+    btns.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === c.k));
+    renderToken(c.k === "tamper");
+    resp.className = "resp " + c.cls;
+    resp.innerHTML = `<div class="code">${c.cls === "ok" ? "✅" : "🛑"} ${c.code}</div><div class="why">${c.why}</div>` + (c.log ? `<div class="log">${c.log}</div>` : "");
+  }
+  CASES.forEach(c => {
+    const b = document.createElement("button"); b.textContent = c.label; b.dataset.k = c.k;
+    b.addEventListener("click", () => show(c)); btns.appendChild(b);
+  });
+  show(CASES[0]);
+})();
+"""
+
+PANEL_STEPS = """
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU</li>
+"""

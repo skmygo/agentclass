@@ -1,4 +1,4 @@
-"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/litellm-basics
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/litellm-basics
 build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "LiteLLM：一個網址、一把 key，打遍八家模型"
@@ -173,6 +173,7 @@ models = sorted(m.id for m in client.models.list())   # 8 個模型名</div>
     <span class="lv">LEVEL 3</span>
     <p>對 <span class="kbd">nemotron-3-ultra</span>（550B、三個來源）發 12 發，比較延遲與分佈跟 lightning 的差別；再算各來源的平均秒數——哪家最快、哪家最飄？</p>
   </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
   <p class="note">
     離開這堂課前記住兩件事：任何認得 <span class="kbd">OPENAI_BASE_URL</span> / <span class="kbd">OPENAI_API_KEY</span>
     的工具（curl、LangChain、Open WebUI、aider）兩個變數指過來就能用；

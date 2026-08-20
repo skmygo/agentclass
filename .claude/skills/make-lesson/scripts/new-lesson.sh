@@ -105,7 +105,7 @@ if [ "$MODE" = "--external" ]; then
   1. content/$TOPIC/$ID/${ID}_ext.py — 課程內容（唯一的程式版本：大量 md 解說、自成完整教材、
      emoji 章節錨點；PEP 723 依賴）
   2. content/$TOPIC/$ID/page_content.py — 寫 TITLE/DESCRIPTION/STYLE/WRAP/SCRIPT/NB 常數，然後
-     python .claude/skills/make-lesson/scripts/page-fill.py content/$TOPIC/$ID 填進 index.html
+     python3 .claude/skills/make-lesson/scripts/page-fill.py content/$TOPIC/$ID 填進 index.html
      （小修也可直接 Edit index.html；但正本以 page_content.py 為準，改完重跑 page-fill）
   3. content/$TOPIC/$ID/smoke-test.mjs — H1_TEXT 確認與頁面 h1 一致
   4. wiring — 主題頁課卡、首頁主題卡課數、前一課的「下一課」連結

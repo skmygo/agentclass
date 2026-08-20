@@ -76,3 +76,96 @@ Pyodide，瀏覽器軌道只能用 JS fetch 重寫，不符「課程程式＝學
   `content/<topic>/<id>/__marimo__/session/<id>_ext.py.json`**（gitignored），grep 那裡最快。
 - matplotlib 圖內別放 emoji（❌ → 缺字警告），用 ASCII 標籤。
 - sandbox 會裝最新 marimo（0.24.0）而非全站釘的 0.23.16——外部軌不共用 assets，無妨。
+
+## FastMCP 4 補充系列（2026-08-20：fastmcp4-auth / fastmcp4-state / fastmcp4-features / mcp-servers）
+
+四堂外部軌課，全部 `fastmcp==4.0.0b1`（與第 3 課同版；PyPI 當天最新 b3，4.0.0 正式版未出）。
+前三堂完全不連外；`mcp-servers` 需要網路（uvx 裝套件、遠端伺服器）。
+spike：`_spikes/spike_fastmcp_auth.py`、`spike_fastmcp_state.py`、`spike_fastmcp4_features.py`、`spike_mcp_servers.py`。
+同時建課時 port 分段：auth 8771–8775、state 8781–8789、servers 8791、features 8801–8809（並行 verify 不會撞）。
+
+### 「無狀態傳狀態有沒有加密」的答案（fastmcp4-state）
+
+- 三種記憶：`ctx.set_state`（一個請求）、`SessionId`/`UserSession`（伺服器端 store，客戶端只拿鑰匙）、
+  `InputRequiredResult.request_state`（真的經過客戶端）。只有第三種有「加密」問題。
+- `request_state` 由 MCP SDK `mcp.server.request_state.RequestStateBoundary` 在線路邊界 seal/unseal：
+  **AES-256-GCM**（HKDF-SHA256 派生），token 格式 `v1.` + base64url(4B kid | 12B nonce | 密文+tag)，約 270–290 字元；
+  密文內是 claims 信封 `{v, iat, exp, m, t, a(參數 sha256 摘要), aud(伺服器名), p(principal 指紋), s(明文)}`。
+  預設 ttl 600 秒；預設金鑰 `RequestStateSecurity.ephemeral()`（process 啟動隨機）→ **多副本／重啟都會讓進行中的多回合作廢**，
+  要 `FastMCP(request_state_security=RequestStateSecurity(keys=[≥32 bytes]))`；`keys` 是金鑰環（`keys[0]` 加密、全部可解）。
+- 實測五種攻擊（竄改一字元／另一台臨時金鑰／同 token 換 arguments／同 key 不同伺服器名／ttl 過期）線路上**一律**
+  `-32602 Invalid or expired requestState`，真正原因只在伺服器 log（`seal`／`unknown key`／`request binding`／`audience`／`expired`）。
+- `Session` 狀態跨副本：`FastMCP(session_state_store=store)` 給同一個 `key_value.aio.stores.memory.MemoryStore`（正式 RedisStore）
+  即可模擬多副本；不共用 store 的副本回 `Invalid or unknown session`（stderr 會印 `Error calling tool 'show_cart'`，屬正常）。
+  未認證的 session id 是不記名票（猜不到≠隔離）。
+- `ctx.get_state`/`ctx.set_state` 在 b1 是 **async**（要 await）。
+- 裸 POST 的多回合：第 N 回合 `params.inputResponses = {key: {"action": "accept", "content": {...}}}`、`params.requestState = token`；
+  `tools/call` 必帶 `mcp-name` header（否則 -32020），`_meta` 要含 `clientCapabilities`（否則 -32602 missing envelope key）。
+- SDK：`Client(mcp, elicitation_handler=handler)` 自動跑完多回合（上限 `input_required_max_rounds=10`），handler 簽名
+  `(message, response_type, params, ctx)`、回 `ElicitResult(action="accept", content=response_type(**fields))`。
+- 工具簽名的 `ctx` **一定要標 `ctx: Context`**，不標會變成 schema 裡的必填參數（寫在函式工廠裡更容易漏）。
+
+### 常見 MCP 服務（mcp-servers，2026-08-20 實測）
+
+- `Client({"mcpServers": {...}})` 接 uvx 的 `mcp-server-time`／`mcp-server-fetch`（SDK v1 老伺服器）→ 協商到 `2025-11-25`；
+  多伺服器工具自動加 `<name>_` 前綴、單一伺服器不加。老伺服器收到 `server/discover` 探測會在 stderr 噴一串 pydantic
+  validation WARNING 然後 client 退回握手協定——正常。首次 uvx 安裝多花幾十秒。
+- 公開遠端：`https://mcp.deepwiki.com/mcp`（2025-11-25）、`https://mcp.context7.com/mcp`（**已是 2026-07-28**）。
+- `hub.mount(create_proxy(cfg), namespace=...)`：proxy 預設鏡像前端協定時代；新協定客戶端 → proxy 用新協定敲老 stdio 伺服器
+  → `Received request before initialization was complete`、工具消失。**老伺服器要 `create_proxy(cfg, mode="legacy")`**。
+- 工具結果沒有 structuredContent 時 `.data` 是 None 或 `Root(content=...)`，用 `result.content[0].text`。
+- 本機 npx filesystem 伺服器 OK（14 個工具）；molab 有沒有 node 不確定 → notebook 用 `shutil.which("npx")` 優雅跳過。
+- 設定檔的 `tools` 改造區塊（rename／hide 參數）只有 FastMCP Client／`create_proxy` 認得，Claude Desktop 不認得。
+- 生態系表查證來源（2026-08-20）：modelcontextprotocol/servers README（維護中 7 個：time/fetch/git 走 uvx、
+  filesystem/memory/sequentialthinking/everything 走 npx；GitHub→github/github-mcp-server、Slack／PostgreSQL／SQLite／Redis／
+  Puppeteer／Brave 等已封存）、各家 README、對遠端網址發 ping 看 200/401＋`WWW-Authenticate`。換日期重驗時照這套。
+
+### 4.0 專屬功能（fastmcp4-features）
+
+- `fastmcp-tasks==4.0.0b1` + `TasksExtension()` + `@mcp.tool(task=True)`（必須 async）：新協定 client `call_tool` 表面一樣，
+  線路是 `tools/call` → 多次 `tasks/get` → 完成；`mode="legacy"` 同步跑。裸 POST：`params.task = {"ttl": 60000}` 立刻回
+  `{taskId, status: "working", pollIntervalMs: 5000}`，`tasks/get {taskId}` 回 `statusMessage`（＝`Progress.set_message`）直到
+  `status: "completed"` 內嵌 result；`tasks/result` 在 b1 是 Method not found。client 的 `progress_handler` 在兩種模式都沒收到更新。
+- `FastMCP(cache_ttl=300, cache_scope="public")` + `Client(url, cache=True)`：三次 `list_tools` 伺服器只收到一次；
+  `tools/list` result 多 `ttlMs`／`cacheScope` 欄位。
+- `Annotated[str, Field(json_schema_extra={"x-mcp-header": "City"})]` → 請求帶 `mcp-param-city` header；中文值會被編成
+  `=?base64?...?=`（RFC 2047 式）。
+- `@mcp.completion` 回傳物件直接 `.values`（不是 `.completion.values`）。
+- `ServerExtension`：identifier 必須 `vendor/name` 反向 DNS；`settings()` 出現在 `capabilities.extensions`；
+  自訂方法用裸 POST（`mcp-method: callCounter/get`＋完整 `_meta`）最簡單。
+- 資源模板路徑安全：`docs://{path}` 對 `../`、絕對路徑、`%00` 回 not found，handler 不會被叫；單段 `{path}` 不吃 `/`。
+- `BM25SearchTransform()` 後 `list_tools` 只剩 `search_tools`／`call_tool`，隱藏工具仍可直接呼叫。
+- **`x-mcp-header` 參數：client 必須先 `list_tools()` 看過 schema 才會把參數鏡射成 header**；直接 `call_tool` 會被伺服器拒
+  `Mcp-Param-City header is missing but the request body's 'city' argument is present`。
+- extension 在 `intercept_tool_call` 短路改寫結果要回 `fastmcp.tools.ToolResult(structured_content=...)`；只回 `CallToolResult(content=...)`
+  會被客戶端以「有 output schema 卻沒 structured content」拒絕。
+- `{path*}` 萬用字元下 `a/../b` 會被 client 端正規化成 `a/b` 放行，要示範編碼穿越用 `%2e%2e/x`。
+- f-string 巢狀同種引號需 Python 3.12；notebook `requires-python >=3.11` 時先把片段算成變數再塞進 `mo.md`。
+
+### 認證（fastmcp4-auth）
+
+- `StaticTokenVerifier(tokens={token: {"client_id", "scopes"}})`；不帶 token → 401 `WWW-Authenticate: Bearer`；
+  `require_scopes("admin")` 的工具對沒 scope 的人**隱形**（list 看不到、呼叫回 `Unknown tool`）。
+- `UserSession` 在有 token 的 HTTP 連線才能用；in-memory `Client(mcp)` 無身分 → ToolError（訊息會提示改用 `SessionId`）。
+- `RSAKeyPair.generate()` + `create_token(subject, issuer, audience, scopes, expires_in_seconds)` 本機簽 JWT；
+  `JWTVerifier(public_key=kp.public_key, issuer, audience)`；壞 token 一律 401 `invalid_token`，原因只在 log。
+- `InMemoryOAuthProvider(base_url=...)` 預設 **DCR 關閉**（metadata 沒 `registration_endpoint`）→
+  `client_registration_options=ClientRegistrationOptions(enabled=True, valid_scopes=[...], default_scopes=[...])`；
+  DCR body 帶 `"scope": "read write"` 否則 authorize 回 `invalid_scope`。授權碼流程端點：`/.well-known/oauth-protected-resource/mcp`
+  → `/.well-known/oauth-authorization-server` → `/register` → `/authorize`（302 撿 code）→ `/token`（PKCE S256）。
+- SDK `OAuth` 無瀏覽器：子類別覆寫 `redirect_handler`（httpx 敲 authorize 撿 302）與 `callback_handler`
+  （**必須回 `mcp.shared.auth.AuthorizationCodeResult`**，回 tuple 會 `'tuple' object has no attribute 'state'`）。
+- 本機 `python` 指令不存在，page-fill 要用 `python3`（用 `python` 會靜默不更新）。
+
+## 六門主線課補折疊解答（2026-08-20，spike：`_spikes/spike_solutions.py`）
+
+- `resources/read` 裸 POST 的 `mcp-name` header **必須等於 URI**（不是 `mcp-uri`；缺了回 `-32020 … does not match the request body's 'uri' parameter`）；`tools/list` 不帶 `mcp-name`。
+- structured output：`["string","null"]` union 型別在某上游（OpenRouter）會讓約束解碼卡住吐滿 4096 token（`finish_reason=length`）——
+  驗收一律看 `finish_reason`；非 required 的欄位模型照樣填 placeholder（`未提供`、`generated@example.com`）。
+- nemotron-3.5-lightning 即使 `max_tokens=4096` 偶爾仍把思考漏進 `content`（`Here's a thinking process:` 開頭），關鍵字評測會誤判 ✅。
+- rag-zh 的 7 題評測 **top_k=1 也 7/7**（每題只對應一節）；要看 top_k 的差別得用跨節題（「週二＋停車」k=3 才撈到營業時間）。
+  門檻掃描：範圍內 top-1 最低 0.46、範圍外最高 0.37 → 0.40–0.45 零誤判、0.5 會誤殺帶狗題。
+- nemotron-3-embed-1b 同主題 0.47–0.63／離題 0.53–0.58——分數尺度綁模型，換 embedding 模型門檻要重量；2048 維查 1024 維 collection 直接 `ValueError: shapes not aligned`。
+- litellm-tools 的工具參數不能叫 `from`（Python 關鍵字）；錯誤餵回去後 lightning 不重試、誠實說只支援台北高雄。
+- rag-mcp-agent：拿掉 system prompt「先用工具查手冊」模型**仍會查**（docstring 的「回答任何…前都應先呼叫」在撐）；`mcp.instructions` 在自寫迴圈裡其實沒送給模型。
+- shell：`pgrep -f "<字串>"` 在 until-loop 裡會匹配到自己的包裝命令永遠不結束，pattern 要精確到 `bin/python3 <script>`。

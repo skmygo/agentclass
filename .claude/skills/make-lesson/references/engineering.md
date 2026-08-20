@@ -29,7 +29,7 @@ content/<topic>/_spikes/spike_*.py    # 先寫程式定軌：PEP 723 檔頭、uv
 bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic> "<主題名>" [--external [--gpu]]
                        # ↑ 模板複製＋代換＋CPU/GPU 二選一＋生成自檢＋root uv sync（純瀏覽器課）
 → 寫 notebook（lesson.py 或 <id>_ext.py）＋ page_content.py
-→ python .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>   # 內容區填進 index.html（可重跑）
+→ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>   # 內容區填進 index.html（可重跑）
 → 驗證：外部軌 verify-ext.sh <topic> <id> [關鍵字]；純瀏覽器 marimo export html（CPython）
 → bash .claude/skills/make-lesson/scripts/smoke-all.sh --build   # build + 起 server + 全站冒煙 + 收 server
 → node .claude/skills/make-lesson/scripts/preview-shots.mjs / /<topic>/ "/<id>/@#按鈕"   # 預覽（可先點 hero）
@@ -177,6 +177,34 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   uvicorn（`mcp.http_app()`）在 sandbox export 正常，重跑前先探 port。
 - **RAG 數字會飄**：沒 RAG 的「矇對」題數每次不同（0–2），左頁寫範圍不寫死；有 RAG 7/7 穩定。
 - matplotlib 圖內別放 emoji（缺字警告），分類標籤用 ASCII。
+
+### 一次建多堂課：fork 平行＋port 分段（FastMCP 4 補充系列，2026-08-20）
+
+- **四堂課平行寫**：主代理先把每課的 spike 跑通（`_spikes/spike_*.py`，一課一支、`--部分名` 可只跑一段），
+  再 fork 子代理各寫一課（notebook＋page_content＋page-fill＋verify），自己寫最核心的一堂；fork 只准動自己的課程目錄，
+  主題頁／首頁／NOTES／skill 由主代理收尾。六門舊課補解答也是一個 fork。牆鐘約 10 分鐘完成四堂課。
+- **並行 verify 會同時起很多 uvicorn**：每課指定不重疊的 port 區段（auth 8771–、state 8781–、servers 8791、features 8801–），
+  解答格再各留一段；撞 port 的症狀是 JSON decode error（打到別人的伺服器）。
+- **本機沒有 `python` 只有 `python3`**：用 `python` 跑 page-fill 會靜默失敗、index.html 不更新（看 `__NB__` 還在不在）。
+  skill 內指令已全改 `python3`。
+- hero 互動用 `<button>` 做選項時，別讓 `#hero button { color:#fff; background:ink }` 這種通用規則蓋到選項鈕——
+  選項鈕要自己宣告 `color`，否則白底白字（截圖預覽才看得出來，冒煙測不到）。
+- 補充系列接在既有主題下：主題頁加一個 `.eyebrow` 分隔＋第二個 `.lessons` 區塊（用 inline `margin-top`，不動 topic.css），
+  首頁課數加總；補充課的 eyebrow 統一「補充 A/B/C/D」對齊課卡 tag。
+
+### 實測可用的 FastMCP 4 素材（補充系列；細節與坑全在 `content/llm-apps/NOTES.md`）
+
+- **認證**：`StaticTokenVerifier`（教學）／`JWTVerifier(public_key=RSAKeyPair.generate().public_key, ...)`（本機簽 JWT）／
+  `InMemoryOAuthProvider(base_url, client_registration_options=ClientRegistrationOptions(enabled=True, ...))`
+  可在 notebook 內跑完**完整 OAuth 2.1 授權碼＋PKCE**（DCR 預設關閉要打開）；SDK `OAuth` 子類別覆寫
+  `redirect_handler`／`callback_handler`（回 `AuthorizationCodeResult`）即可無瀏覽器。`require_scopes` 讓工具對沒權限者隱形。
+- **狀態**：`request_state` 是 MCP SDK `RequestStateBoundary` 的 **AES-256-GCM** 密文（`v1.`+kid+nonce+密文），綁 ttl／method／
+  參數摘要／aud／principal；五種竄改全回同一句 `-32602 Invalid or expired requestState`。預設金鑰 process 隨機 → 多副本要
+  `RequestStateSecurity(keys=[...])`；session 跨副本要共用 `session_state_store`。工具的 `ctx` 一定要標 `ctx: Context`。
+- **4.0 功能**：`fastmcp-tasks` 同版 pin；新協定 `tools/call`→`tasks/get`×N；`cache_ttl`＋`Client(cache=True)`；`x-mcp-header`
+  參數要先 `list_tools` 才會鏡射成 header；`@mcp.completion` 回傳直接 `.values`；extension identifier 要 `vendor/name`。
+- **生態系**：uvx 的官方參考伺服器是 SDK v1（握手協定），`create_proxy(cfg, mode="legacy")` 才能 mount 進新協定 hub；
+  Context7 已講 2026-07-28、DeepWiki 仍 2025-11-25；老伺服器結果用 `result.content[0].text`。
 
 ## 驗證細節
 

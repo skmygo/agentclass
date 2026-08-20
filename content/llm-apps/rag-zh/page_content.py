@@ -1,4 +1,4 @@
-"""課程頁內容區（純常數）。改完跑：python .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/rag-zh
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/llm-apps/rag-zh
 build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "RAG：讓模型先翻手冊再回答"
@@ -144,6 +144,7 @@ context = "\n\n".join(f"[{i+1}] {h.payload['text']}" for i, h in enumerate(hits)
     <span class="lv">LEVEL 3</span>
     <p>刪掉「手冊裡沒有寫」那句看牛排問題怎麼答；再加一個分數門檻，top-1 太低就不送模型。用評測找出不誤殺的門檻。</p>
   </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
 <div class="endnav">

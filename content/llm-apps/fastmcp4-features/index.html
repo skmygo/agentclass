@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FastMCP 4 專屬功能：背景任務、快取、路由 header、擴充 · AI 互動教室</title>
+<meta name="description" content="FastMCP 4.0 建在無狀態協定上的新功能逐一實測：背景任務的投遞→輪詢、回應快取提示、把參數升成 gateway 路由 header、參數自動完成、自訂 extension、資源模板路徑安全、工具搜尋 transform——每一個都用側錄器看線路上真的發生什麼。">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝新協定／任務單、橘＝舊協定（同步等到底）、綠＝完成／快取命中、紅＝被擋下 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：同一行 call_tool，兩種協定 */
+  #tk-demo .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  #tk-demo button { font: inherit; font-size: 13.5px; padding: 7px 14px; border: 2px solid var(--ink); border-radius: 10px; background: var(--ink); color: #fff; font-weight: 800; cursor: pointer; }
+  #tk-demo label { font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+  #tk-demo input[type=range] { width: 110px; accent-color: var(--ink); }
+  #tk-demo .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #tk-demo .lane { border: 1.5px solid var(--grid); border-radius: 12px; padding: 10px 12px; background: var(--panel); }
+  #tk-demo .lane h4 { margin: 0 0 8px; font-size: 13px; letter-spacing: .03em; }
+  #tk-demo .lane.modern h4 { color: var(--c1); } #tk-demo .lane.legacy h4 { color: var(--c2); }
+  #tk-demo .reqs { display: flex; flex-direction: column; gap: 5px; min-height: 196px; }
+  #tk-demo .req { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 7px; background: var(--chip-bg); opacity: .22; transition: opacity .2s, transform .2s; }
+  #tk-demo .req.on { opacity: 1; transform: translateX(2px); }
+  #tk-demo .req .m { flex: 1; }
+  #tk-demo .req .st { font-size: 10.5px; font-weight: 800; color: #fff; border-radius: 5px; padding: 1px 6px; background: var(--c1); }
+  #tk-demo .req .st.done { background: var(--c3); }
+  #tk-demo .req .st.wait { background: var(--c2); }
+  #tk-demo .bar { height: 8px; border-radius: 6px; background: var(--chip-bg); overflow: hidden; margin-top: 8px; }
+  #tk-demo .bar i { display: block; height: 100%; width: 0; background: var(--c1); transition: width .25s; }
+  #tk-demo .lane.legacy .bar i { background: var(--c2); }
+  #tk-demo .sum { margin-top: 8px; font-size: 13px; font-weight: 800; min-height: 20px; }
+  @media (max-width: 560px) { #tk-demo .lanes { grid-template-columns: 1fr; } }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .ok { color: var(--c3); font-weight: 800; } .no { color: var(--cut); font-weight: 800; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="topic" href="/llm-apps/">‹ 學 LLM 應用開發</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="fastmcp4-features_ext.py" download>下載 .py</a>
+  <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">FASTMCP 4 · 補充 C · WHAT'S NEW, ON THE WIRE</span>
+  <h1>FastMCP 4 專屬功能：<br>背景任務、快取、路由 header、擴充</h1>
+  <p style="margin-top:18px">
+    第 3 課你看到 4.0 把協定變成<b>無狀態</b>。這堂補充課把 4.0 建在這個地基上的新功能一個一個拿出來用，
+    而且每一個都用第 3 課那台<b>側錄器</b>看線路上真的發生了什麼。先看最有感的一個：
+    同一行 <span class="kbd">call_tool("brew", cups=3)</span>，新協定變成「投遞 → 輪詢 → 取結果」，舊協定一發等到底——
+  </p>
+
+  <div class="hero-demo" id="tk-demo">
+    <div class="row">
+      <button id="tk-play">▶ 呼叫一次 brew(cups)</button>
+      <label>cups <input type="range" id="tk-cups" min="1" max="5" value="3"> <span id="tk-cups-v">3</span></label>
+    </div>
+    <div class="lanes">
+      <div class="lane modern">
+        <h4>新協定（4.0 預設）：背景任務</h4>
+        <div class="reqs" id="tk-modern"></div>
+        <div class="bar"><i id="tk-bar-m"></i></div>
+        <div class="sum" id="tk-sum-m"></div>
+      </div>
+      <div class="lane legacy">
+        <h4>舊協定（mode="legacy"）：同步等到底</h4>
+        <div class="reqs" id="tk-legacy"></div>
+        <div class="bar"><i id="tk-bar-l"></i></div>
+        <div class="sum" id="tk-sum-l"></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    上面的請求序列是 notebook 實測的側錄紀錄（每杯 0.3 秒；<span class="kbd">tasks/get</span> 次數每次跑會飄）。
+    這堂課的 notebook 不連任何外部服務，全部在 molab 裡起本機伺服器。本課用
+    <span class="kbd">fastmcp==4.0.0b1</span> ＋ <span class="kbd">fastmcp-tasks==4.0.0b1</span>，與第 3 課同版。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 背景任務</span>
+  <h2>投遞、輪詢、取結果——你只寫 <span class="kbd">task=True</span></h2>
+  <div class="codeblock">from fastmcp.dependencies import Progress
+from fastmcp_tasks import TasksExtension
+
+mcp = FastMCP("慢工茶行")
+mcp.add_extension(TasksExtension())
+
+@mcp.tool(task=True)                      # 工具必須是 async def
+async def brew(cups: int, progress: Progress = Progress()) -> str:
+    await progress.set_total(cups)
+    for i in range(cups):
+        await progress.set_message(f"第 {i + 1} 杯")
+        await asyncio.sleep(0.3)
+        await progress.increment()
+    return f"泡好 {cups} 杯"</div>
+  <p>
+    長工作不能把 HTTP 請求開著等。4.0 用 MCP 的 <b>tasks 擴充</b>解決：伺服器先回一張任務單
+    （<span class="kbd">taskId</span>、<span class="kbd">status: working</span>、<span class="kbd">pollIntervalMs</span>），
+    客戶端之後用 <span class="kbd">tasks/get</span> 輪詢，完成時結果就在同一個回應裡。
+    FastMCP 的 <span class="kbd">Client</span> 把這整件事藏起來——程式碼跟呼叫普通工具一模一樣，只有側錄表看得出差別。
+  </p>
+  <p>
+    notebook 還用裸 POST 自己輪詢一次：<span class="kbd">tools/call</span> 的 params 多一個
+    <span class="kbd">"task": {"ttl": 60000}</span> 就是「我要背景跑」的宣告；每次 <span class="kbd">tasks/get</span> 的
+    <span class="kbd">statusMessage</span> 就是 <span class="kbd">progress.set_message()</span> 寫的「第 N 杯」。
+    舊協定客戶端（<span class="kbd">mode="legacy"</span>）呼叫同一個工具則直接同步跑到底——tasks 是新協定才協商得到的能力。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">到 notebook 的 1️⃣ 節：兩種協定的側錄表、自己輪詢一次</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 回應快取提示</span>
+  <h2>伺服器說「這份可以留 300 秒」，客戶端三次只打一次</h2>
+  <div class="codeblock">mcp = FastMCP("天氣", cache_ttl=300, cache_scope="public")   # 伺服器：附上提示
+
+async with Client(url, cache=True) as c:                     # 客戶端：尊重提示
+    await c.list_tools()   # 打伺服器
+    await c.list_tools()   # 吃快取
+    await c.list_tools()   # 吃快取</div>
+  <p>
+    因為新協定的請求自帶一切、不綁連線，回應<b>才快取得起來</b>。裸 POST 一次 <span class="kbd">tools/list</span>
+    可以看到結果裡多了 <span class="kbd">ttlMs: 300000</span> 與 <span class="kbd">cacheScope: "public"</span>；
+    實測開快取的客戶端三次 <span class="kbd">list_tools()</span> 伺服器只收到 <b>1</b> 次，沒開的收到 <b>3</b> 次。
+    <span class="kbd">"public"</span> 表示回應不含個人資料，gateway 或一整群客戶端可以共用同一份。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">到 notebook 的 2️⃣ 節：快取命中對照表、裸 POST 看提示欄位</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · GATEWAY 路由 HEADER</span>
+  <h2>參數升成 header，負載平衡器不拆 body 就能分流</h2>
+  <div class="codeblock">@mcp.tool
+def forecast(city: Annotated[str, Field(json_schema_extra={"x-mcp-header": "City"})],
+             days: int = 1) -> str: ...
+
+# 側錄到的請求：
+# POST tools/call forecast  {'mcp-param-city': 'taipei'}
+# POST tools/call forecast  {'mcp-param-city': '=?base64?5Y+w5YyX?='}   ← 「台北」</div>
+  <p>
+    第 3 課看過每個新協定請求都帶 <span class="kbd">Mcp-Method</span>／<span class="kbd">Mcp-Name</span>；4.0 再讓參數也能升成
+    <span class="kbd">Mcp-Param-*</span> header，例如依租戶或城市把請求釘到專屬後端。兩個實測細節：
+    客戶端要<b>先 <span class="kbd">list_tools()</span> 看過 schema</b> 才知道哪些參數要升 header——沒看過就直接呼叫，
+    伺服器會拒絕 <span class="kbd">Mcp-Param-City header is missing but the request body's 'city' argument is present</span>
+    （header 只是路由提示，body 才是真相，兩者必須一致）；非 ASCII 的值會被包成 <span class="kbd">=?base64?…?=</span>。
+    舊協定完全沒有這些 header。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">到 notebook 的 3️⃣ 節：新舊協定側錄對照</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 自訂 EXTENSION</span>
+  <h2>在協定上加自己的東西——背景任務就是這樣做出來的</h2>
+  <div class="codeblock">class CallCounter(ServerExtension):
+    identifier = "tw.agentclass/call-counter"          # 反向 DNS 形式
+
+    def settings(self): return {"unit": "calls"}       # 出現在 capabilities.extensions
+    def methods(self):                                 # 加自訂的 JSON-RPC 方法
+        return [MethodBinding(method="callCounter/get", params_type=GetParams, handler=self.get_count)]
+    async def intercept_tool_call(self, params, context, call_next):   # 每次 tools/call 的最後一道關卡
+        self.count += 1
+        return await call_next()
+
+mcp.add_extension(CallCounter())</div>
+  <p>
+    客戶端連上時 <span class="kbd">capabilities.extensions</span> 裡會看到 <span class="kbd">io.modelcontextprotocol/tasks</span>（若有裝）、
+    內建的 <span class="kbd">io.modelcontextprotocol/ui</span>，以及你自己的。自訂方法用裸 POST 帶
+    <span class="kbd">mcp-method: callCounter/get</span> 就能呼叫。同一節還有 <span class="kbd">@mcp.completion</span>：
+    一個 handler 回答所有 prompt／template 參數的自動完成請求，輸入 <span class="kbd">貓</span> 候選剩兩個、輸入 <span class="kbd">颱</span> 剩一個。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">到 notebook 的 4️⃣–5️⃣ 節：completion 與 extension</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 安全與規模</span>
+  <h2>路徑穿越進不了函式；五十個工具變兩個</h2>
+  <table class="cmp">
+    <tr><th>請求 <span class="kbd">docs://{path*}</span></th><th>結果</th><th>handler 有被叫到？</th></tr>
+    <tr><td><span class="kbd">guide</span>、<span class="kbd">a/b</span></td><td><span class="ok">✅ 回內容</span></td><td>有</td></tr>
+    <tr><td><span class="kbd">../etc/passwd</span>、<span class="kbd">%2e%2e/x</span></td><td><span class="no">🛑 Resource not found</span></td><td>沒有</td></tr>
+    <tr><td><span class="kbd">/etc/passwd</span>、<span class="kbd">x%00y</span></td><td><span class="no">🛑 Resource not found</span></td><td>沒有</td></tr>
+  </table>
+  <p>
+    4.0 <b>預設</b>在 resource template 參數進 handler 之前就篩掉路徑穿越、絕對路徑與 null byte，對外看起來就像資源不存在。
+    合法但長得像穿越的值（git ref）用 <span class="kbd">ResourceSecurity(exempt_params={...})</span> 豁免。
+  </p>
+  <p>
+    規模的另一端：工具太多時 <span class="kbd">FastMCP(transforms=[BM25SearchTransform()])</span> 讓
+    <span class="kbd">list_tools()</span> 只剩 <span class="kbd">search_tools</span> 與 <span class="kbd">call_tool</span> 兩個，
+    模型先用自然語言搜（「delete something from the database」→ <span class="kbd">delete_record</span> 排第一）再呼叫；
+    原本的工具只是從清單隱形，指名呼叫仍然可以。這個 transform 不是 4.0 新增，但跟大伺服器場景常一起出現。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">到 notebook 的 6️⃣–7️⃣ 節：六個路徑實測、BM25 搜尋</a>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 總表</span>
+  <h2>4.0 新功能一句話</h2>
+  <table class="cmp">
+    <tr><th>功能</th><th>一句話</th><th>在哪</th></tr>
+    <tr><td>背景任務</td><td><span class="kbd">task=True</span>；新協定投遞→輪詢，舊協定同步</td><td>1️⃣</td></tr>
+    <tr><td>回應快取提示</td><td><span class="kbd">cache_ttl</span>／<span class="kbd">cache_scope</span> ＋ <span class="kbd">Client(cache=True)</span></td><td>2️⃣</td></tr>
+    <tr><td>路由 header</td><td><span class="kbd">x-mcp-header</span> → <span class="kbd">Mcp-Param-*</span></td><td>3️⃣</td></tr>
+    <tr><td>參數自動完成</td><td><span class="kbd">@mcp.completion</span></td><td>4️⃣</td></tr>
+    <tr><td>Extension 介面</td><td>自訂 capability／方法／tools/call 攔截</td><td>5️⃣</td></tr>
+    <tr><td>路徑安全</td><td>template 參數預設擋 <span class="kbd">../</span>、<span class="kbd">/</span>、null byte</td><td>6️⃣</td></tr>
+    <tr><td>多回合互動工具、移除 <span class="kbd">ctx.sample()</span></td><td>回傳 <span class="kbd">InputRequiredResult</span>，下一個請求接著做</td><td>補充課「狀態」</td></tr>
+    <tr><td>Identity assertion、<span class="kbd">InsufficientScopeError</span>、client credentials</td><td>企業身分與精準補授權</td><td>補充課「認證」</td></tr>
+    <tr><td>版本化工具、OpenAPI → MCP、middleware</td><td>知道有就好</td><td>notebook 8️⃣</td></tr>
+  </table>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <span class="kbd">cache_ttl</span> 改成 1 秒，開快取連列兩次、<span class="kbd">sleep(1.2)</span> 後再列第三次——側錄表多出一個 <span class="kbd">tools/list</span>。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>給 <span class="kbd">forecast</span> 再加一個也標 <span class="kbd">x-mcp-header</span> 的 <span class="kbd">tenant</span> 參數，側錄表同時出現兩個 <span class="kbd">mcp-param-*</span>。記得先 <span class="kbd">list_tools()</span>。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>寫一個在 <span class="kbd">intercept_tool_call</span> 短路的 extension：沒宣告的客戶端照常，有宣告的（<span class="kbd">Client(extensions=[advertise(...)])</span>）拿到加工過的結果。</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft)">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
+</section>
+
+<div class="endnav">
+  <a href="/mcp-servers/">
+    <span class="tag">下一課</span>
+    <b>常見 MCP 服務：接上別人的伺服器，再合成一台 →</b>
+  </a>
+  <a href="/llm-apps/">
+    <span class="tag">主題</span>
+    <b>‹ 回「學 LLM 應用開發」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：molab 導流面板（常駐，無內嵌 notebook） ══════════════ -->
+<div id="lab">
+  <div id="molab-panel">
+    <div class="panel-inner">
+      <span class="eyebrow">HANDS-ON · MOLAB</span>
+      <h3>實作在 molab 跑（免費）</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 notebook 要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="fastmcp4-features_ext.py" download>下載 fastmcp4-features_ext.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>fastmcp4-features_ext.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox fastmcp4-features_ext.py</code>，依賴會自動安裝。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：背景任務 vs 同步（純 JS；序列來自 notebook 的實測側錄：每杯 0.3 秒）═══ */
+(function () {
+  const cups = document.getElementById("tk-cups"), cupsV = document.getElementById("tk-cups-v");
+  const M = document.getElementById("tk-modern"), L = document.getElementById("tk-legacy");
+  const barM = document.getElementById("tk-bar-m"), barL = document.getElementById("tk-bar-l");
+  const sumM = document.getElementById("tk-sum-m"), sumL = document.getElementById("tk-sum-l");
+  let timers = [];
+  function req(m, st, cls) { return `<div class="req"><span class="m">${m}</span>${st ? `<span class="st ${cls || ""}">${st}</span>` : ""}</div>`; }
+  function build() {
+    const n = +cups.value; cupsV.textContent = n;
+    const modern = [req("POST tools/call brew  (+task)", "working")];
+    for (let i = 1; i <= n; i++) modern.push(req(`POST tasks/get`, `第 ${i} 杯`));
+    modern.push(req("POST tasks/get", "completed", "done"));
+    M.innerHTML = modern.join("");
+    L.innerHTML = [req("POST tools/call brew", "等待中…", "wait"), req("　　　（連線一直開著）", ""), req("← 回應：泡好 " + n + " 杯", "done", "done")].join("");
+    barM.style.width = "0"; barL.style.width = "0"; sumM.textContent = ""; sumL.textContent = "";
+  }
+  function play() {
+    timers.forEach(clearTimeout); timers = []; build();
+    const n = +cups.value, step = 300;
+    const mr = M.querySelectorAll(".req"), lr = L.querySelectorAll(".req");
+    mr.forEach((el, i) => timers.push(setTimeout(() => {
+      el.classList.add("on"); barM.style.width = `${Math.round(100 * i / (mr.length - 1))}%`;
+      if (i === mr.length - 1) sumM.textContent = `${mr.length} 個請求，每個都立刻回來；進度在 statusMessage 裡`;
+    }, step * i + 150)));
+    lr[0].classList.add("on"); lr[1].classList.add("on");
+    for (let i = 1; i <= n; i++) timers.push(setTimeout(() => { barL.style.width = `${Math.round(100 * i / n)}%`; }, step * i));
+    timers.push(setTimeout(() => { lr[2].classList.add("on"); sumL.textContent = `1 個請求，開著等 ${(n * 0.3).toFixed(1)} 秒；沒有 tasks/get`; }, step * n + 150));
+  }
+  document.getElementById("tk-play").addEventListener("click", play);
+  cups.addEventListener("input", play);
+  build();
+})();
+</script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

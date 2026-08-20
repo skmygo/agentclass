@@ -407,5 +407,85 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答：先自己做再打開。LEVEL 1/2 是可直接貼進新 cell 的完整程式碼，LEVEL 3 給方向與驗證方法。
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答：get_section": mo.md(
+                r"""
+    工具要加在 **2️⃣ 那格**（跟 `search_handbook` 同一格）——因為 `openai_tools` 是從 `list_tools()` 算出來的，
+    改那格存檔後 marimo 會自動重跑 list_tools → 橋接 → `ask_agent`，新工具才會進模型的說明書：
+
+    ```python
+    @mcp.tool
+    def get_section(title: str) -> str:
+        '''依章節標題取回該節的完整原文。當顧客要求「完整唸出／全文／整段」某個章節時呼叫；
+        title 要跟 list_sections 回傳的一模一樣。'''
+        for _c in chunks:
+            if _c["title"] == title:
+                return _c["text"]
+        raise ToolError(f"沒有「{title}」這個章節，可用 list_sections 查看標題")
+    ```
+
+    （`ToolError` 要在第一格補 `from fastmcp.exceptions import ToolError`。）然後新開一格問：
+
+    ```python
+    _a, _tr = await ask_agent("把會員制度完整念給我聽")
+    render_trace("把會員制度完整念給我聽", _a, _tr)
+    ```
+
+    你應該看到（實測，nemotron-3.5-lightning）：它會先 `list_sections()` 或 `search_handbook("會員制度")` 確認標題，
+    再呼叫 `get_section(title="會員制度")`，最後把整段原文照念。說明書裡那句「完整唸出／全文／整段」就是它選這個工具的依據——
+    把這句拿掉再試，它多半會退回 `search_handbook`，只拿到節錄。
+    """
+            ),
+            "💡 LEVEL 2 參考解答：檢索門檻": mo.md(
+                r"""
+    同樣改 2️⃣ 那格的 `search_handbook`（回傳型別放寬成 `list[dict] | dict`）：
+
+    ```python
+    @mcp.tool
+    def search_handbook(query: str, top_k: int = 3) -> list[dict] | dict:
+        '''在山茶屋店務手冊裡做語意搜尋，回傳最相關的段落（含相似度分數 0–1）。
+        回答任何關於營業時間、規定、貓咪、會員、停車、活動的問題前都應先呼叫。
+        query 請用繁體中文、可以放多個關鍵字（手冊是繁體中文寫的）。'''
+        _hits = retrieve(query, top_k)
+        if _hits[0].score < 0.4:                                   # 最高分都不到門檻 → 老實說沒有
+            return {"note": "手冊裡沒有相關內容", "best_score": round(_hits[0].score, 3)}
+        return [{"title": h.payload["title"], "score": round(h.score, 3), "text": h.payload["text"]}
+                for h in _hits]
+    ```
+
+    你應該看到：問「你們有賣牛排嗎？」時 trace 裡工具回傳 `{"note": "手冊裡沒有相關內容", "best_score": 0.383}`
+    （實測牛排的最高分 0.38，正常問題的 top-1 通常 0.5 以上），模型答「手冊裡沒有寫」；
+    問「哪一隻貓最怕生？」仍正常回煤球。門檻值要用上一課 6️⃣ 的七題實測——上一課的 LEVEL 3 解答有掃描方法。
+    把 `best_score` 一起回給模型是刻意的：讓它知道「不是沒查，是查了分數太低」，回答會更誠實。
+    """
+            ),
+            "💡 LEVEL 3 提示：誰該負責提醒模型用工具": mo.md(
+                r"""
+    把 4️⃣ `SYSTEM_PROMPT` 的「遇到店務問題先用工具查手冊，」刪掉存檔，再重跑 5️⃣ 的三個問題。
+    實測（nemotron-3.5-lightning）結果可能讓你意外：
+
+    - 週二＋停車：**還是會查**（`search_handbook("週二 中午 營業 時間 停車")`），因為 `search_handbook` 的 docstring
+      本身就寫了「回答任何關於…的問題前都應先呼叫」——工具說明書是伺服器端的提醒，跟著工具走到每個客戶端。
+    - 手冊章節：照樣 `list_sections()`。
+    - 1+1：兩種行為都出現過——一次去搜 `"1+1 等於多少"` 然後說手冊裡沒有寫；一次不查，但仍答「手冊裡沒有寫（來源：無）」。
+      問題出在 system prompt 剩下的「只根據查到的內容回答」——它把規矩套到了非店務問題上。
+
+    怎麼驗證自己理解對了：試著只改**一邊**——
+    (a) 把 docstring 的「回答任何…前都應先呼叫」拿掉、system prompt 保留，看它還查不查；
+    (b) system prompt 加一句「跟店務無關的問題直接回答，不用查手冊」，看 1+1 會不會變成乾脆的「2」。
+    結論：`mcp.instructions` 與 docstring 是**伺服器作者**能控制的（Claude Code 那條路線你只能控制這兩個，
+    system prompt 是客戶端的）；所以「什麼情況該用這個工具」一定要寫進 docstring，別指望客戶端的 prompt。
+    `mcp.instructions` 在本 notebook 的迴圈裡其實沒有被送給模型——想用它，要自己把 `mcp.instructions` 接到 system prompt 前面。
+    """
+            ),
+        }
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()

@@ -12,12 +12,47 @@
   <span class="eyebrow">TOPIC · LLM APPS</span>
   <h1>🧩 學 LLM 應用開發</h1>
   <p class="sub">
-    六堂課、一條管線：從一把 key 打遍八家模型開始，到讓模型做事、把函式變成 AI 工具、
+    六堂主線、一條管線：從一把 key 打遍八家模型開始，到讓模型做事、把函式變成 AI 工具、
     向量資料庫、RAG——最後接成一台會自己查資料的客服。有程式背景、工具新手，照順序上。
+    上完第 3 課（或整條主線）之後，四堂 <b>FastMCP 4 補充系列</b>把認證、狀態、4.0 專屬功能與生態系一次補齊。
   </p>
 
+  <!-- 補充系列：FastMCP 4 深入（越新的課放越上面；本區塊是系列，依 A→D 順序排） -->
+  <span class="eyebrow" style="margin-top:44px">補充系列 · FASTMCP 4 深入（上完第 3 課再來）</span>
+  <div class="lessons" style="margin-top:16px">
+    <a class="card" href="/fastmcp4-auth/">
+      <span class="tag">補充 A · AUTH</span>
+      <h2>🔐 認證與授權：從一把 token 到完整 OAuth 2.1</h2>
+      <p>不帶 token 就 401、guest 根本看不到 admin 的工具、JWT 本機簽發與三種壞 token——
+         然後在 notebook 裡真的跑完 discovery → DCR → PKCE → token 六步，再用 SDK 三行走完。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/fastmcp4-state/">
+      <span class="tag">補充 B · STATE</span>
+      <h2>🧠 狀態：無狀態協定上的三種記憶</h2>
+      <p>傳來傳去的狀態有沒有加密？把 requestState 從線路上截下來拆開：AES-256-GCM 密文，
+         竄改、換伺服器、換參數、換伺服器名、過期五個攻擊全被拒；多副本要共用 store 與金鑰。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/fastmcp4-features/">
+      <span class="tag">補充 C · 4.0 FEATURES</span>
+      <h2>⚙️ 4.0 專屬功能：背景任務、快取、路由 header、擴充</h2>
+      <p>每個新功能都用側錄器看線路上真的發生什麼：tools/call 變成 tasks/get 輪詢、三次 list_tools 伺服器只收到一次、
+         參數升成 Mcp-Param header、參數自動完成，最後自己寫一個 extension。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/mcp-servers/">
+      <span class="tag">補充 D · ECOSYSTEM</span>
+      <h2>🌐 常見 MCP 服務：接上別人的伺服器，再合成一台</h2>
+      <p>uvx／npx 啟動官方參考伺服器、接上 Context7 與 DeepWiki、mcp.json 多伺服器設定；
+         把它們 mount 成一台 HTTP hub 給 Claude Code 用——老伺服器要 pin legacy 的坑也一起踩。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+  </div>
+
+  <span class="eyebrow" style="margin-top:44px">主線 · 六堂課一條管線</span>
   <!-- 課程卡片：越新的課放越上面（新增課程一律插在最前面） -->
-  <div class="lessons">
+  <div class="lessons" style="margin-top:16px">
     <a class="card" href="/rag-mcp-agent/">
       <span class="tag">CAPSTONE · 06</span>
       <h2>🏁 壓軸：RAG 變成 AI 的工具</h2>

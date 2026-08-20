@@ -536,5 +536,97 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答：先自己做再打開。LEVEL 1/2 是可直接貼進新 cell 的完整程式碼，LEVEL 3 給方向與驗證方法。
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答：place_order": mo.md(
+                r"""
+    新開一格貼上（`mcp`、`MENU`、`ToolError` 都是前面定義好的）：
+
+    ```python
+    @mcp.tool
+    def place_order(item: str, qty: int = 1) -> dict:
+        '''下單：指定品項與數量，回傳訂單摘要（含小計）。'''
+        _hit = next((m for m in MENU if m["name"] == item), None)
+        if _hit is None:
+            raise ToolError(f"菜單上沒有「{item}」")   # 給 AI 看得懂的錯誤訊息
+        return {"item": item, "qty": qty, "subtotal": _hit["price"] * qty}
+
+    async with Client(mcp) as _c:
+        _tools = {t.name: t for t in await _c.list_tools()}
+        _order = (await _c.call_tool("place_order", {"item": "紅茶", "qty": 2})).data
+    _tools["place_order"].input_schema, _order
+    ```
+
+    你應該看到：說明書多了 `place_order`，`qty` 有 `"default": 1`、`required` 裡只有 `item`
+    （預設值＝非必填，全部來自函式簽名）；呼叫結果 `{'item': '紅茶', 'qty': 2, 'subtotal': 60}`。
+    再呼叫 `place_order(item="牛排")` 會拿到 `ToolError: 菜單上沒有「牛排」`——
+    在工具裡 `raise ToolError(...)` 是把錯誤「說給模型聽」的正規做法，壓軸課的 agent 迴圈會把它餵回去讓模型自我修正。
+
+    小提醒：1️⃣ 下方 `list_tools()` 那格引用的是 `tool_list` 變數，marimo 只會在它的依賴變動時重跑；
+    直接把 `place_order` 寫進 1️⃣ 那格也行（存檔後整條依賴鏈自動重算）。
+    """
+            ),
+            "💡 LEVEL 2 參考解答：checkout(session_id)": mo.md(
+                r"""
+    ```python
+    @mcp.tool
+    async def checkout(session_id: SessionId) -> dict:
+        '''結帳：算出購物車總價、清空購物車，回傳收據。'''
+        _s = await get_session(session_id)
+        _items = await _s.get("items", default=[])
+        _price = {m["name"]: m["price"] for m in MENU}
+        _lines = [{"item": it, "price": _price.get(it, 0)} for it in _items]
+        await _s.set("items", [])                      # 清空
+        return {"lines": _lines, "total": sum(ln["price"] for ln in _lines), "count": len(_lines)}
+
+    async with Client(mcp) as _c:
+        _key = (await _c.call_tool("create_session")).data
+        for _it in ["紅茶", "滷肉飯", "珍珠奶茶"]:
+            await _c.call_tool("add_to_cart", {"session_id": _key, "item": _it})
+        _receipt = (await _c.call_tool("checkout", {"session_id": _key})).data
+        _again = (await _c.call_tool("checkout", {"session_id": _key})).data
+    _receipt, _again
+    ```
+
+    你應該看到：第一次結帳 `{'lines': [...三筆...], 'total': 135, 'count': 3}`，
+    緊接著第二次結帳 `{'lines': [], 'total': 0, 'count': 0}`——購物車真的被清空了，
+    而且兩次都只靠同一把 `session_id` 鑰匙，不靠連線。
+    """
+            ),
+            "💡 LEVEL 3 提示：裸 POST 呼叫 tools/list 與 resources/read": mo.md(
+                r"""
+    三要件不變：`MCP-Protocol-Version` header、`mcp-method` header、`params._meta` 信封。會變的是 **`mcp-method` 要等於 body 的 `method`**，
+    以及 **`mcp-name` header 要等於「目標名」**——對 `tools/call` 是工具名，對 `resources/read` 則是 **URI**（實測：沒帶或帶錯都回
+    `-32020 mcp-name header does not match the request body's 'uri' parameter`；`tools/list` 沒有目標，`mcp-name` 不用帶）。
+
+    ```python
+    _H = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json",
+          "MCP-Protocol-Version": "2026-07-28"}
+    _META = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+             "io.modelcontextprotocol/clientCapabilities": {}}
+
+    _lst = httpx.post(MCP_URL, headers={**_H, "mcp-method": "tools/list"},
+                      json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {"_meta": _META}})
+    _rd = httpx.post(MCP_URL, headers={**_H, "mcp-method": "resources/read", "mcp-name": "menu://today"},
+                     json={"jsonrpc": "2.0", "id": 2, "method": "resources/read",
+                           "params": {"uri": "menu://today", "_meta": _META}})
+    [t["name"] for t in _lst.json()["result"]["tools"]], _rd.json()["result"]["contents"][0]["text"]
+    ```
+
+    怎麼驗證自己做對了：`tools/list` 回 200 且清單含 `add`／`search_menu`／`create_session`…；
+    `resources/read` 回 200，`result.contents[0].text` 是今日菜單字串，還會多一個 `cacheScope` 欄位（4.0 的回應快取提示）。
+    故意把 `mcp-method` 寫成 `tools/call` 會拿到 `-32020 mcp-method header does not match the request body's method`、
+    拿掉 `_meta` 會拿到 `-32602 params._meta must be an object…`——這些錯誤訊息就是規格書。
+    `params` 的欄位名查 MCP 規格的 `resources/read`（`uri`）與 `prompts/get`（`name`＋`arguments`）。
+    """
+            ),
+        }
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()
