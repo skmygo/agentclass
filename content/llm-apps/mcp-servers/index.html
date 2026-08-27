@@ -191,6 +191,83 @@ fastmcp list http://localhost:8000/mcp        # 不寫程式就看一台伺服�
   <p class="hint">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你想讓模型讀 GitHub 的 repo 與 issue，網路教學說裝 <span class="kbd">@modelcontextprotocol/server-github</span>。2026 年的今天，最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 照教學跑 <code>npx -y @modelcontextprotocol/server-github</code>——npx 抓得到套件就代表還能用</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 到 <code>servers-archived</code> 找封存版的原始碼，自己 fork 來維護比較安心</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 改接 GitHub 官方的 HTTP 伺服器 <code>api.githubcopilot.com/mcp/</code>，用 OAuth 或 PAT 授權</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 先對網址發個 ping，回 401 表示伺服器壞了，另尋他台</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>官方參考的 <code>server-github</code> 已封存到 <code>servers-archived</code>、不再更新——GitHub 的 MCP 伺服器改由 GitHub 官方維護（<code>api.githubcopilot.com/mcp/</code>，OAuth／PAT）。A 抓得到套件，但那是不再修 bug 的殭屍，「網路教學還在教」正是本課點名的坑；B 把別人封存的包袱背回家，沒必要；D 誤解了 401——帶 <code>resource_metadata</code> 的 401 是標準 OAuth 發現流程的第一步（補充課 A），意思是「要登入」，不是壞了。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>首次用 <span class="kbd">uvx</span> 連官方 <span class="kbd">mcp-server-time</span>，stderr 湧出一串 pydantic validation 警告，但工具照常列出、呼叫也成功。最可能的原因是？</h3>
+      <div class="codeblock">async with Client({"mcpServers": {"time": {"command": "uvx", "args": ["mcp-server-time"]}}}) as c: …
+# stderr：一長串 pydantic validation 警告
+# 但 protocol_version = '2025-11-25'，list_tools() 與 call_tool() 都正常</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>uvx</code> 下載到損壞的套件，要清快取重新安裝</button>
+        <button type="button" class="quiz-opt" data-k="B">B. fastmcp 4.0.0b1 是 beta 版，跟官方伺服器不相容，該降回 3.x</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 設定檔忘了用 <code>"env"</code> 傳 API key，伺服器啟動不完整</button>
+        <button type="button" class="quiz-opt" data-k="D">D. client 先用新協定探測，SDK v1 的老伺服器不認得而抱怨，client 隨即自動退回握手協定——警告是正常的</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>FastMCP 4 的 client 會先用 2026-07-28 新協定探一次（<code>server/discover</code>），這些用 MCP Python SDK v1 寫的官方伺服器不認得、在 stderr 抱怨一串 pydantic 警告，client 就自動退回握手協定 <code>2025-11-25</code>——一切照常，那串警告不是錯誤。A、B 症狀相似但可排除：真的壞掉或不相容，<code>list_tools()</code> 不會成功；C 無關——<code>mcp-server-time</code> 根本不需要 API key。判斷準則：看結果（工具列得出、呼叫成功），不是看 stderr 的音量。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你請模型寫 FastMCP 程式，它一直用記憶裡的舊版 API，一跑就報錯。想用本課接過的伺服器解決，最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 接 DeepWiki，用 <code>ask_question</code> 問 PrefectHQ/fastmcp 這個 repo</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 接 Context7：先 <code>resolve-library-id("fastmcp")</code> 對出 <code>/prefecthq/fastmcp</code>，再用 <code>query-docs</code> 查最新版文件</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 換參數量更大的模型，大模型記得的版本比較新</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 接 <code>fetch</code> 伺服器抓 FastMCP 官網首頁餵給模型</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「模型記錯 API 版本」正是 Context7 要解的老問題：<code>resolve-library-id</code> → <code>query-docs</code> 回來的是帶原始碼連結的最新文件片段，直接對到正確版本。A 看起來可行，但 DeepWiki 的強項是 repo 結構與內容導覽，查即時 API 細節不如專做文件檢索的 Context7 對口；C 是常見誤解——模型大小改不了知識截止日；D 能動但你得自己猜對網址、抓回整頁再讓模型撈重點，繞遠路。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你把自己的工具、<span class="kbd">mcp-server-time</span>、Context7 mount 成一台 hub。客戶端連上後 <span class="kbd">time_*</span> 整組消失、也沒有任何報錯。最可能的原因是？</h3>
+      <div class="codeblock">hub.mount(create_proxy({"mcpServers": {"default": TIME_SERVER}}), namespace="time")
+hub.mount(create_proxy("https://mcp.context7.com/mcp"), namespace="c7")
+# 客戶端連 hub 後：
+# list_tools() → ['hello', 'c7_resolve-library-id', 'c7_query-docs']</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. proxy 預設鏡像客戶端的協定時代——新協定去敲只會握手協定的老伺服器，它不會回，工具就消失。要 <code>create_proxy(…, mode="legacy")</code> 釘住</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>namespace="time"</code> 組出來的工具名跟 <code>c7</code> 的撞名，被蓋掉了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 首次 <code>uvx</code> 還在下載套件，等 10–40 秒重新列一次就會出現</button>
+        <button type="button" class="quiz-opt" data-k="D">D. Context7 的 proxy 也要 <code>mode="legacy"</code>，兩個都沒釘所以互相干擾</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這是本課實測踩到的坑：hub 對外是新協定，proxy 預設「鏡像」客戶端的協定時代去連後端——新協定敲到只會 <code>2025-11-25</code> 握手協定的 <code>mcp-server-time</code>，<code>tools/list</code> 拿不到東西，工具靜默消失。修法：對老伺服器釘 <code>create_proxy(…, mode="legacy")</code>；Context7 本身是新協定不用釘（D 剛好反了——而且 <code>c7_*</code> 明明活得好好的）。B 不成立，兩個 namespace 前綴不同不會撞名；C 症狀相似但原因不同——下載中會表現成連線慢或逾時，不是連上了卻少一組工具。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>hub 已經在 <span class="kbd">http://localhost:8000/mcp</span> 跑起來了，你想在 Claude Code 裡用它的工具。應該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 自己寫個迴圈：用 fastmcp 的 <code>Client</code> 呼叫工具，把結果貼回跟 Claude 的對話</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把 hub 的網址寫進 <code>claude_desktop_config.json</code></button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>claude mcp add --transport http hub http://localhost:8000/mcp</code>（或 <code>fastmcp install claude-code hub.py:hub</code>），接上後直接跟 Claude 講人話</button>
+        <button type="button" class="quiz-opt" data-k="D">D. <code>claude mcp add hub -- python hub.py</code>，讓 Claude Code 把 hub 當子行程拉起來</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>Claude Code 接 HTTP 伺服器就是 CLI 一行 <code>claude mcp add --transport http</code>（<code>fastmcp install claude-code</code> 就是幫你跑這行）。接上後說「東京現在幾點」它自己呼叫 <code>time_get_current_time</code>——你一個 agent 迴圈都不用寫，A 是在土砲客戶端已經幫你做掉的事；B 接錯客戶端：<code>claude_desktop_config.json</code> 是 Claude Desktop 的設定檔，Claude Code 不讀它；D 的 transport 搞混了——hub.py 結尾跑的是 HTTP transport，被當 stdio 子行程拉起來根本講不上話。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/rag-mcp-agent/">
     <span class="tag">回到主線壓軸</span>
@@ -281,6 +358,7 @@ fastmcp list http://localhost:8000/mcp        # 不寫程式就看一台伺服�
   show("time");
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

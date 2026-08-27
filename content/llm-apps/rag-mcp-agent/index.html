@@ -148,7 +148,6 @@ msgs.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(res.da
 
 # 然後
 claude mcp add --transport http shancha http://localhost:8000/mcp</div>
-  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
   <p>
     Claude Code 會看到 <span class="kbd">search_handbook</span> 與 <span class="kbd">list_sections</span>，問它山茶屋的事它會自己查——
     <b>不用寫任何 agent 迴圈</b>，客戶端本身就是 agent。第 3 課的無狀態協定在這裡兌現：
@@ -173,10 +172,85 @@ claude mcp add --transport http shancha http://localhost:8000/mcp</div>
     <span class="lv">LEVEL 3</span>
     <p>刪掉 system prompt 裡「先用工具查手冊」那句重跑——模型還會主動查嗎？比較 <span class="kbd">mcp.instructions</span>（伺服器方）與 system prompt（客戶端方）誰該負責提醒，想想在 Claude Code 那條路線上你能控制哪一個。</p>
   </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
   <p class="note">
     六堂課到此完結：一個網址一把 key（LiteLLM）、讓模型做事（tool calling）、把函式變工具（FastMCP）、
     最像什麼（Qdrant）、先翻書再回答（RAG）——然後把它們接成一台會自己查資料的客服。
   </p>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">06 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你照 LEVEL 1 加了第三個工具 <span class="kbd">get_section(title)</span>，可是問「把會員制度完整念給我聽」，模型還是呼叫 <span class="kbd">search_handbook</span>、只拿到節錄。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把 <code>search_handbook</code> 從伺服器移除，強迫模型只剩 <code>get_section</code> 可用</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 在 agent 迴圈加 if-else：問題含「完整」「全文」就改呼叫 <code>get_section</code></button>
+        <button type="button" class="quiz-opt" data-k="C">C. 在 <code>get_section</code> 的 docstring 寫清楚觸發時機：「當顧客要求完整唸出／全文／整段某個章節時呼叫」</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 換更大的模型，模型夠大自然會選對工具</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>docstring 就是給模型看的使用說明——LEVEL 1 解答實測：說明書裡「完整唸出／全文／整段」那句就是模型選 <code>get_section</code> 的依據，把那句拿掉它多半退回 <code>search_handbook</code>。A 是玉石俱焚——其他所有問題都失去語意搜尋；B 能動，但把決策搬回自己寫死的規則，而且 Claude Code 那條路線根本沒有你的迴圈可加 if-else；D 說明書寫不清楚，多大的模型都只能用猜的。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你的 <span class="kbd">search_handbook</span> docstring 沒寫 query 該用什麼語言。顧客問「我週二中午想去，順便停車，要注意什麼？」，trace 長這樣，答案漏掉了週二公休。最可能的原因是？</h3>
+      <div class="codeblock">step 1 · tool → search_handbook {'query': 'parking'}
+step 2 · answer 建議停在對面的饒河停車場…（隻字未提週二公休）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. Qdrant 建索引時漏掉了「營業時間」那一段</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 模型用英文 query 搜繁體中文手冊，語意分數偏低撈不到對的段落——docstring 補一句「query 請用繁體中文」就能改掉</button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>top_k</code> 太小，把它調大就一定撈得到</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 推理型模型 <code>max_tokens</code> 不夠，答案被截斷了</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這是本課實測真的踩過的坑：沒加「query 請用繁體中文」之前，模型會用英文 <code>parking</code> 去搜繁中手冊、漏掉週二公休；docstring 補上那一句就改掉了——說明書的一句話能直接改變模型行為。A 手動跑一次 <code>retrieve("停車")</code> 就能排除，索引沒壞；C 治標不治本，問題出在 query 的語言不是段數；D 截斷會看到 <code>finish_reason='length'</code> 的半句話（第 1 課），不是完整卻漏來源的回答。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你自己寫 agent 迴圈接 MCP 工具。某次模型呼叫 <span class="kbd">get_section</span> 帶了不存在的章節標題，工具拋出例外。迴圈應該怎麼處理？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 讓例外往上拋，fail fast，請使用者重新問一次</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 由迴圈自動改呼叫 <code>search_handbook</code> 幫模型救回來</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 略過這個 tool_call、不回任何 tool 訊息，讓對話繼續</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 接住例外，把錯誤訊息當 tool 結果以 <code>role: "tool"</code> 餵回去，讓模型自我修正</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這正是 notebook 的 <code>ask_agent</code> 裡那行 <code>except</code> 的用意：錯誤訊息餵回去，模型看到「沒有這個章節，可用 list_sections 查看標題」就會自己換工具重試——所以 LEVEL 1 的 <code>ToolError</code> 訊息刻意寫成給模型的指引。A 把一個可自癒的小錯變成整段對話陣亡；B 又把決策搬回自己手上，模型明明會修；C 最危險——每個 tool_call 都必須有對應的 tool 訊息，跳過會讓對話缺一塊，模型根本不知道工具失敗了。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>顧客問客服「1+1 等於多少？」，偶爾會看到這樣的 trace——明明是數學題，它卻先去查了手冊。最可能的原因是？</h3>
+      <div class="codeblock">step 1 · tool → search_handbook {'query': '1+1'}
+step 2 · answer 1+1 等於 2。（來源：手冊中未找到相關章節）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. system prompt 的「先用工具查手冊」「只根據查到的內容回答」被字面遵守——小模型對規矩更字面，把店務規則套到了非店務問題上</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 模型不檢索就不會做算術，必須查到資料才能回答</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 迴圈設了強制工具呼叫，每一輪都非呼叫不可</button>
+        <button type="button" class="quiz-opt" data-k="D">D. temperature 太高造成隨機亂選工具，調成 0 就不會再發生</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>實測 <code>nemotron-3.5-lightning</code> 多數時候直接答 2，但偶爾會字面地遵守「先查手冊」去搜一次 <code>1+1</code> 再說手冊裡沒有——該修的是提示詞：加一句「跟店務無關的問題直接回答，不用查手冊」（LEVEL 3 的驗證方法之一）。B 是誤解，給它自由它多數時候直接答 2；C 症狀相似但原因不同——本課迴圈沒有強制工具呼叫，強制的話會是每次、不會是偶爾；D 只是把「偶爾」固定成某一種行為，規矩本身沒改，不算修好。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>客服上線後流量變大，你想跑 3 個伺服器副本放在負載平衡器後面。目前程式用的是 <span class="kbd">QdrantClient(":memory:")</span>。應該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 幫 MCP 加 sticky session，讓同一個使用者固定連到同一個副本</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 什麼都不用改，三個副本開機時各自建自己的記憶體索引就好</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 只把 <code>QdrantClient(":memory:")</code> 換成正式 Qdrant 伺服器讓副本共用同一份索引，其他程式碼不用改</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把 agent 迴圈也複製三份，每個副本各配一個迴圈</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>第 3 課的無狀態協定在這裡兌現：每個請求自帶一切，伺服器天生就能水平擴展——唯一的共享狀態是向量索引，換成正式 Qdrant（如 <code>QdrantClient("http://qdrant:6333")</code>）讓副本共用，程式碼其他地方一個字不用改。A 在解決一個不存在的問題，無狀態就是不需要 session；B 跑得起來但有副作用——每個副本開機都要重算一次 embedding，手冊一更新三份索引就開始各自漂移；D 搞混了角色——迴圈是客戶端的事，伺服器副本上沒有迴圈，Claude Code 那條路線更是連迴圈都不用寫。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
 </section>
 
 <div class="endnav">
@@ -259,6 +333,7 @@ claude mcp add --transport http shancha http://localhost:8000/mcp</div>
   }
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

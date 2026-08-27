@@ -162,6 +162,69 @@ context = "\n\n".join(f"[{i+1}] {h.payload['text']}" for i, h in enumerate(hits)
   <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">06 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你要把公司的產品 FAQ（Markdown，每個問題一個 <span class="kbd">##</span> 小標）做成 RAG 知識庫。切段應該怎麼切？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 整份文件當一段，反正模型的 context 夠大</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 每個句子切一段，段越小檢索越精準</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 一個 <code>##</code> 小標切一段，跟著文件既有的結構走</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 固定每 100 字切一段，長度一致比較好處理</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>切段要在「太大帶進無關內容、太小失去上下文」之間取捨，文件結構乾淨時最自然的切法就是跟著小標——本課的手冊就是這樣切出 10 段、每段 59–91 字。A 讓檢索失去意義（永遠整份都命中），提示詞塞滿無關內容；B 切太小會失去上下文——「牠對雞肉凍乾沒有抵抗力」單獨一句，誰也不知道「牠」是麻糬；D 會把小節攔腰切斷，一段的前後文被拆散在兩個 chunk 裡。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你問「你們有賣牛排嗎？」（手冊裡完全沒有），檢索卻照樣回來 3 段，而且全是不相干的內容。這代表什麼？</h3>
+      <div class="codeblock">檢索回來的段落（top_k=3）：
+店貓介紹：麻糬（0.37）、店貓介紹：奶蓋（0.35）、入場規定（0.32）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. embedding 模型不擅長繁體中文，向量算歪了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>top_k</code> 設太大，把不相關的段落也撈了進來</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 入庫時 payload 跟向量對錯了位</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 檢索沒壞——它永遠回最近的 <code>top_k</code> 段；資料裡沒有相關內容時，訊號是分數全部偏低</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>檢索是「最近鄰」查詢，哪怕全部不相關也照樣回 <code>top_k</code> 段——範圍外問題的訊號不是「回不回」，是分數全部偏低（實測範圍內 top-1 至少 0.46，牛排最高只有 0.37）。所以要靠提示詞的「沒有就說沒寫」或分數門檻來擋。A 不成立：同一個模型把範圍內的問題都命中了（Wi-Fi 0.70）；B 搞混了——<code>top_k=3</code> 回 3 段是設計不是 bug，調小照樣回不相關的；C 的話範圍內的問題也會亂掉，但評測是 7 題全對。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事的 RAG 客服檢索一切正常，但回答會混入手冊裡根本沒有的內容。最可能的原因是？</h3>
+      <div class="codeblock">問：你們有賣牛排嗎？
+答：目前菜單主要提供飲品和少量貓友好點心，未列有牛排。
+（手冊從頭到尾沒提過菜單內容——「飲品和點心」是模型自己腦補的）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 提示詞少了「只根據參考資料、沒有就說沒寫、不要編造」的規矩，模型把資料和自己的常識混著講</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 檢索抓錯段落，模型只好瞎掰</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 模型太小，換 550B 的大模型就不會編了</button>
+        <button type="button" class="quiz-opt" data-k="D">D. <code>top_k</code> 太小，漏掉了講菜單的段落</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這正是課裡 LEVEL 3 拿掉那句規矩後的實測結果：模型從「咖啡廳」自行腦補菜單，講得很像真的。修法是把三條規矩加回 system prompt——少一條都不行。B 症狀相似但題目已說檢索正常；C 搞錯層次——編造不是能力問題，是沒有被禁止，大模型一樣混著講；D 撈不到不存在的東西，手冊裡根本沒有菜單段落。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>你把切段方式從「<span class="kbd">##</span> 小標一段」改成固定 200 字一段，想知道整體有沒有變差。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 挑「Wi-Fi 密碼」問一次，答對就算沒變差</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 用一組有標準答案的問題做關鍵字命中評測，改動前後各跑一輪比較</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 看檢索 top-1 分數的平均有沒有變高，分數高＝答得好</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 直接上線，觀察有沒有使用者抱怨</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>關鍵字命中評測陽春但便宜、客觀、可重複——每次動了切段、<code>top_k</code>、提示詞都重跑一輪，課裡那 7 題就是幹這個用的。A 是一個例子不算證據，別題可能默默壞掉；C 分數只是檢索訊號，不等於答案正確（三隻貓 0.53／0.51／0.51 分不開時是靠模型讀內文救回來的），而且切段變了分數本來就會變、不可比；D 等於拿使用者當測試，發現時已經晚了。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/rag-mcp-agent/">
     <span class="tag">下一課（壓軸）</span>
@@ -230,6 +293,7 @@ context = "\n\n".join(f"[{i+1}] {h.payload['text']}" for i, h in enumerate(hits)
   render();
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

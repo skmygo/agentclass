@@ -1,0 +1,46 @@
+<!--
+  課末情境測驗：固定收尾標記（規則見 references/site.md「課末測驗」）。
+  照抄本檔進 page_content.py 的 WRAP——放在「換你動手」section 之後、.endnav 之前。
+  - eyebrow 的 NN 接續該課章節編號（例如最後一節是 05 · 實戰 → 這裡 06 · 驗收）
+  - 題數 2–5，依核心概念數（一個主要教學段落約對一題），湊不出對應概念就少出
+  - 配比（預設，非鐵律）：2 題＝1 情境+1 診斷、3＝2+1、4＝2+2、5＝3+2
+  - data-answer / data-k 用 A–D 字母；.codeblock 區塊選配（診斷題幾乎都需要）
+  - 互動全部由 /shared/quiz.js 驅動（頁尾要有 <script src="/shared/quiz.js" defer>），
+    本區不寫任何 JS；樣式在共用 lesson.css 的 .quiz-*，不要自己加
+-->
+<section id="quiz">
+  <span class="eyebrow">NN · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>給定具體工作情境，問「應該怎麼做」——考決策，不考記憶。</h3>
+      <div class="codeblock">（選配）情境的程式碼或設定</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 看起來可行但不是最佳做法</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 最佳解</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 常見誤解</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 部分正確但有副作用</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：為什麼 B 是最佳做法、其他選項各自的問題在哪。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>給一段出錯的程式碼／指令／輸出，問最可能的原因或修法。</h3>
+      <div class="codeblock">$ 觸發錯誤的指令或程式
+（真實的錯誤輸出——必須來自本課實測，不可杜撰）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 無關診斷</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 症狀相似但原因不同</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 正確診斷</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 部分正確</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：錯誤的根本原因、如何修正、如何避免再犯。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>

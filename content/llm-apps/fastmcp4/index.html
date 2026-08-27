@@ -203,6 +203,57 @@ claude mcp add --transport http tea http://localhost:8000/mcp</div>
   <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">06 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你的茶飲店伺服器已經有 <span class="kbd">search_menu</span> 工具。現在想把「今日完整菜單」這份資料也提供出去——由接上來的<b>應用程式</b>決定要不要餵進模型的上下文。應該怎麼註冊？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 再加一個 <code>@mcp.tool</code> 的 <code>today_menu()</code>，讓模型想到就自己呼叫</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>@mcp.resource("menu://today")</code>：URI 定址的資料，餵不餵由應用程式決定</button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>@mcp.prompt</code>：包成帶參數的話術範本</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把完整菜單寫進 <code>search_menu</code> 的 docstring，說明書裡就看得到</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>三者的分工就是答案：tool 是模型主動呼叫、resource 是應用程式決定要不要餵、prompt 是使用者挑選——「給 AI 讀的資料、由應用決定餵不餵」正是 resource 的定義，URI 裡放 <code>{name}</code> 還能升級成 template（<code>menu://item/{name}</code>）。A 能動，但把資料做成動作，主導權從應用移到模型，模型沒想到呼叫就沒有菜單；C 是給使用者一鍵套用的範本，不是資料通道；D 會污染工具說明書——docstring 是給模型看的使用說明，菜單一改還得改程式碼。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你想試「一發 POST 呼叫工具」，發出下面的請求卻拿到 400。最可能的原因是？</h3>
+      <div class="codeblock">r = httpx.post("http://127.0.0.1:8765/mcp",
+    json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+          "params": {"name": "add", "arguments": {"a": 40, "b": 2}, "_meta": meta}},
+    headers={"Accept": "application/json, text/event-stream"})
+# → 400  "Bad Request: Missing session ID"</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 伺服器沒起來，這是連線失敗的訊息</button>
+        <button type="button" class="quiz-opt" data-k="B">B. MCP 本來就不能裸 POST，一定要先用 SDK 握手拿 session id</button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>_meta</code> 信封放錯位置，應該放在 body 頂層而不是 <code>params</code> 裡</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 沒帶 <code>MCP-Protocol-Version</code>／<code>mcp-method</code> header 宣告新協定——伺服器把這發當成舊協定客戶端，而舊協定要先握手拿 session id</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>新舊協定走同一個端點，伺服器靠 header 分流：補上 <code>MCP-Protocol-Version: 2026-07-28</code> 與 <code>mcp-method</code>／<code>mcp-name</code>，同一個 body 立刻 200 拿到 42；不宣告就被當舊協定客戶端，而舊協定的規矩是先 <code>initialize</code> 握手拿 <code>mcp-session-id</code>——所以才回 Missing session ID。A 不對：400 是伺服器親口回的 HTTP 狀態，連不上根本不會有回應；B 正好說反——無握手一發就中正是新協定的賣點；C 位置沒錯，<code>params._meta</code> 就是規格寫的位置。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你要在 4.0 無狀態協定上做購物車：同一位顧客分多次呼叫加品項、中途可能換連線，而且不同顧客不能看到彼此的購物車。應該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 裝上 <code>SessionProvider()</code>，工具宣告 <code>session_id: SessionId</code>——狀態綁在 <code>create_session()</code> 發的鑰匙上，呼叫端每次帶著</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 在伺服器開一個全域 list 存購物車，工具直接讀寫它</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 改用 <code>mode="legacy"</code> 舊協定，讓 session 綁在連線上——連線在，購物車就在</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 工具宣告 <code>session: UserSession</code>，讓 FastMCP 自動注入使用者的狀態</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>4.0 的口訣是「stateless transport, stateful application」——狀態綁在鑰匙上，不綁在連線上。實測：換一條全新連線帶同一把鑰匙，購物車還在；亂猜一把拿到 <code>Invalid or unknown session</code>，顧客之間自然隔離。B 所有顧客共用同一個 list，甲客加的珍奶會出現在乙客的購物車；C 能動但走回頭路——狀態綁死連線與那台副本，換連線就掉，正是 4.0 要擺脫的；D 部分正確，但 <code>UserSession</code> 把狀態綁在「登入的使用者」上，要有認證身分才能用，本課的伺服器沒有登入機制。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/qdrant-basics/">
     <span class="tag">下一課</span>
@@ -289,6 +340,7 @@ claude mcp add --transport http tea http://localhost:8000/mcp</div>
   build();
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

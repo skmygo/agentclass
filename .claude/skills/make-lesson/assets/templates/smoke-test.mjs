@@ -52,16 +52,36 @@ const imgCount = await page.evaluate(
 );
 
 await page.screenshot({ path: "smoke-screenshot.png", fullPage: false });
+
+// 4) 課末測驗在「教學頁」不在 nb 頁——從 nb URL 推回課程頁再驗：
+//    題數 2–5、點第一題任一選項會出現回饋（gate 課用 DOM click() 繞過覆蓋層）
+const lessonUrl = url.replace(/nb\/(index\.html)?$/, "");
+const lp = await page.context().newPage();
+lp.on("console", (msg) => {
+  if (msg.type() === "error") consoleErrors.push(`lesson-page: ${msg.text().slice(0, 300)}`);
+});
+lp.on("pageerror", (err) => consoleErrors.push(`lesson-page pageerror: ${err.message}`));
+await lp.goto(lessonUrl, { waitUntil: "networkidle", timeout: 60_000 });
+const quiz = await lp.evaluate(() => {
+  const count = document.querySelectorAll("#quiz .quiz-q").length;
+  const btn = document.querySelector("#quiz .quiz-q .quiz-opt");
+  if (btn) btn.click();
+  const fb = document.querySelector("#quiz .quiz-q .quiz-fb");
+  const fbShown = !!fb && getComputedStyle(fb).display !== "none";
+  return { count, fbShown };
+});
+const quizOk = quiz.count >= 2 && quiz.count <= 5 && quiz.fbShown;
 await browser.close();
 
 console.log("---- smoke result ----");
 console.log(`ready in           : ${tReady}s`);
 console.log(`figure outputs     : ${imgCount}`);
 console.log(`error text hits    : ${hits.length ? hits.join(" | ") : "none"}`);
+console.log(`quiz               : ${quizOk ? `ok (${quiz.count} 題)` : `BAD (count=${quiz.count}, feedback=${quiz.fbShown})`}`);
 console.log(`console errors     : ${consoleErrors.length}`);
 consoleErrors.slice(0, 5).forEach((e) => console.log(`  · ${e}`));
 
-if (hits.length > 0) {
+if (hits.length > 0 || !quizOk) {
   console.log("RESULT: FAIL");
   process.exit(1);
 }

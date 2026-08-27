@@ -4,7 +4,7 @@
   （需 GPU、套件無 WASM wheel、需真網路後端）。唯一一份 notebook 在 molab 執行，
   本頁沒有內嵌 notebook：右欄是常駐導流面板，左頁照樣完整教學。
   - 【必改】<title>、meta description、hero、各 section、molab 面板的執行說明、課末導覽
-  - 【勿刪】header 品牌連結、下載 LESSON_ID_ext.py、lesson.css / splitter.js 兩個引用、
+  - 【勿刪】header 品牌連結、下載 LESSON_ID_ext.py、lesson.css / quiz.js / splitter.js 三個引用、
     右欄 #molab-panel（版型樣式在共用 lesson.css）
   - 面板步驟裡的「選 GPU Server」與「免費 CPU 環境即可」用 HTML 註解標記包著，
     scaffold 依 --gpu 有無自動二選一，不用手動刪
@@ -96,6 +96,9 @@
   </div>
 </section>
 
+<!-- 課末測驗（固定收尾，必備）：照抄 assets/templates/quiz-section.html 放這裡（endnav 之前）。
+     題數 2–5 依核心概念數、情境題＋錯誤診斷題，規則見 references/site.md「課末測驗」。 -->
+
 <!-- 課末導覽：下一課（同主題內有的話）＋回主題。本課上線後記得回頭把前一課的下一課連結補上 -->
 <div class="endnav">
   <!-- 同主題沒有下一課時，刪掉這顆（NEXT_ID = 下一課的 slug，scaffold 不代換）
@@ -144,6 +147,7 @@
 <script>
 /* ═══ hero 互動：自由發揮（純 JS/SVG，不依賴任何後端）═══ */
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

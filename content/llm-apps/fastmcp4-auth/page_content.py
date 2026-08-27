@@ -187,6 +187,69 @@ Client(url, auth=ClientCredentialsOAuthProvider(client_id=..., client_secret=...
   <p style="font-size:13.5px;color:var(--ink-soft)">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>茶飲店伺服器要加一個 <span class="kbd">refund</span>（退款）工具，只有 admin 能用——而且你不希望模型看到它之後一直試著呼叫。該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 在工具函式開頭用 <code>get_access_token()</code> 檢查 scopes，不夠就 raise</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 整台伺服器掛 <code>middleware=[AuthMiddleware(auth=require_scopes("admin"))]</code></button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>@tool(auth=require_scopes("admin"))</code>——沒權限的人連清單都看不到它</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 在工具裡判斷 <code>client_id == "alice"</code> 才執行</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>元件層的 <code>auth=require_scopes("admin")</code> 讓工具對沒權限的人隱形：<code>list_tools()</code> 裡沒有、硬呼叫只得到 <code>Unknown tool</code>——模型看不到就不會一直撞。A 擋得住執行，但工具還留在清單上，模型會反覆嘗試，而且每個工具都得手寫一段檢查；B 是整台伺服器的門檻，沒 admin 的人連 <code>whoami</code>、<code>remember</code> 都被擋在門外——它適合「全站至少要某個 scope」，不是鎖單一工具；D 把授權寫死在「是誰」上，多一個店長就要改程式——能做什麼該用 scope 表達。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>公司 SSO 簽的 JWT 在另一個內部 app 用得好好的，拿來連你的 MCP 伺服器（<span class="kbd">JWTVerifier(jwks_uri=...)</span>）卻一直被拒。最可能的原因是？</h3>
+      <div class="codeblock">POST /mcp  Authorization: Bearer eyJ…
+HTTP 401
+WWW-Authenticate: Bearer error="invalid_token"</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. JWT 內容是加密的，伺服器沒有私鑰解不開</button>
+        <button type="button" class="quiz-opt" data-k="B">B. audience 不對——那把 token 是發給別的 app 的，<code>aud</code> 不是這台伺服器</button>
+        <button type="button" class="quiz-opt" data-k="C">C. token 已經過期</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 伺服器要連回 SSO 逐一查詢每把 token，網路不通</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>issuer</code>／<code>audience</code> 是兩道必檢：同一家 SSO 發給別的 app 的 token，<code>aud</code> 對不上這台伺服器就是 401——notebook「三種壞 token」的第一種。而且線路上一律只說 <code>invalid_token</code>，真正原因（audience mismatch）只寫進伺服器 log——除錯別盯著 401 猜，去看 log。A：JWT 前兩段只是 base64 編碼、不是加密，驗章用的是公鑰；C 症狀一樣，但跟「在別的 app 還用得好好的」矛盾——沒過期；D：JWT 的重點正是伺服器不用逐 token 連線查詢，<code>jwks_uri</code> 只是去拿公鑰。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你照 notebook 手走授權碼流程，換 token 的 cell 不小心重跑了一次，得到這個錯。code 是剛從 <span class="kbd">/authorize</span> 的 302 撿到的、沒抄錯。最可能的原因是？</h3>
+      <div class="codeblock">POST /token  （code ＋ code_verifier 原文）
+← invalid_grant: authorization code does not exist</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>code_verifier</code> 不對，SHA-256 對不上 <code>code_challenge</code></button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>client_id</code> 沒註冊成功，授權伺服器不認得這個客戶端</button>
+        <button type="button" class="quiz-opt" data-k="C">C. code 超過幾分鐘的有效時間，過期了</button>
+        <button type="button" class="quiz-opt" data-k="D">D. code 是一次性的——第一次換 token 成功時就被銷毀，重跑＝用過的 code 再換一次</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>授權碼用過即銷毀——這是 OAuth 2.1 的一次性保證：就算 code 在跳轉途中被偷看，也只有先用掉的人換得到 token。重跑換 token 的 cell 就是拿用過的 code 再換一次，正是 notebook 反例表的那一列。修法：回 <code>/authorize</code> 重新要一個新 code（連同新的 <code>code_verifier</code>）再換。A 的錯誤訊息不同——verifier 錯會回 <code>incorrect code_verifier</code>；B 在註冊或授權那幾步就會先報錯，走不到換 token；C 症狀相同但時間對不上——code 幾分鐘內有效，剛撿到的不會過期。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>你寫了一個每天凌晨自動執行的報表排程，要呼叫公司的 MCP 伺服器拉資料——凌晨沒有人在鍵盤前按「同意」。客戶端該怎麼認證？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 用 client credentials：<code>ClientCredentialsOAuthProvider(client_id=..., client_secret=..., scopes=[...])</code>，不開瀏覽器</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 用 <code>auth=OAuth()</code>：第一次手動跑通，之後靠自動 refresh 就不需要人了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 手動走一次流程，把拿到的 <code>access_token</code> 存進環境變數給排程帶</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 伺服器改掛 <code>StaticTokenVerifier</code>，發一把長效明文 token 給排程</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>沒有人在鍵盤前的客戶端走 client credentials：拿固定的 client_id／secret 直接向授權伺服器換 token，不開瀏覽器、不跳轉，到期再換一把就好。B 能動一陣子，但整條鏈建立在「第一次有人按同意」上——refresh token 一旦失效（被撤銷、rotation 斷鏈、伺服器重置），凌晨三點沒有人救得了它；C 是定時炸彈，<code>expires_in</code> 一到就開始 401；D 要回頭動伺服器端、token 還是明文——課裡說得直白：<code>StaticTokenVerifier</code> 只適合開發與教學。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/fastmcp4-state/">
     <span class="tag">下一課</span>

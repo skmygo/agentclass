@@ -196,6 +196,78 @@ models = sorted(m.id for m in client.models.list())   # 8 個模型名</div>
   </p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">06 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你手上有一支用官方 <span class="kbd">openai</span> SDK 打 OpenAI API 的程式，現在想改走 LiteLLM gateway 用免費模型。應該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 改裝 litellm 的 Python 套件，把呼叫程式碼重寫一遍</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 建 client 時把 <code>base_url</code> 指到 gateway、<code>api_key</code> 換成 virtual key，其餘一行不動</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 到八家供應商各申請一把 key，在程式裡輪流試哪家沒限流</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把 <code>model</code> 參數改成供應商的 API 網址</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>gateway 的入口長得跟 OpenAI API 一模一樣，官方 SDK 只要兩行設定（<code>base_url</code>、<code>api_key</code>）就切過去。A 能動，但 litellm 套件是另一套用法，沒必要重寫；C 正是 gateway 要幫你消掉的苦工（限流換家它自動做）；D 搞混了——<code>model</code> 永遠是模型名字串，來源選擇是 gateway 的事。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>用 <span class="kbd">nemotron-3.5-lightning</span> 問「1+1 等於幾」，<span class="kbd">max_tokens=20</span>，沒報錯，但拿到這種回應。最可能的原因是？</h3>
+      <div class="codeblock">content = "Here's a thinking process: 1. Analyze User Input…"
+finish_reason = 'length'</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. gateway 把請求分到別的模型了，回應不是 lightning 的</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 教學 key 額度用完，回應被砍掉一半</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 推理型模型先想再答，20 個 token 連思考都裝不下——被切斷的思考被當成 content 吐回</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 模型不會算數學，在瞎掰</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>推理型模型的輸出＝思考＋答案，<code>max_tokens</code> 要裝得下兩者——<code>finish_reason='length'</code> 就是被截斷的鐵證。修法：調大 <code>max_tokens</code>（本系列一律 4096），答案就會出現在 content、思考搬去 <code>reasoning_content</code>。A 看 <code>model</code> 欄位可排除；B 的額度問題會直接回 4xx 錯誤，不會「成功但被砍」；D——給足 token 它答得出 1+1=2。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你用 <span class="kbd">stream=True</span> 接推理型模型：送出後好幾秒完全沒有 chunk 到達，然後文字一口氣湧出。最可能的原因是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 網路不穩，chunk 被中間節點緩衝住了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 模型在思考——思考過程不會串流出來，想完答案才開始逐字吐</button>
+        <button type="button" class="quiz-opt" data-k="C">C. gateway 在排隊等上游額度釋放</button>
+        <button type="button" class="quiz-opt" data-k="D">D. <code>stream=True</code> 沒生效，其實是一次性回傳</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這正是串流階梯圖「前段是平的」的原因：推理型模型的思考不會串流出來。A、C 症狀相似但每次都發生就不是網路或排隊；D 不成立——後面有逐字湧出就是串流在動。做聊天介面時，這段空白就是該顯示「思考中…」的地方。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>你要對 300 筆客訴各做一次摘要。實測序跑 12 筆要 55–90 秒，全部跑完等不下去。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 改用 <code>AsyncOpenAI</code> + <code>asyncio.gather</code> 並發送出，牆鐘時間 ≈ 最慢那一發</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把 300 筆串成一個超長 prompt，一次請模型全部摘要</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 換更大的 <code>nemotron-3-ultra</code>，大模型跑得快</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 多開幾個 Python 行程，每個行程各自序跑一段</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>批次推論的標準解就是並發：12 發同時出去約 15–20 秒，不是 12 倍時間，而且 gateway 的多來源輪替正好吃得下這種併發。B 能執行但有副作用——長輸入容易超限、輸出對不回哪一筆；C 方向相反，550B 只會更慢；D 做得到但等於自己土砲 asyncio 已經給你的東西。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>你想驗證 gateway 真的在 NVIDIA NIM 與 OpenRouter 之間輪替，而不是嘴上說說。應該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 看回應物件的 <code>model</code> 欄位是哪家</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 多問幾次，比較回答的文字風格像不像同一家</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 到兩家供應商的後台各自查用量有沒有增加</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 用 <code>with_raw_response</code> 讀每個回應的 <code>x-litellm-model-api-base</code> header，統計分佈</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>LiteLLM 每個回應都帶 <code>x-litellm-model-api-base</code>，讀出來統計，「隨機輪替」就從黑盒變成一張分佈圖——這正是課裡 12 發並發那格做的事。A 不行：兩個來源掛的是同一個模型名，<code>model</code> 欄位看不出來源；B 不可靠；C 做得到但繞遠路，而且教學 key 的上游後台不在你手上。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/litellm-tools/">
     <span class="tag">下一課</span>
@@ -313,6 +385,7 @@ models = sorted(m.id for m in client.models.list())   # 8 個模型名</div>
   refresh();
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

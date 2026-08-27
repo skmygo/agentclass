@@ -178,3 +178,13 @@ spike：`_spikes/spike_fastmcp_auth.py`、`spike_fastmcp_state.py`、`spike_fast
 - 五堂共用 `data-gate="llm-apps"` 群組：任一堂輸入一次、五堂全通。頁上只放 sha256、
   明碼不進 repo（repo 是公開的，密碼站長自己記）。用法與 hash 算法見 make-lesson skill 的 site.md「課程密碼閘」。
 - **新增含 key 的課程時，新課 index.html 記得照抄已上鎖課的 gate `<script>` 那行**，不然那堂課裸奔。
+
+## 課末情境測驗全系列回填（2026-08-27）
+
+- 十堂課全部補上 `<section id="quiz">`（2–5 題依核心概念數；配比照 make-lesson skill 的
+  site.md「課末測驗」）。互動由新增的共用 `/shared/quiz.js` 驅動、樣式在 lesson.css `.quiz-*`，
+  每課只寫題目標記——**改行為／樣式去改共用檔，不要在課內覆蓋**。
+- 診斷題的錯誤輸出全部取自各課 notebook 實測紀錄（出題時逐課回讀 `<id>_ext.py` 對過），
+  換模型重驗時**測驗題的宣稱也要跟著重驗**（尤其引用具體錯誤訊息、數字範圍的題目）。
+- 冒煙測試已加測驗斷言（題數 2–5、點選出回饋）；gate 上鎖的五堂靠 DOM `click()` 繞過覆蓋層。
+- rag-mcp-agent 順手修：s4 一行「折疊解答」提示文案錯位，移回 s5 換你動手節。

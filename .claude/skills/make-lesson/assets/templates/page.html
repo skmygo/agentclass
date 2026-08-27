@@ -7,7 +7,7 @@
   - 【必改】<title>、meta description、<body data-ready-figures="N">（= notebook 圖表數）、
     hero、各 section、課末導覽
   - 【勿刪】header 品牌連結、下載 .py、單獨開啟實驗場、#nb-status 狀態列、
-    lesson.css / lesson.js / splitter.js 三個引用
+    lesson.css / lesson.js / quiz.js / splitter.js 四個引用
   - 課程語義色與 hero 樣式寫進下方 <style>；章節、互動、教學法完全自由
   - 課程頁不寫平台系統說明（學員需要的操作提示用自然口吻融入文案）
 -->
@@ -105,6 +105,8 @@
   <button class="golab" data-nb="2️⃣">到右邊的實驗區開工</button>
 </section>
 
+<!-- 課末測驗（固定收尾，必備）：照抄 assets/templates/quiz-section.html 放這裡（endnav 之前）。
+     題數 2–5 依核心概念數、情境題＋錯誤診斷題，規則見 references/site.md「課末測驗」。 -->
 
 <!-- 課末導覽：下一課（同主題內有的話）＋回主題。本課上線後記得回頭把前一課的下一課連結補上 -->
 <div class="endnav">
@@ -134,6 +136,7 @@
 /* ═══ hero 互動：自由發揮（純 JS/SVG，不依賴 notebook；共用行為都在 lesson.js）═══ */
 </script>
 <script src="/shared/lesson.js" defer></script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

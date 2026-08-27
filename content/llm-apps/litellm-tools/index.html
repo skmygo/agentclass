@@ -176,6 +176,66 @@ r2 = client.chat.completions.create(model=..., messages=messages, tools=TOOLS)  
   <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">06 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>第一回合模型回了 <span class="kbd">tool_calls</span>，你執行 <span class="kbd">get_weather</span> 拿到 <span class="kbd">{"weather": "晴", "temp_c": 31}</span>。要讓模型寫出最終答案，下一步應該怎麼組 messages？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 直接把 SDK 回傳的 message 物件 append 進 messages，再補一則 tool 訊息</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 開新對話，把結果寫進 user 訊息：「查到台北是晴、31 度，請回答剛才的問題」</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 手組 assistant dict（含原本的 <code>tool_calls</code>）＋一則 <code>role: "tool"</code>、<code>tool_call_id</code> 對上的訊息，接在原對話後再呼叫一次</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 只 append 一則 <code>role: "tool"</code> 訊息就好——結果都在裡面了，assistant 那筆可以省</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>對話紀錄要按順序塞三樣：user 原話、模型的 tool call 回合（手組 dict）、你的 <code>role: "tool"</code> 結果（id 要對上）。A 有副作用——SDK 物件序列化後 <code>content</code> 是 <code>null</code>、欄位齊全度依供應商而異，有的相容層會 400，手組最可攜；B 能動，但丟掉了 tool 協定——多工具、多回合時對不回哪次呼叫，迴圈就寫不下去；D 少了 assistant 的 <code>tool_calls</code> 回合，tool 訊息的 <code>tool_call_id</code> 沒有對象，整段紀錄不成立。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>用同一段程式、同一份 <span class="kbd">TOOLS</span> 掃遍所有模型，某家的結果是 ⚠️：沒報錯、<span class="kbd">tool_calls</span> 是空的，content 直接是一段編出來的天氣描述。最可能的原因是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>max_tokens</code> 太小，tool call 被截斷了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 教學 key 在這家的額度用完了，gateway 退回純文字模式</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 工具說明書的 JSON Schema 寫錯，模型看不懂</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 這個模型不支援（或忽略了）<code>tools</code> 參數，把問題當一般聊天回答</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>掃描的三種結果裡最陰險的就是 ⚠️：不報錯、也不呼叫工具，直接瞎掰天氣——「沒報錯」不等於「支援」，這正是 pipeline 依賴某個能力前要自己掃一遍的理由。A 截斷會留下 <code>finish_reason='length'</code> 的痕跡（上一課踩過）；B 額度問題是直接報 HTTP 錯——實測 deepseek-v4-flash 回 402，是 ❌ 不是 ⚠️；C 用別的模型就能排除——同一份說明書在其他家都正常發出 <code>get_weather</code>。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你用 <span class="kbd">nemotron-3-ultra</span> 配 <span class="kbd">response_format</span> 的 json_schema 模式抽資料。上一發輸出嚴格照 schema，這一發卻拿到這樣的結果。最可能的原因是？</h3>
+      <div class="codeblock">content = "| 欄位 | 值 |\n|---|---|\n| 姓名 | 小明 |…"   # 一張 markdown 表格
+json.loads(content)  → json.JSONDecodeError</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 模型名背後有多個上游，這發落到不認得 <code>response_format</code> 的家——<code>drop_params</code> 把參數悄悄拿掉，不報錯但毫無約束</button>
+        <button type="button" class="quiz-opt" data-k="B">B. schema 的 <code>strict: True</code> 寫錯位置，約束沒生效</button>
+        <button type="button" class="quiz-opt" data-k="C">C. prompt 沒明確要求 JSON，要在訊息裡再寫一次「請輸出 JSON」</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 這家供應商當下負載太高，自動退化成純文字模式</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>nemotron-3-ultra</code> 背後三個上游，遵不遵守 schema 取決於這發落到哪家；不支援的那家經 <code>drop_params</code> 把 <code>response_format</code> 悄悄拿掉——呼叫不報錯、實則毫無約束。修法：驗收改成逐欄驗證型別（notebook 的 <code>validate()</code>），或改用實測來源都遵守的模型（lightning 兩個來源實測都遵守，但別當保證）。B 若是寫法錯，每一發都會壞，不會這發好、下發壞；C 治標不治本——沒有 schema 約束時模型愛怎麼包就怎麼包；D——供應商不會因為忙就丟掉你的參數，會丟參數的是 <code>drop_params</code>。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>你要做「使用者上傳圖片，模型描述內容」的功能，走這個 gateway。應該怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 用本系列預設的 <code>nemotron-3.5-lightning</code>——前面每一節它都通過了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>content</code> 寫成文字塊＋圖片塊的陣列，模型指名實測看得懂圖的那家（<code>gemini-3.5-flash</code>）</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 把圖片的 base64 字串直接貼進一般文字 prompt，請模型自行解碼</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 丟給多來源的 <code>nemotron-3-ultra</code>——來源多，總會輪到一家看得懂圖的</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>多模態訊息＝<code>content</code> 從字串變成陣列（文字塊＋圖片塊），而且模型要指名：用「白底紅圓」這種已知答案實測，整排掃下來只有 <code>gemini-3.5-flash</code> 答對。A 不行——本系列預設的 lightning 不吃圖，丟過去不是 400 就是 404；C 是誤解——文字通道進去的 base64 對模型只是一串亂碼，它沒有把字串還原成影像的能力；D 正是本課點名的陷阱：gateway 的輪替不看能力，會輪到不吃圖的家。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/fastmcp4/">
     <span class="tag">下一課</span>
@@ -257,6 +317,7 @@ r2 = client.chat.completions.create(model=..., messages=messages, tools=TOOLS)  
   render();
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

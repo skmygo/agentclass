@@ -162,6 +162,79 @@ hits = qdrant.query_points("dishes", query=[0.2, 0.7, 0.9], limit=3).points   # 
   <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">05 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你用 <span class="kbd">QdrantClient(":memory:")</span> 把菜單搜尋的雛形做完了，現在要上正式環境，Qdrant 伺服器已經用 Docker 起好。程式該怎麼改？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把查詢程式改寫成伺服器版的 API——記憶體模式只是模擬，介面不一樣</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把 <code>":memory:"</code> 換成 <code>"http://localhost:6333"</code>，其他程式一個字不用改</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 先把記憶體裡的資料匯出成 JSON，逐筆轉成伺服器格式再匯入</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 不用改——<code>":memory:"</code> 在正式環境也能用，把機器記憶體加大就好</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>記憶體模式的賣點就是 API 跟正式伺服器一模一樣——換掉連線字串那一行，建庫、upsert、查詢的程式原封不動重跑一次就上線。A 是誤解，不存在「兩套 API」；C 多此一舉，沒有什麼「伺服器格式」要轉，重跑 upsert 就是匯入；D 有致命副作用：記憶體模式的資料活在 Python 行程裡，行程一結束就消失，只適合學習、測試、demo。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q2 <span class="qtype">情境題</span></p>
+      <h3>使用者要「酸酸辣辣的<b>飲料</b>」。八道菜已經存在 <span class="kbd">dishes</span> collection，payload 裡有 <span class="kbd">kind</span> 欄位。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 查詢時多撈一點（<code>limit=10</code>），拿回來後自己把不是 drink 的丟掉</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 先把所有 <code>kind == "drink"</code> 的點撈出來，自己用 numpy 算 cosine 排序</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 飲料和食物分成兩個 collection，要查哪類就查哪個庫</button>
+        <button type="button" class="quiz-opt" data-k="D">D. <code>query_points</code> 時同時給 <code>query_filter</code>（<code>must</code> 裡放 <code>kind == "drink"</code> 的條件）——向量管口味、過濾管類別</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>向量負責「像不像」、payload 過濾負責「是不是」，而且 Qdrant 是先篩再排——在飲料子集合裡找最接近酸辣的。實測第一名是檸檬紅茶 0.60：沒有飲料真的辣，分數不高，但確實是子集合裡最近的。A 正是「先排再篩」的陷阱：酸辣的前三名（0.995／0.982／0.898）全是食物，撈回來一過濾可能一筆不剩；B 做得到，但把向量資料庫的本職（算距離、排序）搬回自己手上，資料一多就慢；C 能動但有副作用——類別一多 collection 就爆增，跨類別查詢還得自己合併。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你把 collection 改用 <span class="kbd">Distance.EUCLID</span> 重建，同樣查「酸辣」。Cosine 時酸辣粉是 0.995，現在只剩 0.141——資料壞了嗎？</h3>
+      <div class="codeblock">query = [0.2, 0.7, 0.9]
+酸辣粉 (0.141) → 泰式酸辣湯 (0.224) → 麻辣鍋 (0.512)</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 沒壞：Euclid 的 score 是「距離」，越小越近，0.141 正代表最近——排序跟 Cosine 一致</button>
+        <button type="button" class="quiz-opt" data-k="B">B. upsert 時向量存壞了，重新 upsert 一次就會恢復</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 查詢向量忘了正規化成長度 1，分數被壓低了</button>
+        <button type="button" class="quiz-opt" data-k="D">D. Euclid 的分數要自己換算成 0–1 才能跟 Cosine 比，0.141 換算後就是 0.99</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>建 collection 時選的 <code>distance</code> 決定 score 的意義：Cosine 是相似度（1 ＝ 同方向）、Euclid 是直線距離（0 ＝ 同一點、<b>越小越近</b>）。排序一致、數字方向相反，完全正常。B 症狀不符——向量存壞的話排序也會亂，這裡前三名跟 Cosine 一模一樣；C 想到別的度量去了——正規化是 Dot 的事（向量都正規化成長度 1 時 Dot ＝ Cosine），解釋不了這個數字；D 沒有這種換算，把不同度量的分數拿來互比本身就是誤用。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你的 <span class="kbd">dishes_real</span> 是用 <span class="kbd">qwen3-embedding-0.6b</span>（1024 維）建的。改用 <span class="kbd">nemotron-3-embed-1b</span> 算查詢向量，一查就炸。最可能的原因與正確修法是？</h3>
+      <div class="codeblock">ValueError: shapes (8,1024) and (2048,) not aligned</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 記憶體模式不支援 2048 維的大向量——連正式伺服器就不會炸</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 查詢向量截掉後半、留前 1024 維，維度就對上了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 新模型回 2048 維、collection 是 1024 維；要換 embedding 模型，就得用新模型把整個 collection 重建，查詢也全走新模型</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 維度不合沒錯——換一個同樣輸出 1024 維的模型來算查詢向量，就能繼續用舊的 collection</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>維度對不上只是最先炸出來的症狀（正式伺服器一樣擋，回 400 <code>Wrong input: Vector dimension error</code>）。根本原因是：<b>索引用哪個模型，查詢就必須用同一個模型</b>——不同模型的座標軸意義完全不同。B 截斷後查得動，但距離毫無意義；D 是最危險的陷阱：就算維度剛好相同，兩個模型的向量空間也對不起來，查出來的「最近鄰」等於亂數；A 方向錯了，這不是記憶體模式的限制。換模型的正確代價，就是整個 collection 用新模型重新 embedding 重建。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>你把真 embedding 的菜單搜尋接進客服機器人，想設一個 score 門檻把「不相關」的結果擋掉。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 設 0.9——Cosine 滿分是 1.0，低於 0.9 就當不相關</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 拿自己的資料實測：分別看「相關」與「不相關」查詢的分數分佈，把門檻定在兩群之間</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 不設門檻，永遠取 top-3——排序對了就好</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 改用 Euclid 距離，用「距離」設門檻比「相似度」直覺</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>分數尺度跟資料、模型綁在一起：本課實測「相關」約 0.5–0.8、「不相關」也有 0.3–0.5，門檻只能從自己的分數分佈量出來。A 會把所有結果全部擋掉——實測最高分也才 0.78；C 能動但有副作用：庫裡根本沒有相關內容時，top-3 照樣把不相關的端出來（「飯後甜點」的第三名是麻辣鍋 0.61）；D 換度量只是換一把尺，尺度一樣要實測，而且文字 embedding 幾乎都用 Cosine。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/rag-zh/">
     <span class="tag">下一課</span>
@@ -243,6 +316,7 @@ hits = qdrant.query_points("dishes", query=[0.2, 0.7, 0.9], limit=3).points   # 
   render();
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

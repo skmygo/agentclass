@@ -41,6 +41,18 @@ const dlStatus = await page.evaluate(async (f) => {
   return r.status;
 }, EXT_FILE);
 
+// 4) 課末測驗：題數 2–5、點第一題任一選項會出現回饋
+//    （gate 上鎖的課有覆蓋層——用 DOM click() 繞過命中測試，斷言照常有效）
+const quiz = await page.evaluate(() => {
+  const count = document.querySelectorAll("#quiz .quiz-q").length;
+  const btn = document.querySelector("#quiz .quiz-q .quiz-opt");
+  if (btn) btn.click();
+  const fb = document.querySelector("#quiz .quiz-q .quiz-fb");
+  const fbShown = !!fb && getComputedStyle(fb).display !== "none";
+  return { count, fbShown };
+});
+const quizOk = quiz.count >= 2 && quiz.count <= 5 && quiz.fbShown;
+
 await page.screenshot({ path: "smoke-screenshot.png", fullPage: false });
 await browser.close();
 
@@ -48,10 +60,11 @@ console.log("---- smoke result ----");
 console.log(`page ready in      : ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`molab link         : ${molabOk ? "ok" : `BAD (${molabHref})`}`);
 console.log(`${EXT_FILE} fetch  : ${dlStatus}`);
+console.log(`quiz               : ${quizOk ? `ok (${quiz.count} 題)` : `BAD (count=${quiz.count}, feedback=${quiz.fbShown})`}`);
 console.log(`console errors     : ${consoleErrors.length}`);
 consoleErrors.slice(0, 5).forEach((e) => console.log(`  · ${e}`));
 
-if (!molabOk || dlStatus !== 200 || consoleErrors.length > 0) {
+if (!molabOk || dlStatus !== 200 || !quizOk || consoleErrors.length > 0) {
   console.log("RESULT: FAIL");
   process.exit(1);
 }

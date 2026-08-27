@@ -242,6 +242,68 @@ mcp.add_extension(CallCounter())</div>
   <p style="font-size:13.5px;color:var(--ink-soft)">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">08 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你的 MCP 工具一跑要好幾分鐘（例如影片轉檔）。客戶端呼叫時 HTTP 請求一直開著等，常撞 timeout，使用者也看不到進度。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把客戶端的 timeout 調大到十分鐘，請求繼續開著等</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把工作拆成幾十個小步驟工具，讓客戶端自己一步一步呼叫</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 掛上 <code>TasksExtension()</code>、把工具改成 <code>async def</code> 並標 <code>task=True</code>，用 <code>Progress</code> 依賴回報進度</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 在工具裡自己開 threading 背景執行緒、立刻回「已開始」，再另外寫一個查進度的工具</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這正是 4.0 背景任務要解的問題：伺服器先回任務單（<code>taskId</code>、<code>status: working</code>、<code>pollIntervalMs</code>），客戶端用 <code>tasks/get</code> 輪詢，<code>progress.set_message()</code> 寫的字就出現在 <code>statusMessage</code> 裡。A 只是把爆炸時間延後——中間任何一層（gateway、負載平衡器）都可能先斷線，而且還是沒進度；B 把協定該解的問題轉嫁成客戶端的流程負擔；D 做得到，但等於自己土砲 TasksExtension 已經給你的任務單、輪詢、進度與 <code>mode="required"/"forbidden"</code> 控制。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你給 <span class="kbd">forecast</span> 的 <span class="kbd">city</span> 參數標了 <span class="kbd">x-mcp-header</span>，寫了支腳本連上就直接呼叫，結果被伺服器拒絕。最可能的原因是？</h3>
+      <div class="codeblock">await c.call_tool("forecast", {"city": "taipei"})
+MCPError: Mcp-Param-City header is missing but the request body's 'city' argument is present</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 客戶端沒先 <code>list_tools()</code> 看過 schema，不知道 <code>city</code> 要升成 header——補上再呼叫就過</button>
+        <button type="button" class="quiz-opt" data-k="B">B. header 名 <code>City</code> 大小寫不合規範，schema 裡改成小寫 <code>city</code> 就會過</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 值要先包成 <code>=?base64?…?=</code> 才能放進 header，<code>"taipei"</code> 沒編碼所以被拒</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 改用 <code>mode="legacy"</code> 連線，這個錯就不會再出現</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>header 只是路由提示，body 才是真相，伺服器會嚴格核對兩者一致——而客戶端要先看過 schema（<code>list_tools()</code>）才知道哪些參數要升成 header，沒看過就直接呼叫，header 就缺了。B 無關：HTTP header 名不分大小寫；C 搞反了——只有非 ASCII 值（例如「台北」）才需要編碼，而且是客戶端自動包的；D 能讓錯誤消失，但代價是整個退回舊協定——舊協定完全沒有 <code>Mcp-Param-*</code> header，gateway 分流這個功能也就沒了。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你維護一台公開的天氣 MCP 伺服器，工具清單幾乎不變，但成千上萬個客戶端（前面還有一層 gateway）不停打 <span class="kbd">tools/list</span>。要怎麼降低這些重複請求？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 請客戶端把工具清單寫死在自己程式裡，別再呼叫 <code>list_tools()</code></button>
+        <button type="button" class="quiz-opt" data-k="B">B. 改用舊協定的長連線，連線期間只列一次就好</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 伺服器設 <code>cache_ttl=300, cache_scope="private"</code>，客戶端開 <code>cache=True</code></button>
+        <button type="button" class="quiz-opt" data-k="D">D. 伺服器設 <code>cache_ttl=300, cache_scope="public"</code>，客戶端開 <code>cache=True</code></button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>實測開 <code>cache=True</code> 的客戶端三次 <code>list_tools()</code> 伺服器只收到 1 次；<code>"public"</code> 宣告回應不含個人資料，gateway 與一整群客戶端可以共用同一份快取——正是「成千上萬個客戶端」場景要的。C 只差一個字，但 <code>"private"</code> 表示各自留、gateway 不能代為共用，效果差一大截；A 能動，但 schema 一改全體壞掉，快取提示就是為了取代這種硬寫死；B 方向相反——正因為新協定請求自帶一切、不綁連線，回應才快取得起來。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你的文件伺服器用 <span class="kbd">docs://{ref*}</span> 模板收 git ref。使用者請求合法的 <span class="kbd">HEAD~3..HEAD</span> 卻拿到下面的結果，而你在 handler 裡記的 log 顯示函式根本沒被執行。最可能的原因是？</h3>
+      <div class="codeblock">read_resource("docs://HEAD~3..HEAD")
+🛑 Resource not found　（handler 完全沒被呼叫）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 這個 ref 對應的資源真的不存在，換一個存在的 ref 就會過</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 4.0 預設的路徑安全把含 <code>..</code> 的參數在進 handler 前就擋掉了——用 <code>ResourceSecurity(exempt_params={"ref"})</code> 豁免這個參數</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 把 <code>..</code> 先編碼成 <code>%2e%2e</code> 再請求就會通過</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 設 <code>security=None</code> 整個關掉最省事</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>4.0 預設在 template 參數進 handler 之前就篩掉路徑穿越（<code>../</code>）、絕對路徑與 null byte，被擋的請求對外看起來就像資源不存在——「handler 完全沒被呼叫」正是這一層在動作的鐵證，A 因此可排除（伺服器根本還沒走到查資源那一步）。C 不通：實測 <code>%2e%2e</code> 一樣被擋；D 能解，但整台伺服器所有 template 參數都失去保護，<code>../etc/passwd</code> 也跟著放行——正確做法是用 <code>exempt_params</code> 只豁免確定安全的那一個參數。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/mcp-servers/">
     <span class="tag">下一課</span>
@@ -318,6 +380,7 @@ mcp.add_extension(CallCounter())</div>
   build();
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

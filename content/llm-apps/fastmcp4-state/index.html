@@ -194,6 +194,66 @@ async def book_table(ctx: Context) -> str | InputRequiredResult:
   <p style="font-size:13.5px;color:var(--ink-soft)">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
 </section>
 
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你在做點餐 MCP 服務：使用者的購物車要在幾十次工具呼叫之間一直都在，服務要跑 10 個副本。狀態該放哪？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>ctx.set_state("cart", ...)</code>——工具之間直接共享</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把整個購物車 JSON 放進 <code>request_state</code>，每回合讓客戶端帶來帶去</button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>SessionId</code> 開 session，所有副本共用同一個 store（正式環境 Redis）</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 各副本自己記在記憶體，負載平衡器設 sticky session 把使用者綁在同一台</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「跨很多次呼叫、可能變大」的狀態正是 session 狀態的主場：資料留在伺服器端、客戶端只拿鑰匙，跨副本只要共用 store。A 的請求內狀態活一個請求就沒了——<code>tick</code> 連叫三次每次歸零就是證明；B 能動但副作用大：<code>request_state</code> 每回合都經過客戶端來回、預設 10 分鐘過期，塞大東西正是課裡點名的誤用；D 是土砲——副本一重啟購物車就消失，還把負載綁死在單台。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你想拿 <span class="kbd">ctx.set_state</span> 當計數器，把 <span class="kbd">tick</span> 連叫三次，結果如下。為什麼不是 1、2、3？</h3>
+      <div class="codeblock">[{'n_before': 0, 'n_after': 1}, {'n_before': 0, 'n_after': 1}, {'n_before': 0, 'n_after': 1}]</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 請求內狀態只活一個請求，請求結束就沒了——這是設計，不是 bug</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 少掛了 <code>SessionProvider()</code>，掛上去 <code>set_state</code> 就會記住</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 沒設 <code>session_state_store</code>，狀態沒有地方可以存</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 三次呼叫太快，狀態還沒寫完就被下一次讀走（race condition）</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>ctx.set_state</code>／<code>get_state</code> 是給<b>同一個請求內</b>的 middleware 與工具互傳值用的，每個請求從零開始正是無狀態協定的本色。B、C 講的是另一種記憶：<code>SessionProvider</code> 與 store 服務的是 <code>SessionId</code> 那條路，掛了也不會讓 <code>ctx.set_state</code> 跨請求。D 方向錯——三次呼叫是循序 await，沒有並發。真的要計數就開 session，把 n 存進 store。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>多回合訂位工具在本機測試一切正常；上線跑兩個副本後，使用者常常訂到一半就收到這個錯。最可能的原因是？</h3>
+      <div class="codeblock">🛑 -32602 Invalid or expired requestState</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>ttl</code> 太短，使用者回答太慢、token 過期了——調大 <code>ttl</code> 就好</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 預設金鑰是每個 process 啟動時隨機產生的：第 2 回合落到另一台副本就解不開——所有副本要共用同一把 <code>keys</code></button>
+        <button type="button" class="quiz-opt" data-k="C">C. 副本之間沒共用 session store，換成 Redis 就好</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 對話超過 <code>input_required_max_rounds=10</code> 的回合上限，被防呆擋下</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這是課裡點名的部署陷阱：預設金鑰每個 process 啟動時隨機產生，單機測不出來、一上多副本就中——攻擊實驗 2「拿去另一台伺服器」正是同一件事。修法：<code>RequestStateSecurity(keys=[os.environ["REQUEST_STATE_KEY"]])</code>，所有副本同一把（伺服器重啟也不再作廢進行中的對話）。A 症狀相似，但預設 ttl 有 600 秒，而且過期解釋不了「單機正常、多副本才出事」；C 走的是 session 那條路，錯誤會是 <code>Invalid or unknown session</code>；D 是 SDK 防無限迴圈的上限，兩三回合的訂位差得遠。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>使用者回報收到 <span class="kbd">-32602 Invalid or expired requestState</span>，你想知道到底是過期、金鑰不對還是參數被改。該怎麼查？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把 token 去掉 <code>v1.</code> 前綴、解開 base64，讀裡面的 <code>exp</code> 欄位</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 請使用者把完整錯誤訊息原文貼給你，比對五種失敗各自的說法</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 先把 <code>ttl</code> 調大重新佈署，看還會不會發生</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 查伺服器 log——真正原因只寫在那裡（<code>seal</code>／<code>unknown key</code>／<code>request binding</code>／<code>audience</code>／<code>expired</code>）</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>統一的錯誤訊息是刻意設計——不給攻擊者可以逐步修正的線索，所以線索也不在回應裡：五個攻擊實驗全部拿到同一句。診斷的正道是伺服器 log，五種原因各有記號。A 做不到：解開 base64 之後是 AES-256-GCM 密文，notebook 實測連 <code>people</code>、<code>vip</code> 都找不到，更讀不到 <code>exp</code>；B 白忙——貼一百次都是同一句；C 是瞎槍打鳥，過期只是五種原因之一。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
 <div class="endnav">
   <a href="/fastmcp4-features/">
     <span class="tag">下一課</span>
@@ -272,6 +332,7 @@ async def book_table(ctx: Context) -> str | InputRequiredResult:
   show(CASES[0]);
 })();
 </script>
+<script src="/shared/quiz.js" defer></script>
 <script src="/shared/splitter.js" defer></script>
 </body>
 </html>

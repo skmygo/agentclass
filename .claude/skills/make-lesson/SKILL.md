@@ -68,6 +68,9 @@ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
      與 `page_content.py`（左頁教學＋右欄 molab 面板）。
    - 挑戰題**附折疊解答**（模板已有 `mo.accordion` 格）：LEVEL 1/2 給完整程式碼與預期輸出，
      LEVEL 3 給方向與「怎麼驗證自己做對了」。
+   - 課末出**情境測驗**（2–5 題，依核心概念數，嚴禁硬湊；情境題＋錯誤診斷題的配比與
+     出題原則見 site.md「課末測驗」）：標記照抄 `assets/templates/quiz-section.html` 進 WRAP
+     （「換你動手」之後、endnav 之前），互動由共用 `/shared/quiz.js` 驅動——只寫題目，不寫 JS。
    - 外部軌課的 hero 互動沒有內嵌 Python 可用 → 用**實測紀錄做可重播的互動**（選問題→
      播放 trace／答案），文案註明「內容是 notebook 的實測紀錄」。
 4. **接進網站**（site.md 的 wiring 清單）：主題頁課卡、首頁主題卡的課數、上一課的「下一課」連結。
