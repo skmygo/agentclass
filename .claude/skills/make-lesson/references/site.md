@@ -11,7 +11,7 @@ content/<topic>/index.html        →  /<topic>/      主題頁（課程列表�
 content/<topic>/<lesson-id>/      →  /<lesson-id>/  課程（index.html 教學頁 + notebook .py + smoke-test.mjs + NOTES.md）
                                      /<lesson-id>/nb/   marimo WASM notebook（純瀏覽器課；build.sh 產）
                                      外部軌課無 nb/：notebook 是 <id>_ext.py，在 molab 執行
-content/shared/                   →  /shared/       全站共用（lesson.css/lesson.js/topic.css/splitter.js + WASM assets）
+content/shared/                   →  /shared/       全站共用（lesson.css/lesson.js/topic.css/splitter.js/gate.js + WASM assets）
 ```
 
 - **course id 全站唯一**（網址在根層），scaffold 與 build.sh 都會擋重複。
@@ -36,12 +36,30 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 
 新增一堂課的 wiring 清單（scaffold 印的待辦就是這份）：
 
-1. 課程卡插進主題頁的 `.lessons` **最上面**（越新越上；沒有該主題就先建主題頁、
-   主題卡插首頁最上面）
+1. 課程卡插進主題頁的 `.lessons`，**依課程順序排**（第 1 課在最上；新課通常是
+   最後一課，插在主線最下面；補充系列獨立成區、排在主線之後照系列順序）。
+   首頁的**主題卡**維持越新越上（沒有該主題就先建主題頁、主題卡插首頁最上面）
 2. 課程頁 header：品牌連結（`href="/"`）＋「‹ 回主題」連結（`href="/<topic>/"`）
 3. 課末放導覽區：**下一課**（同主題內有的話）與**回主題**
 4. **回頭補鏈**：新課上線後，同主題的前一課要補「下一課 →」指向新課
 5. 主題卡上的課程數字（`TOPIC · N 門課`）同步更新
+
+## 主題密碼閘（可選）
+
+某些主題可設進入密碼（輕量防路人，**不是安全機制**——repo 公開、純前端、devtools 可繞過，設計如此）。
+實作是 `/shared/gate.js` 的不透明覆蓋層：內容照常載入（notebook 順便暖機、冒煙測試的可見性檢查不受影響），
+輸入一次同主題全部頁面解鎖（localStorage）。
+
+- 上鎖＝該**主題頁＋該主題每一堂課程頁**的 `<head>`（緊接 css link 之後）各加一行：
+
+  ```html
+  <script src="/shared/gate.js" data-gate="<topic-slug>" data-hash="<sha256(密碼) hex>"></script>
+  ```
+
+- hash 這樣算（明碼不進 repo）：`python3 -c "import hashlib;print(hashlib.sha256('密碼'.encode()).hexdigest())"`
+- 這行在 page-fill 的替換區之外，重跑 page-fill 不會弄掉。
+- **在已上鎖主題新增課程時，新課的 index.html 也要加這行**（照抄同主題其他課的即可）；
+  主題有無上鎖看主題頁 `<head>` 有沒有 gate.js。
 
 ## 課程頁必備（工程底線）
 
