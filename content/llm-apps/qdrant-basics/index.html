@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Qdrant：向量資料庫，記憶體裡就能跑 · AI 互動教室</title>
 <meta name="description" content="用 QdrantClient(':memory:') 一行起一個向量資料庫：collection／point／payload、最近鄰查詢、過濾、三種距離度量，最後換成 LiteLLM 的真 embedding 用自然語言查菜單。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Qdrant：向量資料庫，記憶體裡就能跑 · AI 互動教室">
+<meta property="og:description" content="用 QdrantClient(':memory:') 一行起一個向量資料庫：collection／point／payload、最近鄰查詢、過濾、三種距離度量，最後換成 LiteLLM 的真 embedding 用自然語言查菜單。">
+<meta property="og:url" content="https://agentclass.pages.dev/qdrant-basics/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <script src="/shared/gate.js" data-gate="llm-apps" data-hash="61c65913b395f577b7b88053fbb804c43153e49961dcf6d5e5f9293cb8e50960"></script>
 <style>
@@ -39,11 +46,12 @@
 <body>
 
 <header>
-  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
   <a class="topic" href="/llm-apps/">‹ 學 LLM 應用開發</a>
   <div class="spacer"></div>
   <a class="tool dl" href="qdrant-basics_ext.py" download>下載 .py</a>
   <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/qdrant-basics/qdrant-basics_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
 </header>
 
 <main>

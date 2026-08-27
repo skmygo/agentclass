@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FastMCP 4 認證：從一把 token 到完整 OAuth 2.1 · AI 互動教室</title>
 <meta name="description" content="FastMCP 4 的認證與授權：StaticTokenVerifier、get_access_token、require_scopes 讓工具隱形、UserSession、本機簽發 JWT，並在 notebook 裡起一台真的 OAuth 2.1 授權伺服器，用裸 HTTP 走完 discovery → 動態註冊 → PKCE → 換 token 六步。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:title" content="FastMCP 4 認證：從一把 token 到完整 OAuth 2.1 · AI 互動教室">
+<meta property="og:description" content="FastMCP 4 的認證與授權：StaticTokenVerifier、get_access_token、require_scopes 讓工具隱形、UserSession、本機簽發 JWT，並在 notebook 裡起一台真的 OAuth 2.1 授權伺服器，用裸 HTTP 走完 discovery → 動態註冊 → PKCE → 換 token 六步。">
+<meta property="og:url" content="https://agentclass.pages.dev/fastmcp4-auth/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <style>
   /* 語義色：綠＝通過（200／有權限）、紅＝拒絕（401／隱形）、藍＝授權伺服器端點、橘＝客戶端動作 */
@@ -38,11 +45,12 @@
 <body>
 
 <header>
-  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
   <a class="topic" href="/llm-apps/">‹ 學 LLM 應用開發</a>
   <div class="spacer"></div>
   <a class="tool dl" href="fastmcp4-auth_ext.py" download>下載 .py</a>
   <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-auth/fastmcp4-auth_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
 </header>
 
 <main>

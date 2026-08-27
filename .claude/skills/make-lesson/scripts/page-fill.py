@@ -59,6 +59,16 @@ def fill(lesson_dir: Path) -> None:
         (r"<style>.*?</style>", "<style>\n" + c.STYLE.strip("\n") + "\n</style>"),
         (r'<div class="wrap">.*?</div><!-- /wrap -->', '<div class="wrap">\n' + wrap.strip("\n") + "\n\n</div><!-- /wrap -->"),
     ]
+    # og 三欄跟著 TITLE/DESCRIPTION 同步（骨架有才填；og:url 用課程目錄名＝根層網址）
+    if 'property="og:title"' in t:
+        subs += [
+            (r'<meta property="og:title" content=".*?">',
+             f'<meta property="og:title" content="{c.TITLE} · AI 互動教室">'),
+            (r'<meta property="og:description" content=".*?">',
+             f'<meta property="og:description" content="{c.DESCRIPTION}">'),
+            (r'<meta property="og:url" content=".*?">',
+             f'<meta property="og:url" content="https://agentclass.pages.dev/{lesson_dir.name}/">'),
+        ]
     if getattr(c, "PANEL_STEPS", None):
         subs.append((r"<ol>.*?</ol>", "<ol>\n" + c.PANEL_STEPS.strip("\n") + "\n      </ol>"))
     if getattr(c, "SCRIPT", None):
@@ -76,7 +86,7 @@ def fill(lesson_dir: Path) -> None:
     if "molab-panel" in t:
         musts += ['id="molab-panel"', "molab.marimo.io"]
     else:
-        musts += ["lesson.js", "nb-status", "data-ready-figures"]
+        musts += ["lesson.js", "nb-status", "data-ready-"]  # figures（預設）或 selector（無圖課）擇一即可
     for must in musts:
         if must not in t:
             sys.exit(f"✗ 填完後骨架缺 {must}——page_content.py 的 WRAP/STYLE 可能吃掉了不該動的東西")

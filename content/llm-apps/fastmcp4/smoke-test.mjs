@@ -14,8 +14,12 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 
 const consoleErrors = [];
+// analytics beacon 從本機 origin 打 RUM 會被 CORS 擋——環境噪音，不是課程缺陷（正式網域不會發生）
+const isBeaconNoise = (msg) =>
+  /cloudflareinsights/.test(msg.text() + (((msg.location() || {}).url) || ""));
 page.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 300));
+  if (msg.type() !== "error" || isBeaconNoise(msg)) return;
+  consoleErrors.push(msg.text().slice(0, 300));
 });
 page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 

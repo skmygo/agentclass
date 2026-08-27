@@ -7,6 +7,25 @@ description: 讀取參考資料（notebook、文章、教材、資料集、網�
 
 把一份參考資料變成一堂可上線的互動課。你負責教學創作，本 skill 只固定**工程管線與網站結構**；教學法、章節安排、互動設計、文案語氣、視覺發揮完全自由。
 
+## 總綱：不變量 vs 預設值（條文效力，衝突時以本節為準）
+
+本 skill 與 references 的條文分兩種效力：
+
+**不變量（MUST，不可偏離）——只有三類：**
+
+1. **誠實原則**：教學與程式一致、數字來自真實執行、非決定性輸出寫範圍不寫點估計、
+   行為宣稱標環境（模型名＋日期）、測驗的錯誤輸出不杜撰、課程頁不寫平台系統說明。
+2. **工程與網站契約**：平台繞不過的牆（Pyodide／marimo／Pages 限制）、共用骨架的接點
+   （emoji 錨點、`data-ready-*`、page-fill 骨架、build 防呆）、驗證流程、
+   **quiz（照抄共用格式）＋ endnav 固定殿後**——全站統一的驗收與導覽是網站契約。
+3. **自學者保障**：挑戰必附解答或自我驗證方式、無 GPU／無 key 優雅降級、
+   學員帶得走（.py 下載）。
+
+**預設值（可偏離）——形式與節奏：**三級挑戰、hero 開場互動的形態、章節結構、語氣、
+教學手法。模板與 references 給的是**經過實測的起點，不是天花板**——你認為有更好的
+教學設計時就用你的。偏離的驗收條件只有兩個：
+`openspec/specs/interactive-lesson/spec.md` 全部 requirement 仍滿足、該課冒煙測試過。
+
 ## 兩份必讀 reference
 
 - `references/engineering.md` — 工程底線：定軌 spike、marimo/Pyodide 管線、WASM 限制與踩坑、外部軌（molab）機制、驗證、部署。**動手寫 notebook 之前先讀完**，坑都是實測踩出來的。
@@ -51,11 +70,14 @@ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
 它只替換 title／meta／`<style>`／`.wrap` 內容／面板步驟／hero script，骨架不動、可重跑、
 會自檢骨架契約。**page_content.py 是頁面內容的正本**（不部署）：模型換了、數字變了，
 改常數重跑；小修直接 Edit index.html 也行，但記得同步回 page_content.py。
-純瀏覽器課另有 `<body data-ready-figures="N">`（N＝notebook 圖表數，至少 1）。
+純瀏覽器課另有就緒訊號宣告：預設 `<body data-ready-figures="N">`（N＝notebook 圖表數）；
+無圖課改宣告 `data-ready-selector="<css>"`（notebook 全部跑完會出現的元素，
+該課 smoke-test 的 `READY_SELECTOR` 常數設同一訊號）。
 
 ## 流程
 
-1. **消化參考資料**：提煉這堂課要教會學員的事、找出最有戲劇性的「aha 時刻」當課程主軸。
+1. **消化參考資料**：提煉這堂課要教會學員的事（實測好用的起點：找出最有戲劇性的
+   「aha 時刻」當課程主軸——但主軸怎麼定是你的教學判斷）。
    參考資料含內網或私人資訊時放 `ref_data/`（已 gitignore，repo 是公開的）。
 2. **先寫程式，實測定軌**：spike 腳本跑通核心程式——左頁之後引用的每個數字與方向性宣稱
    都在這步驗證（量化宣稱寫反比少一個互動更傷）；`pyodide-spike.mjs <套件...>` 實測，
@@ -66,13 +88,15 @@ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
    - 純瀏覽器課：寫 `lesson.py` 與 `page_content.py`。
    - 外部軌課：寫 `<id>_ext.py`（唯一的程式版本——解說寫好寫滿，學員只帶這份檔案也能學完）
      與 `page_content.py`（左頁教學＋右欄 molab 面板）。
-   - 挑戰題**附折疊解答**（模板已有 `mo.accordion` 格）：LEVEL 1/2 給完整程式碼與預期輸出，
-     LEVEL 3 給方向與「怎麼驗證自己做對了」。
+   - 挑戰題**必附折疊解答或自我驗證方式**（不變量；模板已有 `mo.accordion` 格）。
+     預設形式是三級挑戰：LEVEL 1/2 給完整程式碼與預期輸出、LEVEL 3 給方向與
+     「怎麼驗證自己做對了」——形式可換（專案式、覆盤式…），「必附解答」不可省。
    - 課末出**情境測驗**（2–5 題，依核心概念數，嚴禁硬湊；情境題＋錯誤診斷題的配比與
      出題原則見 site.md「課末測驗」）：標記照抄 `assets/templates/quiz-section.html` 進 WRAP
      （「換你動手」之後、endnav 之前），互動由共用 `/shared/quiz.js` 驅動——只寫題目，不寫 JS。
-   - 外部軌課的 hero 互動沒有內嵌 Python 可用 → 用**實測紀錄做可重播的互動**（選問題→
-     播放 trace／答案），文案註明「內容是 notebook 的實測紀錄」。
+   - 外部軌課的 hero 互動沒有內嵌 Python 可用 → 預設手法是**實測紀錄做可重播的互動**
+     （選問題→播放 trace／答案），文案註明「內容是 notebook 的實測紀錄」；
+     形式自由，但示範內容必須真實並註明來源（不變量）。
 4. **接進網站**（site.md 的 wiring 清單）：主題頁課卡、首頁主題卡的課數、上一課的「下一課」連結。
 5. **驗證**（依軌道分流，準則見 engineering.md）：
    - 純瀏覽器課（雙層）：`uv run marimo export html content/<topic>/<id>/lesson.py -o check.html`
@@ -87,7 +111,9 @@ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
    外部軌課記得 **git push**（molab 直讀 GitHub main，不 push 連結是死的），並請使用者在 molab 實跑一次。
 8. **記錄**：新踩的坑寫進該課 `NOTES.md`（一個系列可以共用主題層的 `content/<topic>/NOTES.md`）；
    管線層級的新發現回寫本 skill 的 references 或 scripts（課程會被刪，skill 不會——
-   **知識只有寫回 skill 才留得住**）。
+   **知識只有寫回 skill 才留得住**）。回寫要分流：**工程事實**（會壞掉、繞不過的）
+   寫成鐵律；**教學法發現**（怎麼教更好）只能寫成建議＋標注日期與當時模型——
+   教學品味隨模型演進，別把今天的品味寫成明天的天花板。
 
 ## 換模型／換資料重驗（系列課常見）
 
@@ -104,3 +130,5 @@ agent 的「要不要用工具」判斷是否還成立——這些都是實測�
 3. **驗證過才上線**：純瀏覽器課 WASM 冒煙沒過不部署；外部軌課 sandbox 全跑＋頁面冒煙沒過不部署。
 4. **課程頁不寫平台系統說明**（哪些算、哪些不算見 site.md）。
 5. **寫進 repo 的才算存在**：spike 腳本、page_content.py、NOTES——對話裡的東西會消失。
+
+（不變量的完整清單見開頭「總綱」；總綱未列為不變量的條文，一律視為可偏離的預設值。）

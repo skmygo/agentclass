@@ -20,6 +20,11 @@
   };
 
   const show = () => {
+    // 密碼牆同時是櫥窗：露出課名與課程簡介（來自本頁 title / meta description），
+    // 分享連結被擋下的人至少知道這門課在教什麼
+    const courseTitle = (document.title || "").replace(/\s*·\s*AI 互動教室\s*$/, "");
+    const courseDesc =
+      (document.querySelector('meta[name="description"]') || {}).content || "";
     const ov = document.createElement("div");
     ov.id = "gate-overlay";
     ov.style.cssText =
@@ -28,10 +33,12 @@
       'font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;color:#1C2B33;';
     ov.innerHTML =
       '<form style="background:#fff;border:2px solid #1C2B33;border-radius:14px;box-shadow:6px 6px 0 #E4E9E2;' +
-      'padding:30px 34px;max-width:340px;width:calc(100% - 48px);text-align:center;">' +
+      'padding:30px 34px;max-width:380px;width:calc(100% - 48px);text-align:center;">' +
       '<div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;' +
       'letter-spacing:.14em;color:#C44E52;">PRIVATE</div>' +
-      '<div style="font-size:19px;font-weight:900;margin:10px 0 18px;">這門課需要密碼</div>' +
+      '<div class="gate-title" style="font-size:19px;font-weight:900;margin:10px 0 6px;">這門課需要密碼</div>' +
+      '<div class="gate-desc" style="font-size:13px;color:#5A6B73;line-height:1.7;text-align:left;margin:0 0 14px;"></div>' +
+      '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">輸入密碼進入</div>' +
       '<input type="password" autocomplete="off" aria-label="密碼" style="width:100%;box-sizing:border-box;' +
       'font-size:18px;text-align:center;letter-spacing:.3em;padding:10px 12px;border:2px solid #1C2B33;' +
       'border-radius:10px;outline-offset:2px;">' +
@@ -39,6 +46,10 @@
       '<button type="submit" style="font-size:15px;font-weight:800;padding:9px 26px;margin-top:4px;' +
       'background:#1C2B33;color:#fff;border:0;border-radius:10px;cursor:pointer;">進入</button>' +
       "</form>";
+    if (courseTitle) ov.querySelector(".gate-title").textContent = courseTitle;
+    const descEl = ov.querySelector(".gate-desc");
+    if (courseDesc) descEl.textContent = courseDesc;
+    else descEl.remove();
     document.body.appendChild(ov);
     const prevOverflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";

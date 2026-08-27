@@ -88,7 +88,8 @@ else
   sed "s/課程標題/$TITLE/g" "$TPL/smoke-test.mjs" > "$DEST/smoke-test.mjs"
   subst_page "$TPL/page.html" > "$DEST/index.html"
 
-  for must in "</head>" "lesson.css" "lesson.js" "splitter.js" "nb-status" "data-ready-figures"; do
+  # data-ready- 前綴：figures（預設）或 selector（無圖課）擇一即可
+  for must in "</head>" "lesson.css" "lesson.js" "splitter.js" "nb-status" "data-ready-"; do
     grep -qF "$must" "$DEST/index.html" || {
       echo "✗ 教學頁生成不完整（缺 $must）" >&2; exit 1; }
   done

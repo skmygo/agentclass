@@ -6,6 +6,8 @@ import { chromium } from "playwright";
 
 const H1_TEXT = "課程標題（實驗場）"; // 【必改】notebook 第一個 md cell 的 h1 文字（可只取片段）
 const MIN_FIGURES = 1;               // 【必改】全部 cell 跑完至少會出現的 img/canvas 數量
+const READY_SELECTOR = "";           // 無圖課用：全部跑完會出現的元素 selector（設了就取代圖表計數；
+                                     // 與課程頁 <body data-ready-selector> 宣告同一訊號）
 
 const url = process.argv[2] ?? "http://127.0.0.1:8787/index.html";
 const TIMEOUT_MS = 240_000;
@@ -15,8 +17,12 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 900, height: 1400 } });
 
 const consoleErrors = [];
+// analytics beacon 從本機 origin 打 RUM 會被 CORS 擋——環境噪音，不是課程缺陷（正式網域不會發生）
+const isBeaconNoise = (msg) =>
+  /cloudflareinsights/.test(msg.text() + (((msg.location() || {}).url) || ""));
 page.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 300));
+  if (msg.type() !== "error" || isBeaconNoise(msg)) return;
+  consoleErrors.push(msg.text().slice(0, 300));
 });
 page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 
@@ -30,13 +36,18 @@ await page.waitForSelector(`h1:has-text("${H1_TEXT}")`, {
 });
 console.log(`markdown rendered at +${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
-// 2) 等 Python cell 真正跑完：matplotlib 圖以 <img>/<canvas> 出現在輸出區
+// 2) 等 Python cell 真正跑完：預設等 matplotlib 圖以 <img>/<canvas> 出現在輸出區；
+//    無圖課改等 READY_SELECTOR 元素出現（與課程頁 data-ready-selector 同一訊號）
 //    （waitForFunction 的 options 是第三參數——放錯位置逾時會默默變 30s）
-await page.waitForFunction(
-  (min) => document.querySelectorAll("img, canvas").length >= min,
-  MIN_FIGURES,
-  { timeout: TIMEOUT_MS },
-);
+if (READY_SELECTOR) {
+  await page.waitForSelector(READY_SELECTOR, { timeout: TIMEOUT_MS, state: "attached" });
+} else {
+  await page.waitForFunction(
+    (min) => document.querySelectorAll("img, canvas").length >= min,
+    MIN_FIGURES,
+    { timeout: TIMEOUT_MS },
+  );
+}
 const tReady = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`figures rendered at +${tReady}s`);
 
@@ -58,7 +69,8 @@ await page.screenshot({ path: "smoke-screenshot.png", fullPage: false });
 const lessonUrl = url.replace(/nb\/(index\.html)?$/, "");
 const lp = await page.context().newPage();
 lp.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(`lesson-page: ${msg.text().slice(0, 300)}`);
+  if (msg.type() !== "error" || isBeaconNoise(msg)) return;
+  consoleErrors.push(`lesson-page: ${msg.text().slice(0, 300)}`);
 });
 lp.on("pageerror", (err) => consoleErrors.push(`lesson-page pageerror: ${err.message}`));
 await lp.goto(lessonUrl, { waitUntil: "networkidle", timeout: 60_000 });

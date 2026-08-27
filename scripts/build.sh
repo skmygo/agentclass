@@ -19,6 +19,11 @@ DIST="$ROOT/dist"
 PAGES_FILE_LIMIT=20000     # Pages 免費版單次 deployment 檔案數上限
 PAGES_MAX_FILE_MIB=25      # Pages 單檔大小上限
 
+BASE_URL="https://agentclass.pages.dev"   # sitemap / og:url 的正準網址（custom domain class.itsmygo.uk 亦可達）
+ANALYTICS_TOKEN="11cad570f5524f4eae0e02816497b0f9"   # Cloudflare Web Analytics beacon token；留空＝不注入
+                           # （dashboard → Analytics & Logs → Web Analytics → Add a site 取得；
+                           #   token 本來就會公開出現在頁面 HTML，不是秘密）
+
 rm -rf "$DIST"
 mkdir -p "$DIST"
 
@@ -46,6 +51,9 @@ share_assets() {
   fi
 }
 
+LESSON_IDS=()   # 供 sitemap 使用（兩種課的 id 都收）
+TOPIC_SLUGS=()
+
 # ── 外部軌課：唯一一份 notebook 在 molab 執行，這裡只放教學頁與 .py 原檔
 #   （放在瀏覽器課迴圈之前，「一課兩版」的防呆才會先攔到、訊息才準確）
 for ext_py in "$ROOT"/content/*/*/*_ext.py; do
@@ -68,6 +76,7 @@ for ext_py in "$ROOT"/content/*/*/*_ext.py; do
   mkdir -p "$DIST/$id"
   cp "$dir/index.html" "$DIST/$id/index.html"
   cp "$ext_py" "$DIST/$id/"
+  LESSON_IDS+=("$id")
 done
 
 # ── 純瀏覽器課：自動發現並編譯（全部課共用 repo 根的 uv 專案／venv）
@@ -88,6 +97,7 @@ for lesson_py in "$ROOT"/content/*/*/lesson.py; do
   cp "$dir/lesson.py" "$DIST/$id/lesson.py"
   # 舊雙軌課遺留：<id>_gpu.py 一併放上（頁面的下載連結用）；新課不再產生這種檔
   [ -f "$dir/${id}_gpu.py" ] && cp "$dir/${id}_gpu.py" "$DIST/$id/"
+  LESSON_IDS+=("$id")
 done
 
 # ── 首頁、主題頁、shared/（骨架 CSS/JS 併進已含 WASM assets 的 /shared/）
@@ -99,6 +109,7 @@ for topic_index in "$ROOT"/content/*/index.html; do
   [ "$topic" = "shared" ] && continue
   mkdir -p "$DIST/$topic"
   cp "$topic_index" "$DIST/$topic/index.html"
+  TOPIC_SLUGS+=("$topic")
 done
 
 # 根目錄放 404.html 會關掉 Pages 的 SPA fallback（缺檔回 index.html + 200），
@@ -109,6 +120,37 @@ cat > "$DIST/404.html" <<'EOF'
 <title>404 - AI 互動教室</title>
 <p>找不到這個頁面。<a href="/">回首頁</a></p>
 EOF
+
+# ── sitemap.xml / robots.txt（搜尋引擎需要知道全站有哪些頁）
+today=$(date +%Y-%m-%d)
+{
+  echo '<?xml version="1.0" encoding="UTF-8"?>'
+  echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+  echo "  <url><loc>$BASE_URL/</loc><lastmod>$today</lastmod></url>"
+  for t in "${TOPIC_SLUGS[@]}"; do
+    echo "  <url><loc>$BASE_URL/$t/</loc><lastmod>$today</lastmod></url>"
+  done
+  for l in "${LESSON_IDS[@]}"; do
+    echo "  <url><loc>$BASE_URL/$l/</loc><lastmod>$today</lastmod></url>"
+  done
+  echo '</urlset>'
+} > "$DIST/sitemap.xml"
+cat > "$DIST/robots.txt" <<EOF
+User-agent: *
+Allow: /
+Sitemap: $BASE_URL/sitemap.xml
+EOF
+
+# ── Cloudflare Web Analytics（免 cookie）：token 有填才注入。
+#    只注入「頁面」（首頁／主題頁／課程頁），不注入 nb/ 的 notebook iframe——
+#    每次開課 iframe 都會載入，注入會重複計數。
+if [ -n "$ANALYTICS_TOKEN" ]; then
+  beacon="<script type=\"module\" src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{\"token\": \"$ANALYTICS_TOKEN\"}'></script>"
+  for page in "$DIST/index.html" "$DIST"/*/index.html; do
+    sed -i "s|</body>|$beacon\n</body>|" "$page"
+  done
+  echo "   analytics beacon 已注入全部頁面"
+fi
 
 # ── 部署前檢核：撞到 Pages 上限的話，先在這裡失敗比部署到一半失敗好 debug
 files=$(find "$DIST" -type f | wc -l)

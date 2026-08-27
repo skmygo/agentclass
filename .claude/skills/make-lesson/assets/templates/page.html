@@ -4,7 +4,8 @@
   /shared/lesson.css 與 /shared/lesson.js（全站一份），本檔只剩「內容」。
   scaffold 會代換 placeholder 並複製到 content/<topic>/<id>/index.html。
   （Pyodide 跑不了的課用 page_ext.html——外部軌課，本模板不適用）
-  - 【必改】<title>、meta description、<body data-ready-figures="N">（= notebook 圖表數）、
+  - 【必改】<title>、meta description、<body data-ready-figures="N">（= notebook 圖表數；
+    無圖課改 data-ready-selector="<css>"）、
     hero、各 section、課末導覽
   - 【勿刪】header 品牌連結、下載 .py、單獨開啟實驗場、#nb-status 狀態列、
     lesson.css / lesson.js / quiz.js / splitter.js 四個引用
@@ -17,6 +18,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>課程標題 · AI 互動教室</title>
 <meta name="description" content="一句話課程簡介（搜尋結果與分享預覽會用到）">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="課程標題 · AI 互動教室">
+<meta property="og:description" content="一句話課程簡介（搜尋結果與分享預覽會用到）">
+<meta property="og:url" content="https://agentclass.pages.dev/LESSON_ID/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <style>
   /* 課程語義色（一個概念一個顏色，左頁與 notebook 圖表共用）——自由改；
@@ -26,14 +35,16 @@
   /* hero 互動玩具的專屬樣式寫這裡 */
 </style>
 </head>
-<body data-ready-figures="1"><!-- 【必改】notebook 全部跑完會渲染出的 img/canvas 數量 -->
+<body data-ready-figures="1"><!-- 【必改】notebook 全部跑完會渲染出的 img/canvas 數量；
+  無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設） -->
 
 <header>
-  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室 · 機器學習</a>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
   <a class="topic" href="/TOPIC_SLUG/">‹ 主題名稱</a>
   <div class="spacer"></div>
   <a class="tool dl" href="lesson.py" download>下載 .py</a>
   <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
 </header>
 
 <main>
@@ -86,6 +97,8 @@
   <p class="note">data-nb 的 emoji 要跟 notebook 對應章節標題裡的 emoji 一致（錨點機制）。</p>
 </section>
 
+<!-- 「換你動手」挑戰區：形式自由（預設三級挑戰；專案式、覆盤式都行），必附解答／自驗方式。
+     其後的 quiz 與 endnav 固定殿後，不可替代。 -->
 <section id="s2">
   <span class="eyebrow">02 · 實戰</span>
   <h2>換你動手</h2>

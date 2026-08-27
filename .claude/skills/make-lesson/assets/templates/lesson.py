@@ -109,5 +109,25 @@ def _():
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    # 挑戰的折疊解答（不變量：挑戰必附解答／自驗方式；三級是預設形式，可換）。
+    # LEVEL 1/2 給完整可貼的程式碼＋預期輸出，LEVEL 3 給方向與「怎麼驗證自己做對了」
+    mo.accordion(
+        {
+            "💡 LEVEL 1 參考解答": mo.md(
+                r"""
+    ```python
+    # 把要改的那行貼在這裡，加一句「你應該看到…」
+    ```
+    """
+            ),
+            "💡 LEVEL 2 參考解答": mo.md(r"""（完整程式碼 + 預期輸出）"""),
+            "💡 LEVEL 3 提示": mo.md(r"""（方向、陷阱、以及怎麼驗證自己做對了）"""),
+        }
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()

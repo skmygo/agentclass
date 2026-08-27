@@ -37,3 +37,5 @@ a.card:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
 .card.soon { border-style: dashed; box-shadow: none; opacity: .62; }
 .card.soon .tag { color: var(--ink-soft); }
 footer { margin-top: 72px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.8; }
+footer a { color: inherit; text-underline-offset: 3px; }
+footer a:hover { color: var(--ink); }

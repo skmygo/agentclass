@@ -2,8 +2,9 @@
    課程頁共用行為（全站一份）：
    1. GPU 分頁切換（頁面有 #lab-tabs 才啟用；雙軌課專用）
    2. 「到右邊做」golab：捲動 iframe 到 data-nb 的 emoji 錨點
-   3. 右欄狀態列：輪詢 iframe 內圖表數偵測 Pyodide 就緒
-      （就緒門檻由 <body data-ready-figures="N"> 提供，N = notebook 的圖表數）
+   3. 右欄狀態列：輪詢 iframe 內的就緒訊號偵測 Pyodide 就緒
+      （預設 <body data-ready-figures="N"> 圖表數門檻；
+      無圖課改宣告 <body data-ready-selector="<css>">，元素出現即就緒）
    課程專屬互動（hero 玩具等）寫在各課頁面的 inline <script>，不要放這裡。
    ═══════════════════════════════════════════════════════════════ */
 
@@ -53,8 +54,11 @@
   });
 })();
 
-/* 3. 狀態列：輪詢 iframe 內 img/canvas 數量（同源才可行） */
+/* 3. 狀態列：輪詢 iframe 內的就緒訊號（同源才可行）
+   預設訊號＝img/canvas 數量 ≥ data-ready-figures；
+   無圖課宣告 data-ready-selector 後改以「符合元素出現」判定 */
 (function () {
+  const READY_SELECTOR = document.body.dataset.readySelector || "";
   const READY_FIGURES = Number(document.body.dataset.readyFigures || 1);
   const frame = document.getElementById("nb-frame");
   const bar = document.getElementById("nb-status");
@@ -62,8 +66,11 @@
   const t0 = Date.now();
   const timer = setInterval(() => {
     try {
-      const n = frame.contentDocument.querySelectorAll("img, canvas").length;
-      if (n >= READY_FIGURES) {
+      const doc = frame.contentDocument;
+      const ready = READY_SELECTOR
+        ? !!doc.querySelector(READY_SELECTOR)
+        : doc.querySelectorAll("img, canvas").length >= READY_FIGURES;
+      if (ready) {
         bar.classList.add("ready");
         txt.textContent = "環境就緒——每一格都能改、能重跑。改壞了重新整理即可復原。";
         clearInterval(timer);

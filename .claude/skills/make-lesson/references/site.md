@@ -23,7 +23,8 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 - 課程頁版面（CSS）與行為（golab 捲動、就緒輪詢、分頁切換）都在
   `/shared/lesson.css` 與 `/shared/lesson.js`，**全站一份**；課程頁只放內容、
   課程語義色覆蓋、hero 專屬樣式與互動 JS。
-- 純瀏覽器課：就緒門檻用 `<body data-ready-figures="N">` 宣告（N = notebook 圖表數，至少 1）。
+- 純瀏覽器課：就緒訊號預設用 `<body data-ready-figures="N">` 宣告（N = notebook 圖表數）；
+  無圖課改宣告 `data-ready-selector="<css>"`（notebook 全部跑完會出現的元素）。
 - 外部軌課：**不引 `/shared/lesson.js`**（那是內嵌 notebook 的行為，外部課用不到，
   引了反而在無 `#nb-frame` 的頁面產生 console 噪音）；右欄 `#molab-panel` 的
   版型樣式在共用 lesson.css。
@@ -72,6 +73,9 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 - 「下載 .py」入口（學員帶得走）
 - 窄螢幕（≤980px）上下疊降級、`prefers-reduced-motion`、`:focus-visible`（都在共用 CSS）
 - `lang="zh-Hant"`、有意義的 `<title>`（課名 · AI 互動教室）、meta description
+- favicon ＋ og/twitter meta（模板已內建；og 的 title/description/url 三欄由 page-fill
+  依 page_content.py 自動同步，og:image 全站共用 `/shared/og-cover.png`）
+- header「留言回報」連結（→ blog 留言板；brand 文字統一「AI 互動教室」，不掛主題名）
 - 影片（選配）：YouTube 非公開 + `youtube-nocookie.com` 嵌入，版型在 page 模板的 `.video-box` 區塊
 - 課末測驗區 `#quiz`（`/shared/quiz.js` 引用模板已內建；**題目要自己出**——規則見下方「課末測驗」節）
 
@@ -79,8 +83,9 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 
 - `/shared/lesson.js` 引用（golab 捲動、就緒輪詢）
 - 「單獨開啟實驗場 ↗」入口
-- 右欄載入狀態提示（`#nb-status`）；左頁第一節在等待時間內讀得完
-- `<body data-ready-figures="N">`（就緒門檻＝notebook 圖表數）
+- 右欄載入狀態提示（`#nb-status`）；左頁第一節在等待時間內讀得完（應對載入等待的預設手法）
+- 就緒訊號：`<body data-ready-figures="N">`（預設；N＝圖表數）或
+  `data-ready-selector="<css>"`（無圖課：全部跑完會出現的元素）
 
 外部軌課（`assets/templates/page_ext.html`）另有：
 
@@ -89,10 +94,12 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 - header 的「開啟實戰 notebook ↗」入口
 - 面板步驟依 scaffold 的 `--gpu` 有無自動二選一（預設純 CPU：寫「免費 CPU 環境即可」、無「選 GPU Server」步驟）
 
-## 課末測驗（固定收尾）
+## 課末測驗與收尾（quiz ＋ endnav 固定殿後）
 
-每課教學頁的收尾順序固定：「換你動手」分級挑戰 → **情境測驗 `<section id="quiz">`** → `.endnav` 導覽。
-標記格式**照抄 `assets/templates/quiz-section.html`**（含註解說明）；互動由共用 `/shared/quiz.js`
+每課教學頁的收尾：**「換你動手」挑戰區 → 情境測驗 `<section id="quiz">` → `.endnav` 導覽**。
+後兩者是網站契約，固定殿後、不可替代——全站統一的驗收格式與導覽。
+挑戰區的**形式自由**（預設三級挑戰；專案式、覆盤式都行），唯「必附解答或自我驗證方式」是不變量。
+測驗標記格式**照抄 `assets/templates/quiz-section.html`**（含註解說明）；互動由共用 `/shared/quiz.js`
 驅動（點選即判、答後鎖定並標示正解、逐題解釋、答完出總分）、樣式在共用 lesson.css 的
 `.quiz-*`——**每課只寫題目內容，不寫 JS、不加樣式**，全站測驗長一樣。
 
@@ -142,10 +149,12 @@ gate 上鎖的課用 DOM `click()` 繞過覆蓋層，斷言照常有效。
 ## 好課程網站的品質清單（建議，非硬性——自由發揮的起點）
 
 - **課卡文案是賣點不是摘要**：一句話讓人想點進去（「把混亂切成秩序」優於「決策樹介紹」）
-- **開場即互動**：第一屏就有可以動手的東西，別用三段文字暖場
+- **開場即互動**：第一屏就有可以動手的東西，別用三段文字暖場（這也是應對 notebook
+  首次載入的預設手法——搭配「第一節在等待時間內讀得完」，等待就不無聊）
 - **每節都有行動點**：讀完一段就有「到右邊做」的具體任務，讀與做交替
 - **數字都是真的**：圖表、範例、準確率全部來自真實執行結果，不畫示意圖唬人
-- **挑戰與練習**：給分級挑戰（先做得到 → 有點難 → 開放式），notebook 內**附折疊解答**（模板已有 `mo.accordion` 格）
+- **挑戰與練習**：預設給分級挑戰（先做得到 → 有點難 → 開放式）——形式可換；
+  notebook 內**附折疊解答**是不變量（模板已有 `mo.accordion` 格）
 - **佔位課卡**：規劃中的課用虛線框＋降透明度＋「即將開課」，不可點（版型見 `assets/templates/topic.html` 的 `.card.soon`）
 - **色彩即語義**：一個概念一個顏色，左頁、圖表、notebook 全站一致（用設計傳達，不用文字宣告）
 - **深連結**：章節有 `#s1` 式錨點，方便討論時指到某一節
@@ -160,9 +169,10 @@ gate 上鎖的課用 DOM `click()` 繞過覆蓋層，斷言照常有效。
   文案寫「實測（nemotron-3.5-lightning）…」，NOTES 記日期與模型，換模型時知道哪些句子要重驗。
 - **挑戰附折疊解答**：只給題目不給解答，自學的人卡住就走了。LEVEL 1/2 給完整可貼的程式碼與預期
   輸出；LEVEL 3 給方向＋「怎麼驗證自己做對了」。用 notebook 的 `mo.accordion`（模板已有）。
-- **外部軌的 hero 用實測紀錄做可重播互動**：沒有內嵌 Python，但可以把 notebook 的真實 trace／
-  回答做成「選問題→播放」的小機器，文案註明「內容是 notebook 的實測紀錄」。比靜態示意圖誠實、
-  比 live 打 API 穩定。（若 API 有開 CORS 也可考慮 live 呼叫，但要有失敗時的降級畫面。）
+- **外部軌 hero 的預設手法——實測紀錄做可重播互動**：沒有內嵌 Python，但可以把 notebook 的
+  真實 trace／回答做成「選問題→播放」的小機器，文案註明「內容是 notebook 的實測紀錄」。
+  比靜態示意圖誠實、比 live 打 API 穩定。（若 API 有開 CORS 也可考慮 live 呼叫，但要有
+  失敗時的降級畫面。）形式自由，但示範內容必須真實並註明來源（不變量）。
 - **等待體驗要設計**：LLM 課一格可能等 5–30 秒。md 先說「這格會等一下、等的時候看什麼」；
   學員互動觸發的呼叫包 try/except → callout（429／5xx 不要變 Traceback）；主線示範格可以直接呼叫。
 - **系列課的節奏**：每課開頭一句接上一課（「上一課你手寫了說明書…」）、結尾一句預告下一課；
@@ -178,5 +188,6 @@ gate 上鎖的課用 DOM `click()` 繞過覆蓋層，斷言照常有效。
 - 版面骨架與紙感 token 在 `/shared/lesson.css`／`topic.css`，全站一致維持
   「同一間教室」的體感；**課程專屬的語義色（頁內 `<style>` 覆蓋 `--c1…--cut`）、
   互動設計、章節結構、教學法、文案語氣完全自由**，不必模仿既有課的寫法。
+  條文效力（哪些是不變量、哪些是可偏離的預設值）見 SKILL.md 開頭「總綱」。
 - 模板：課程頁 `assets/templates/page.html`、主題頁 `assets/templates/topic.html`。
   首頁 `content/index.html` 是常設檔案，直接編輯。
