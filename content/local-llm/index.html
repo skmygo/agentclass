@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>個人地端大語言模型實作 · AI 互動教室</title>
+<meta name="description" content="八堂課從引擎選型到微調：Ollama vs vLLM、取樣參數、KV Cache、快取計費、SSD 卸載、投機解碼、可觀測性、LoRA——在自己的機器上跑 LLM，原理與取捨一次看懂。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="個人地端大語言模型實作 · AI 互動教室">
+<meta property="og:description" content="八堂課從引擎選型到微調：Ollama vs vLLM、取樣參數、KV Cache、快取計費、SSD 卸載、投機解碼、可觀測性、LoRA——在自己的機器上跑 LLM，原理與取捨一次看懂。">
+<meta property="og:url" content="https://agentclass.pages.dev/local-llm/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/topic.css">
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← 回主題列表</a>
+  <span class="eyebrow">TOPIC · LOCAL LLM</span>
+  <h1>🖥️ 個人地端大語言模型實作</h1>
+  <p class="sub">
+    想在自己的電腦或自家 GPU 上跑開源大模型？八堂課把整條路走一遍：
+    先選對推理引擎，看懂 KV Cache 這條貫穿選型、計費、加速的主線，
+    再學會把服務看好、把模型調成你的。全部在瀏覽器裡互動模擬，不用先買顯卡。
+  </p>
+
+  <!-- 課程卡片依課程順序排（第 1 課在最上） -->
+  <div class="lessons">
+    <a class="card" href="/ollama-vs-vllm/">
+      <span class="tag">ENGINE · 01</span>
+      <h2>⚖️ 引擎選型：Ollama vs vLLM</h2>
+      <p>同一台機器、兩種脾氣——拉一下請求長度分佈，親眼看見 9% 對 98% 的記憶體利用率，
+         順便拆穿「快 34 倍」那種標題數字。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/sampling-params/">
+      <span class="tag">SAMPLING · 02</span>
+      <h2>🎲 取樣參數：模型怎麼挑下一個字</h2>
+      <p>temperature、top_p、penalty 看起來各管各的，其實全部在調同一顆不公平的骰子——
+         拉一下拉桿、擲二十次骰子，你就懂了。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/kv-cache/">
+      <span class="tag">KV CACHE · 03</span>
+      <h2>🗂️ 看懂 KV Cache</h2>
+      <p>快取＝存會被重複讀的東西。看懂注意力怎麼算，就知道為什麼只存 K、V 不存 Q，
+         也知道為什麼開頭多一行時間戳，後面幾千字的前綴就全部作廢。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/prompt-caching/">
+      <span class="tag">BILLING · 04</span>
+      <h2>💰 Prompt Caching：連續對話的錢怎麼算</h2>
+      <p>對話歷史只增不改，所以那段越來越長的歷史幾乎不要錢——三輪省 32%、二十輪省 68%；
+         真正燒錢的是你在中途換了模型，算給你看。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/kv-offload/">
+      <span class="tag">OFFLOAD · 05</span>
+      <h2>💾 KV Cache 分層：LMCache 與 SSD 卸載</h2>
+      <p>KV cache 放不下就往 SSD 丟，划算嗎？實測最高快 2.3 倍——
+         但算完你可能會鬆一口氣：省下的是一筆採購。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/speculative-decoding/">
+      <span class="tag">SPEC DECODE · 06</span>
+      <h2>🏇 投機解碼：先猜後驗</h2>
+      <p>反正權重都要搬一次，順便多驗五個字幾乎免費——用閒置算力換體感速度，
+         數學保證輸出一字不差。拉接受率拉桿，找出什麼時候反而會虧。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/llm-observability/">
+      <span class="tag">OBSERVE · 07</span>
+      <h2>🔭 可觀測性與監控：看見你的 LLM</h2>
+      <p>同一句「LLM 變慢了」，Grafana 告訴你為什麼慢、trace 告訴你慢在哪一步——
+         轉一下告警旋鈕，親眼看誤報怎麼消失、代價是什麼。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/lora-basics/">
+      <span class="tag">FINETUNE · 08</span>
+      <h2>📝 微調入門：LoRA 與 SFT、DPO</h2>
+      <p>凍結整本教科書，只貼一張幾 MB 的便利貼——參數量縮小 128 倍，效果幾乎一樣好。
+         α/r 控制力道、SFT 學模仿、DPO 學分辨好壞。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+  </div>
+
+  <footer>
+    <a href="https://www.youtube.com/@itsmygouk" target="_blank" rel="noopener">YouTube 頻道</a> ·
+    <a href="https://blog.itsmygo.uk/" target="_blank" rel="noopener">部落格</a>
+  </footer>
+</div>
+</body>
+</html>

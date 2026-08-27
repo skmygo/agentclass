@@ -1,0 +1,459 @@
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/local-llm/sampling-params
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "取樣參數：模型怎麼挑下一個字"
+DESCRIPTION = "temperature、top_p、frequency／presence penalty——四個參數都在調同一顆不公平的骰子。拉桿真算 softmax、真跑生成迴圈，一次看懂模型怎麼挑下一個字。"
+
+STYLE = r"""
+  /* 語義色：藍＝模型原始分佈、橘＝被參數改過的分佈、綠＝留在核裡的、紅＝被砍或被扣分的 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+
+  /* hero：一顆不公平的骰子 + temperature 拉桿 */
+  #dice .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  #dice label { font-family: var(--mono); font-size: 13px; font-weight: 800; }
+  #dice input[type="range"] { flex: 1; min-width: 140px; accent-color: var(--c2); }
+  #dice .tval { font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--c2); min-width: 42px; }
+  #dice button {
+    font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+    padding: 6px 14px; border: 2px solid var(--ink); border-radius: 999px;
+    background: var(--panel); color: var(--ink);
+  }
+  #dice button:hover { background: var(--ink); color: var(--panel); }
+  #dice .bar-row { display: grid; grid-template-columns: 52px 1fr 54px; align-items: center; gap: 8px; margin: 5px 0; }
+  #dice .bar-lab { font-size: 13px; font-weight: 800; text-align: right; }
+  #dice .bar-track { display: block; height: 15px; background: var(--chip-bg); border: 1px solid var(--grid); border-radius: 4px; overflow: hidden; }
+  #dice .bar-fill { display: block; height: 100%; width: 0; min-width: 2px; background: var(--c1); transition: width .16s ease; }
+  #dice .bar-row.rare .bar-lab { color: var(--cut); }
+  #dice .bar-row.rare .bar-fill { background: var(--cut); }
+  #dice .bar-pct { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+  #dice .verdict { margin-top: 12px; font-size: 13.5px; min-height: 20px; }
+  #dice .rolls { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 24px; }
+  #dice .rolls span {
+    font-size: 12.5px; padding: 2px 8px; border-radius: 6px;
+    background: var(--chip-bg); border: 1px solid var(--grid);
+  }
+  #dice .rolls span.rare { background: var(--cut); color: #fff; border-color: var(--cut); font-weight: 800; }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.num { font-family: var(--mono); white-space: nowrap; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .formula {
+    font-family: var(--mono); font-size: 14px; text-align: center;
+    background: var(--chip-bg); border: 1px solid var(--grid); border-radius: 8px;
+    padding: 12px 10px; margin: 14px 0; line-height: 1.7;
+  }
+"""
+
+WRAP = r"""
+<section id="hero">
+  <span class="eyebrow">SAMPLING · 02</span>
+  <h1>取樣參數：<br>模型怎麼挑下一個字</h1>
+  <p style="margin-top:18px">
+    上一課你把引擎架好了——Ollama 兩行指令能跑、vLLM 扛得住併發。
+    接下來不管你用哪一個，每一次呼叫都會遇到同一組參數：
+    <span class="kbd">temperature</span>、<span class="kbd">top_p</span>、
+    <span class="kbd">frequency_penalty</span>、<span class="kbd">presence_penalty</span>。
+    它們看起來各管各的，其實<b>全部在調同一顆不公平的骰子</b>。
+  </p>
+  <p>
+    先看骰子長什麼樣。模型讀完「今天天氣真」之後，<b>不會直接挑一個字</b>——
+    它給每個候選字一個機率，然後照這組機率擲一次骰子。
+    拉動 temperature，看同一組候選字的機率怎麼被壓尖、壓平：
+  </p>
+
+  <div class="hero-demo" id="dice">
+    <div class="row">
+      <label for="t-slider">temperature</label>
+      <input id="t-slider" type="range" min="5" max="200" step="5" value="100">
+      <span class="tval" id="t-val">1.00</span>
+      <button id="t-roll" type="button">擲 20 次</button>
+    </div>
+    <div id="t-bars"></div>
+    <div class="verdict" id="t-verdict"></div>
+    <div class="rolls" id="t-rolls"></div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。裡面每一根拉桿都在<b>真的算</b> softmax、
+    真的跑生成迴圈——改壞了重新整理就復原，這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 底層事實</span>
+  <h2>模型輸出的是機率分佈，不是一個字</h2>
+  <p>
+    這是整堂課唯一要先接受的事實：語言模型每一步吐出來的是一排分數（<span class="kbd">logit</span>），
+    經過 softmax 變成<b>所有候選字的機率</b>。「今天天氣真」之後的五個候選長這樣：
+  </p>
+  <table class="cmp">
+    <tr><th>候選字</th><th>機率</th><th>直覺</th></tr>
+    <tr><td>好</td><td class="num">47.1%</td><td>模型最想講的</td></tr>
+    <tr><td>不錯</td><td class="num">26.2%</td><td>第二順位，也很常出現</td></tr>
+    <tr><td>熱</td><td class="num">15.7%</td><td>合理但沒那麼通用</td></tr>
+    <tr><td>冷</td><td class="num">10.5%</td><td>合理但沒那麼通用</td></tr>
+    <tr><td>量子</td><td class="num">0.52%</td><td>長尾亂字——就是它讓模型偶爾講怪話</td></tr>
+  </table>
+  <p>
+    「取樣」就是照這組機率<b>擲一顆不公平的骰子</b>：好佔 47% 的面積、量子佔 0.52%。
+    右邊第 1 節可以真的擲——擲 200 次，量子很可能<b>一次都不出現</b>；
+    把次數拉到 2000，它就會冒出來十幾次。
+    這件事很重要：<b>機率小不等於不會發生，只是要等</b>。
+    一篇長文有幾千個 token，每一個都是一次擲骰——長尾遲早會被抽中。
+  </p>
+  <p>
+    所以接下來的四個參數，做的都是同一件事的三種變化：
+    <b>改機率</b>（temperature）、<b>改名單</b>（top_p）、<b>改分數</b>（penalty）。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊擲骰子，把次數從 200 拉到 3000</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 改機率</span>
+  <h2>temperature：T 在分母，這就是全部</h2>
+  <div class="formula">P(token) ∝ exp( logit / <b style="color:var(--c2)">T</b> )</div>
+  <p>
+    公式只有這一條，而且只要記住一件事：<b>T 在分母</b>。
+  </p>
+  <ul>
+    <li><b>T 小</b> ⇒ 除以小數 ⇒ logit 之間的差距被<b>放大</b> ⇒ 分佈變尖 ⇒ 幾乎只選第一名</li>
+    <li><b>T 大</b> ⇒ 除以大數 ⇒ 差距被<b>抹平</b> ⇒ 分佈變平 ⇒ 冷門字也有機會</li>
+  </ul>
+  <p>同一組 logit，只是換了分母，出來的骰子差這麼多：</p>
+  <table class="cmp">
+    <tr><th>T</th><th>好</th><th>量子</th><th>行為</th><th>適合</th></tr>
+    <tr><td class="num">0.2</td><td class="num">94.6%</td><td class="num">≈0%</td><td>每次幾乎相同：「今天天氣真好」</td><td>抽取／分類／寫程式</td></tr>
+    <tr><td class="num">1.0</td><td class="num">47.1%</td><td class="num">0.52%</td><td>模型原本的想法</td><td>一般對話</td></tr>
+    <tr><td class="num">2.0</td><td class="num">34.5%</td><td class="num">3.64%</td><td>每次都不同，開始出現怪組合</td><td>創作／腦力激盪</td></tr>
+  </table>
+  <p>
+    盯著最後一欄：T 從 1.0 拉到 2.0，「量子」的機率從 0.52% 變成 3.64%——<b>七倍</b>。
+    這就是「調高 temperature 比較有創意」的真面目：不是模型變聰明了，是<b>你把爛選項的中獎機率放大了</b>。
+    創意和胡言亂語，在這條公式裡是同一件事。
+  </p>
+  <p class="note">
+    實務上 <span class="kbd">temperature</span> 是<b>幾乎每個任務都要先設</b>的那一顆。
+    要可重現（抽欄位、分類、產生程式碼）就設 0；要多樣性就 0.7~1.0。先動它，其餘遇到問題再說。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊拉 temperature，看分佈壓尖壓平</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 改名單</span>
+  <h2>top_p：核採樣，把長尾直接砍掉</h2>
+  <p>
+    temperature 是把爛選項的機率<b>壓小</b>，但永遠壓不到 0。
+    <span class="kbd">top_p</span>（核採樣 / nucleus sampling）換一個思路：<b>改名單</b>。
+  </p>
+  <ol>
+    <li>候選字照機率<b>由大到小排序</b></li>
+    <li>一路<b>累加</b>，累積機率<b>第一次跨過 p</b> 的那個字為止都留著</li>
+    <li>名單外的字<b>丟棄</b>——機率變成 0，不是變小，是<b>抽不到了</b></li>
+    <li>留下來的重新歸一化，只在這個「核」裡面擲骰子</li>
+  </ol>
+  <p>T=1 的五個候選，累積起來是這樣（<span class="kbd">top_p = 0.9</span>）：</p>
+  <table class="cmp">
+    <tr><th>候選字</th><th>機率</th><th>累積</th><th>結果</th></tr>
+    <tr><td>好</td><td class="num">0.471</td><td class="num">0.471</td><td>留</td></tr>
+    <tr><td>不錯</td><td class="num">0.262</td><td class="num">0.733</td><td>留</td></tr>
+    <tr><td>熱</td><td class="num">0.157</td><td class="num">0.890</td><td>留（差 0.01 就跨過門檻）</td></tr>
+    <tr><td>冷</td><td class="num">0.105</td><td class="num">0.995</td><td>留——累積跨過 0.9，到它為止</td></tr>
+    <tr><td style="color:var(--cut)">量子</td><td class="num">0.005</td><td class="num">1.000</td><td style="color:var(--cut)">丟棄，永遠抽不到</td></tr>
+  </table>
+  <p>
+    這比單調 temperature 更能避免離譜輸出：<b>怪字直接出局，而不是「機率很小」</b>。
+    注意「熱」累積到 0.890，只差 0.01 就跨過門檻——把 top_p 拉到 0.88，
+    連「冷」都會被砍掉。核的邊界比你想的還敏感，右邊的拉桿一動就看得到。
+  </p>
+  <p>
+    <b>但兩個一起大改就完蛋了。</b>temperature 和 top_p 都在控隨機性，方向還相反：
+    T 拉高讓量子的機率變 7 倍，top_p 又立刻把它整個砍掉——兩個參數在互相抵銷，
+    結果難以預測。所以實務建議只有一句：<b>固定一個、調另一個</b>。
+    多數 API 的 <span class="kbd">top_p</span> 預設 1.0（或 0.9~0.95），
+    一般不必動它，先調 temperature 就好。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊兩根拉桿一起玩，親眼看互相抵銷</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 改分數</span>
+  <h2>penalty：唯一會回頭看你寫過什麼的參數</h2>
+  <p>
+    前兩個參數只看「這一步」。penalty 不一樣——它會回頭數<b>已經寫出來的字</b>，
+    在 logit 上直接扣分：
+  </p>
+  <div class="formula">
+    logit′ = logit − <b style="color:var(--c2)">freq_penalty</b> × 出現次數
+    − <b style="color:var(--c3)">pres_penalty</b> × 出現過嗎(0 或 1)
+  </div>
+  <p>
+    差別全在後面那一項。假設模型正在寫餐廳評論，已經寫出「很棒」<b>三次</b>：
+  </p>
+  <table class="cmp">
+    <tr><th>參數</th><th>扣法</th><th>「很棒」的機率</th><th>專治</th><th>常用值</th></tr>
+    <tr>
+      <td><span class="kbd">frequency_penalty</span></td>
+      <td>按<b>次數</b>累加：扣 3 × penalty</td>
+      <td class="num">42.0% → 16.6%</td>
+      <td>複讀機、長文跳針</td>
+      <td class="num">0.3 ~ 0.7</td>
+    </tr>
+    <tr>
+      <td><span class="kbd">presence_penalty</span></td>
+      <td>出現過就扣<b>一次</b>：1 次和 10 次一樣</td>
+      <td class="num">42.0% → 35.2%</td>
+      <td>鼓勵換新詞、換話題</td>
+      <td class="num">0.3 ~ 0.6（預設 0）</td>
+    </tr>
+  </table>
+  <p>
+    同樣填 0.5，力道差一倍以上——因為 frequency 乘的是次數 3，presence 乘的永遠是 1。
+    再把 frequency 拉到 2.0 看看：「很棒」剩 0.3%，
+    那些本來冷門的詞硬被推上第一名。這就是「<b>penalty 開太高會開始說怪話</b>」的長相。
+  </p>
+  <h3 style="margin-top:22px">連續寫下去，差別才真的浮出來</h3>
+  <p>
+    上面只算了「下一步」。penalty 的威力要<b>一直寫下去</b>才看得出來，因為次數會累積、扣分會變重。
+    右邊第 5 節真的跑生成迴圈：每一步照扣分後的分佈抽一個詞、把次數加上去、再算下一步，
+    同時跑 200 條長度 20 的序列取平均。跑出來是這樣：
+  </p>
+  <table class="cmp">
+    <tr><th>設定</th><th>最常出現字佔比<br><span style="font-weight:400">（越低越不跳針）</span></th><th>相異用字數<br><span style="font-weight:400">（八個詞用到幾個）</span></th></tr>
+    <tr><td>無 penalty</td><td class="num">0.43</td><td class="num">6.2 / 8</td></tr>
+    <tr><td><span class="kbd">frequency</span> 0.5</td><td class="num" style="color:var(--c2)"><b>0.26</b></td><td class="num">7.4 / 8</td></tr>
+    <tr><td><span class="kbd">presence</span> 0.5</td><td class="num">0.40（幾乎沒動）</td><td class="num" style="color:var(--c3)"><b>6.8 / 8</b></td></tr>
+  </table>
+  <p>
+    這張表就是那兩句口訣的實際長相：<b>frequency 把最愛用的詞壓掉四成</b>（0.43 → 0.26），
+    <b>presence 幾乎沒碰它</b>（0.43 → 0.40）<b>，但把用字撐開了</b>（6.2 → 6.8）。
+    它們壓的根本不是同一件事。
+  </p>
+  <p>
+    右邊還有一張掃描圖，把 penalty 從 0 掃到 1.5：frequency 一路俯衝、presence 幾乎是條水平線。
+    原因就寫在公式裡——presence 對每個出現過的字通通只扣 1 × penalty，
+    寫得夠長、大家都出現過之後，<b>整排被扣一樣多等於沒扣</b>（softmax 對整排平移免疫）。
+    所以它不是治跳針的藥，它是「換點沒講過的詞」的藥。
+  </p>
+  <p class="note">
+    這幾個數字是模擬跑出來的：真的照公式扣分、真的抽樣 200 條序列取平均。
+    你在右邊改 seed 或序列長度，數字會小幅浮動，但方向不會變。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊拉 penalty，看扣分前後的分佈</button>
+  <button class="golab" data-nb="5️⃣">再往下：真的寫一段，看複讀機修好了沒</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 速查表</span>
+  <h2>什麼任務調什麼</h2>
+  <p>整堂課壓成一句話：<b>模型輸出的是機率分佈，四個參數都只是在改這顆骰子的挑法。</b></p>
+  <table class="cmp">
+    <tr><th>參數</th><th>改的是</th><th>常用值</th><th>什麼時候調</th></tr>
+    <tr>
+      <td><span class="kbd">temperature</span></td>
+      <td><b>機率</b>（分佈壓尖／壓平）</td>
+      <td class="num">0：抽取／分類／程式<br>0.7~1.0：創作</td>
+      <td>幾乎每個任務都先設它</td>
+    </tr>
+    <tr>
+      <td><span class="kbd">top_p</span></td>
+      <td><b>名單</b>（砍掉長尾候選字）</td>
+      <td class="num">預設即可 0.9~1.0</td>
+      <td>與 temperature 擇一調，別同時大改</td>
+    </tr>
+    <tr>
+      <td><span class="kbd">frequency_penalty</span></td>
+      <td><b>分數</b>（按出現次數累加扣）</td>
+      <td class="num">0.3 ~ 0.7</td>
+      <td>長文複讀、跳針時再開</td>
+    </tr>
+    <tr>
+      <td><span class="kbd">presence_penalty</span></td>
+      <td><b>分數</b>（出現過就扣一次）</td>
+      <td class="num">0.3 ~ 0.6</td>
+      <td>希望話題／用詞更多元時</td>
+    </tr>
+  </table>
+  <p>
+    調參的順序也是這張表的順序：<b>先動 temperature，其餘遇到問題再調</b>。
+    如果四個都調過還是不對，那通常不是取樣參數的問題——換模型的差異會比調參大得多。
+  </p>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>挑戰在右邊 notebook 的第 6 節，由淺到深：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把實驗區的 <span class="kbd">my_T</span> 改成 <span class="kbd">0.05</span> 和 <span class="kbd">2.0</span>，各記下「量子」的機率。差幾個數量級？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>自己寫一個 <span class="kbd">nucleus(probs, p)</span> 函式做 top_p 截斷＋重新歸一化。驗證條件：<span class="kbd">top_p=0.9</span> 時「量子」要<b>恰好是 0</b>，其餘四個相加為 1。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>驗證「presence penalty 寫越長越無效」：把生成長度從 20 拉到 80，分別算前 20 步與後 60 步的最常出現字佔比。先猜，哪一種 penalty 的兩個數字會幾乎一樣？</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">
+    卡住了？每一題在 notebook 末節都有折疊解答（含預期輸出）——先自己做，再打開對照。
+  </p>
+  <button class="golab" data-nb="6️⃣">到右邊的實驗區開工</button>
+  <p class="note">
+    下一課要拆的是速度的另一半：模型每吐一個字，前面所有字的計算怎麼被存下來重複用——
+    那個東西叫 KV Cache，也是你的顯示卡記憶體最大的消耗者。
+  </p>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你要把幾千張發票的 OCR 文字批次抽成 JSON 欄位。同一張發票跑兩次結果不一樣，偶爾還多出不相干的字。最該先做什麼？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 開 <code>frequency_penalty=0.5</code>，把多出來的字壓掉</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把 <code>top_p</code> 設成 0.5，只留最前面的候選字</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 把 <code>temperature</code> 設成 0（或極低），讓它每次都挑機率最高的字</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 換一個參數量更大的模型</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>抽取／分類這類任務要的是<b>可重現</b>，而 <code>temperature</code> 正是「幾乎每個任務都先設它」的那一顆：T 往下壓，分佈被壓尖到幾乎只剩第一名（課裡實算：T=0.2 時第一名已佔 94.6%，T=0.05 時是 100.0%），輸出就穩定了。B 方向對但不是最佳做法——top_p 砍的是名單，砍完仍在核裡擲骰子；T=1 時 <code>top_p=0.5</code> 還留著兩個候選字，照樣會飄，而且官方建議是與 temperature 擇一調。A 是治複讀機的藥，跟「結果不穩定」無關，還可能把本來就該重複出現的欄位名扣掉。D 成本最高，而且沒解到隨機性的根本原因。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype">情境題</span></p>
+      <h3>模型在寫一份 800 字的產品說明，讀起來一直跳針：「很棒」出現了十幾次。你只能改取樣參數，最對症的是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>presence_penalty=0.5</code>——它就是用來避免重複的</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>frequency_penalty=0.5</code>，按出現次數累加扣分</button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>temperature</code> 從 0.7 拉到 1.3，讓文字更有變化</button>
+        <button type="button" class="quiz-opt" data-k="D">D. <code>top_p</code> 從 1.0 降到 0.8，把重複的候選字砍掉</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>logit′ = logit − freq_penalty × 出現次數</code>：出現越多次扣越重，正好對付「同一個詞出現十幾次」。課裡的生成模擬（200 條長度 20 的序列）量到：無 penalty 時最常出現的詞佔 0.43，開 frequency 0.5 掉到 0.26；改成 presence 0.5 只掉到 0.40——presence 乘的永遠是 0/1，出現 1 次和 10 次扣一樣多，所以 A 幾乎沒效（它的專長是把用字撐開，同一份模擬裡相異用字 6.2 → 6.8）。C 提高的是整體隨機性，跳針沒解決還可能更離譜。D 方向相反：把候選名單砍小，可挑的詞更少，只會更容易重複。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>有人想讓模型「更敢講怪話」，於是把 <code>temperature</code> 從 1.0 拉到 2.0，同時把 <code>top_p</code> 從 1.0 降到 0.9。結果跑了幾百次，「量子」這個冷門字<b>一次都沒出現</b>。最可能的原因是？</h3>
+      <div class="codeblock">T = 1.0                P(量子) = 0.0052   排序累積 0.471 0.733 0.890 0.995 1.000
+T = 2.0                P(量子) = 0.0364   排序累積 0.345 0.602 0.801 0.964 1.000
+T = 2.0, top_p = 0.9   P(量子) = 0.0000   ← 累積到「冷」已是 0.964，跨過 0.9 就截斷</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. temperature 2.0 還不夠高，要拉到 5.0 才會出現冷門字</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>top_p</code> 只在 <code>temperature &lt; 1</code> 時生效，這裡設了也沒用</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 這只是取樣的隨機性，機率 3.6% 本來就要多跑幾次才會中</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 兩個參數在互相抵銷：T 把量子的機率拉高 7 倍，<code>top_p=0.9</code> 又把它整個踢出名單</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>關鍵在 <b>top_p 砍的是名單不是機率</b>：被排除的字機率<b>歸零</b>，不是變小，所以「多跑幾次」永遠不會出現——C 因此不成立。實算確實如表：T=2.0 讓量子從 0.52% 升到 3.64%（七倍），但排序累積到「冷」就已經是 0.964、跨過 0.9 門檻，量子落在核外，重新歸一化後恰好是 0。這正是「temperature 與 top_p 擇一調」的理由：兩者都在控隨機性、方向相反，同時大改就互相抵銷。修法：想放行長尾就把 <code>top_p</code> 留在 1.0 只調 temperature；或固定 T=1 只調 top_p。A 錯——T 拉更高只是讓量子的機率再大一點，照樣被同一條門檻砍掉。B 是杜撰的規則，top_p 永遠作用在當下那組分佈上。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/kv-cache/">
+    <span class="tag">下一課</span>
+    <b>看懂 KV Cache →</b>
+  </a>
+  <a href="/local-llm/">
+    <span class="tag">主題</span>
+    <b>‹ 回「個人地端大語言模型實作」課程列表</b>
+  </a>
+</div>
+"""
+
+SCRIPT = r"""
+/* ═══ hero 互動：一顆不公平的骰子（純 JS 真算 softmax，與右邊 notebook 同一組 logit）═══ */
+(function () {
+  var TOKENS = ["好", "不錯", "熱", "冷", "量子"];
+  var BASE = [0.45, 0.25, 0.15, 0.10, 0.005];
+  var LOGITS = BASE.map(Math.log);
+  var RARE = 4;                       // 「量子」＝長尾亂字，用警示色標出來
+
+  var slider = document.getElementById("t-slider");
+  var tval = document.getElementById("t-val");
+  var bars = document.getElementById("t-bars");
+  var verdict = document.getElementById("t-verdict");
+  var rolls = document.getElementById("t-rolls");
+  if (!slider || !bars) return;
+
+  var fills = [], pcts = [];
+  TOKENS.forEach(function (tok, i) {
+    var row = document.createElement("div");
+    row.className = "bar-row" + (i === RARE ? " rare" : "");
+    row.innerHTML =
+      '<span class="bar-lab">' + tok + '</span>' +
+      '<span class="bar-track"><span class="bar-fill"></span></span>' +
+      '<span class="bar-pct"></span>';
+    bars.appendChild(row);
+    fills.push(row.querySelector(".bar-fill"));
+    pcts.push(row.querySelector(".bar-pct"));
+  });
+
+  function softmax(T) {
+    var z = LOGITS.map(function (l) { return l / T; });
+    var m = Math.max.apply(null, z);
+    var e = z.map(function (v) { return Math.exp(v - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+
+  function fmt(p) {
+    if (p >= 0.01) return (p * 100).toFixed(1) + "%";
+    if (p >= 0.0001) return (p * 100).toFixed(2) + "%";
+    if (p > 0) return "<0.01%";
+    return "0%";
+  }
+
+  var current = softmax(1.0);
+
+  function render() {
+    var T = slider.value / 100;
+    tval.textContent = T.toFixed(2);
+    current = softmax(T);
+    current.forEach(function (p, i) {
+      fills[i].style.width = (p * 100).toFixed(2) + "%";
+      pcts[i].textContent = fmt(p);
+    });
+    var msg;
+    if (T <= 0.35) {
+      msg = "分佈被<b>壓尖</b>了：「好」吃掉 " + fmt(current[0]) +
+            "，幾乎每次都輸出同一句。抽欄位、分類、寫程式要的就是這個。";
+    } else if (T >= 1.5) {
+      msg = "分佈被<b>壓平</b>了：「量子」爬到 " + fmt(current[4]) +
+            "——創意和胡言亂語，在這條公式裡是同一件事。";
+    } else {
+      msg = "這附近是模型原本的想法。往左拉壓尖（保守），往右拉壓平（有創意）。";
+    }
+    verdict.innerHTML = msg;
+  }
+
+  function roll() {
+    var out = [];
+    for (var n = 0; n < 20; n++) {
+      var u = Math.random(), acc = 0, pick = TOKENS.length - 1;
+      for (var i = 0; i < current.length; i++) {
+        acc += current[i];
+        if (u < acc) { pick = i; break; }
+      }
+      out.push(pick);
+    }
+    rolls.innerHTML = out.map(function (i) {
+      return '<span' + (i === RARE ? ' class="rare"' : '') + '>' + TOKENS[i] + '</span>';
+    }).join("");
+  }
+
+  // 拉桿一動就重擲：分佈變了，擲出來的字串也要跟著變，才看得到「壓尖 ⇒ 幾乎都是好」
+  slider.addEventListener("input", function () { render(); roll(); });
+  document.getElementById("t-roll").addEventListener("click", roll);
+  render();
+  roll();
+})();
+"""

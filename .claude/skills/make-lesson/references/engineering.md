@@ -67,6 +67,11 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   28M 膨脹到 112M。要升版就改根 pyproject 一次升全站＋重驗雙層驗證。
 - **`mo.vstack([fig, mo.md(...)])` 裡的裸 matplotlib figure 不渲染**：圖一律當 cell 的
   最後運算式，說明文字拆到下一個 cell（要共用數值就 return 變數）。
+- **`mo.md` 會把 `$…$` 之間的文字當 LaTeX**：講金額的課（兩個錢字號夾中文）會渲染成殘骸，
+  md 內錢字號一律寫 `\$`（要插值就 `rf"""…"""`）。冒煙抓不到（無 Traceback、圖照畫），
+  只有掃 session JSON 渲染輸出才看得到（local-llm/prompt-caching 實測，2026-08）。
+- `mo.md` 會 dedent：`{table}` 插值進多行字串時，插入內容每行縮排要與周圍一致，
+  否則共同前綴變空、縮排行被當 code block。
 - 本機 CPython 跑通 ≠ WASM 跑通，**雙層驗證缺一不可**。
 - `float(tensor_requires_grad)` 會噴 UserWarning → 用 `float(x.detach())`。
 - ruff 對 marimo cell 格式報 B018/PLR1711 是**假警報**（最後運算式＝渲染輸出、
@@ -77,7 +82,9 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 - **右欄就緒偵測與冒煙的訊號（工程機制，非教學要求）**：預設靠 iframe 內 img/canvas
   計數（`<body data-ready-figures="N">`）；無圖課改宣告 `data-ready-selector="<css>"`
   （notebook 全部跑完會出現的元素，例如最後一格輸出的識別元素），該課 smoke-test 的
-  `READY_SELECTOR` 常數設同一訊號。有圖的課留一張真的有教學功能的圖仍是好預設——
+  `READY_SELECTOR` 常數設同一訊號。**`data-ready-figures` 在 page-fill 替換區之外**
+  （模板預設 1）——要自己 Edit `<body>` 那行，寫完 grep 對一次 smoke 的 `MIN_FIGURES`；
+  宣告太小冒煙測不出（只是早一步變綠）。有圖的課留一張真的有教學功能的圖仍是好預設——
   但那是教學選擇，不是工程強制。
 - **首次載入 ~25 秒**（含 wheel 下載；零依賴課 ~14 秒）——平台物理，無法縮短：
   右欄要有載入狀態提示（狀態列輪詢就緒訊號變綠；同源 iframe 才可行；已內建在
@@ -180,6 +187,24 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   uvicorn（`mcp.http_app()`）在 sandbox export 正常，重跑前先探 port。
 - **RAG 數字會飄**：沒 RAG 的「矇對」題數每次不同（0–2），左頁寫範圍不寫死；有 RAG 7/7 穩定。
 - matplotlib 圖內別放 emoji（缺字警告），分類標籤用 ASCII。
+
+### 一次建多堂課（local-llm 八課平行，2026-08-28 補充）
+
+- **smoke 模板的 quiz 斷言曾有 `page.context().newPage()` bug（已修）**：`browser.newPage()`
+  建立的隱式 context 不允許再開分頁（Playwright 直接 throw "Please use browser.newContext()"），
+  第二頁一律用 `browser.newPage()` 另起 context。症狀＝smoke-all 只顯示「Node.js vXX」尾行。
+
+- **平行子代理的 scratchpad 暫存檔要帶課名前綴**（`calc-<id>.py`）：通用檔名（`calc.py`）
+  會被別課的代理整檔覆寫，受害者自己看不出來。
+- 臨時預覽 server 也要分 port（同 verify 的 port 分段邏輯）；且**同一個 Bash 呼叫裡
+  起背景 server 再接著跑 node 不可靠**——工具呼叫結束 server 會被收掉，改用
+  run_in_background 另起，`curl` 確認 200 再跑 Playwright。
+- **純瀏覽器課「零錯誤＋圖數」最快驗法**：讀 `content/<topic>/<id>/__marimo__/session/lesson.py.json`
+  數 `cells[].outputs`（複數）裡的 `image/png`；`nb-outputs.py` 走的是 `--sandbox` 的路徑，
+  對純瀏覽器課的 export 位置不適用。要看圖的真實構圖就把 base64 解出來看
+  （element screenshot 會被 viewport 裁切造成假警報）。
+- **課程頁自訂節內小標要加 class**（如 `h3.sub`）：`#lesson h3` 裸標籤選擇器以 ID 特異度
+  蓋掉共用 `.quiz-q h3`，把全站測驗版型弄壞；修字串時用完整縮排比對，避免子字串誤中 quiz 區。
 
 ### 一次建多堂課：fork 平行＋port 分段（FastMCP 4 補充系列，2026-08-20）
 

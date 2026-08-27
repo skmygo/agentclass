@@ -4,10 +4,9 @@
 // （playwright 是 repo 根目錄的 devDependency：npm install 即得）
 import { chromium } from "playwright";
 
-const H1_TEXT = "課程標題（實驗場）"; // 【必改】notebook 第一個 md cell 的 h1 文字（可只取片段）
-const MIN_FIGURES = 1;               // 【必改】全部 cell 跑完至少會出現的 img/canvas 數量
-const READY_SELECTOR = "";           // 無圖課用：全部跑完會出現的元素 selector（設了就取代圖表計數；
-                                     // 與課程頁 <body data-ready-selector> 宣告同一訊號）
+const H1_TEXT = "看懂 KV Cache（實驗場）"; // notebook 第一個 md cell 的 h1 文字
+const MIN_FIGURES = 6;               // notebook 全部跑完會渲染的圖表數（1️⃣–6️⃣ 各一張）
+const READY_SELECTOR = "";           // 有圖課：留空，用圖表計數當就緒訊號
 
 const url = process.argv[2] ?? "http://127.0.0.1:8787/index.html";
 const TIMEOUT_MS = 240_000;

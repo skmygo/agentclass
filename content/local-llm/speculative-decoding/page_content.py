@@ -1,0 +1,717 @@
+"""課程頁內容區（純常數）。改完跑：
+python3 .claude/skills/make-lesson/scripts/page-fill.py content/local-llm/speculative-decoding
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "投機解碼：先猜後驗"
+DESCRIPTION = (
+    "生成一個字就要把 16 GB 權重搬一次、算力閒置 70%——"
+    "讓小模型先猜 5 個字、大模型一次驗完，猜對的免費賺到，"
+    "而且數學上保證輸出分布完全不變。"
+)
+
+STYLE = r"""
+  /* 語義色：藍＝大模型（target，說了算）、橘＝草稿模型（draft，只是猜）、
+     綠＝被接受、紅＝被拒絕／回滾 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+
+  /* hero：先猜後驗的一輪 */
+  #sd-demo .sd-line { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  #sd-demo .sd-lbl {
+    flex: none; width: 84px; padding-top: 5px;
+    font-size: 11.5px; font-weight: 800; line-height: 1.4; color: var(--ink-soft);
+  }
+  #sd-demo .sd-toks { display: flex; flex-wrap: wrap; gap: 5px; min-height: 30px; flex: 1; }
+  #sd-demo .tok {
+    font-size: 13px; font-weight: 700; padding: 4px 9px; border-radius: 7px;
+    border: 1.5px solid var(--grid); background: var(--chip-bg); color: var(--ink);
+    transition: all .18s;
+  }
+  #sd-demo .tok.draft { border: 1.5px dashed var(--c2); background: #FDF3EC; color: #A95A2A; }
+  #sd-demo .tok.ok { border-color: var(--c3); background: #EEF6EC; color: #2F6B3E; }
+  #sd-demo .tok.no { border-color: var(--cut); background: #FAEDED; color: var(--cut); text-decoration: line-through; opacity: .75; }
+  #sd-demo .tok.fix { border-color: var(--c1); background: #EDF2F9; color: var(--c1); }
+  #sd-demo .tok.from-draft { border-color: var(--c3); background: #F2F8F1; }
+  #sd-demo .tok.from-target { border-color: var(--c1); background: #F1F5FA; }
+  #sd-demo .tok .mk { font-size: 11px; margin-left: 3px; }
+  #sd-demo .sd-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  #sd-demo button {
+    font: inherit; font-size: 13.5px; font-weight: 800; cursor: pointer;
+    padding: 7px 15px; border-radius: 999px;
+    border: 2px solid var(--ink); background: var(--ink); color: #fff;
+  }
+  #sd-demo button.ghost { background: var(--panel); color: var(--ink); }
+  #sd-demo button:hover:enabled { filter: brightness(1.12); }
+  #sd-demo button:disabled { opacity: .4; cursor: default; }
+  #sd-demo .ctrl { margin-top: 14px; }
+  #sd-demo .sd-num { font-family: var(--mono); font-size: 13px; font-weight: 800; min-width: 42px; }
+  #sd-demo .verdict { line-height: 1.8; font-weight: 700; }
+  #sd-demo .verdict b { font-family: var(--mono); font-size: 15px; }
+  #sd-demo .verdict .win { color: var(--c3); }
+
+  /* 驗證機制對照表 */
+  table.vtab { table-layout: fixed; font-size: 13px; }
+  table.vtab th, table.vtab td { text-align: center; padding: 7px 4px; }
+  table.vtab td.lbl, table.vtab th.lbl { text-align: left; width: 30%; font-size: 12px; color: var(--ink-soft); font-weight: 700; }
+  table.vtab td.d { background: #FDF3EC; color: #A95A2A; font-weight: 800; }
+  table.vtab td.t { background: #EDF2F9; color: var(--c1); font-weight: 800; }
+  table.vtab td.y { background: #EEF6EC; color: #2F6B3E; font-weight: 800; }
+  table.vtab td.n { background: #FAEDED; color: var(--cut); font-weight: 800; }
+  table.vtab td.x { color: var(--ink-soft); opacity: .6; }
+
+  table.cmp { font-size: 13.5px; }
+  table.cmp td, table.cmp th { padding: 7px 9px; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); font-style: normal; }
+"""
+
+WRAP = r"""
+<section id="hero">
+  <span class="eyebrow">SPEC DECODE · 06</span>
+  <h1>投機解碼：<br>先猜後驗</h1>
+  <p style="margin-top:18px">
+    上一課你把 KV cache 往 SSD 搬，換回來的是<b>記憶體</b>；這一課換的是<b>時間</b>——
+    而且不用多買任何東西，因為你的 GPU 在吐字的時候其實一直在發呆。
+    做法聽起來很像作弊：找一個很小很快的模型<b>先猜</b>接下來 5 個字，
+    再讓大模型<b>一次驗完</b>。按按看，看大模型怎麼批改：
+  </p>
+
+  <div class="hero-demo" id="sd-demo">
+    <div class="sd-line">
+      <span class="sd-lbl">已確定的字</span>
+      <span class="sd-toks" id="sd-done"><span class="tok" style="opacity:.5">（還沒開始）</span></span>
+    </div>
+    <div class="sd-line">
+      <span class="sd-lbl">這一輪<br>草稿猜 5 個</span>
+      <span class="sd-toks" id="sd-draft"></span>
+    </div>
+
+    <div class="ctrl">
+      <label for="sd-alpha" style="font-size:12.5px;font-weight:800;white-space:nowrap">草稿命中率</label>
+      <input id="sd-alpha" type="range" min="30" max="95" step="5" value="85" aria-label="草稿模型的命中率">
+      <span class="sd-num" id="sd-alpha-val">85%</span>
+    </div>
+
+    <div class="sd-btns">
+      <button id="sd-step" type="button">跑一輪：先猜後驗</button>
+      <button id="sd-auto" type="button" class="ghost">自動跑完</button>
+      <button id="sd-reset" type="button" class="ghost">重來</button>
+    </div>
+    <div class="verdict" id="sd-verdict">大模型每驗一次，就往前推進「猜對的字數 ＋ 1」個字。</div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。上面這個小玩具是隨機抽的，
+    右邊會把同一件事跑三萬輪、跟公式對答案。改壞了重新整理就復原——盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 問題起點</span>
+  <h2>GPU 其實一直在等</h2>
+  <p>
+    自回歸解碼每吐 <b>1 個字</b>，就要把<b>整份模型權重</b>從 HBM 搬進計算單元一次。
+    8B 模型的 BF16 權重是 16 GB——搬 16 GB，只為了算出一個字。
+    真正的計算量小到可以忽略，這叫 <em class="cut">memory-bound</em>：
+    卡住你的不是算力，是<b>記憶體頻寬</b>。
+  </p>
+  <p>三件事同時發生：</p>
+  <ul>
+    <li><b>搬得多、算得少</b>：生成 1 個 token 要搬 16 GB 權重，計算量卻只有一個位置的份。</li>
+    <li><b>算力閒置 70%+</b>：解碼階段 GPU 計算單元的利用率通常不到 30%，其餘全在等資料。</li>
+    <li><b>串行依賴</b>：第 N+1 個字要等第 N 個字生出來，本質上無法平行。</li>
+  </ul>
+  <table>
+    <tr><th></th><th>搬權重</th><th>實際計算</th><th>總時間</th></tr>
+    <tr><td><b>生成 1 個 token</b></td><td>16 GB</td><td>1 個 token 的量</td><td>T</td></tr>
+    <tr><td><b>驗證 5 個 token</b></td><td>16 GB（還是一次）</td><td>5 個 token 的量</td><td>≈ T</td></tr>
+  </table>
+  <p>
+    看懂這張表，這堂課就結束一半了：<b>反正權重都要搬一次，順便多算幾個字幾乎是免費的。</b>
+    如果能事先「知道」接下來 5 個字是什麼，就能把它們排在一起送進去做<b>一次</b>前向——
+    權重只搬一次，時間幾乎不變。問題只剩一個：怎麼事先知道？
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊把 K 拉到 1：那條線就是現在的解碼方式</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 解法</span>
+  <h2>先猜後驗：把 decode 偽裝成 prefill</h2>
+  <p>答案是「找個人先猜」。一輪長這樣：</p>
+  <ol>
+    <li><b>草稿模型猜 K 個字</b>——極輕量的模型（或一個預測頭、甚至只是查前文的 n-gram），
+      一口氣產出 5～16 個 token。</li>
+    <li><b>大模型一次驗證全部</b>——把「已確定的前綴 ＋ 草稿猜的 K 個字」當成一整段輸入，
+      做<b>一次</b>前向。成本 ≈ 生成 1 個字。</li>
+    <li><b>接受的直接留下</b>——猜對的部分等於免費賺到。</li>
+  </ol>
+  <p>
+    關鍵在第 2 步為什麼便宜：平常 decode 之所以慢，是因為<b>下一個字還不知道</b>，
+    只能一個一個來。草稿把未來的字先「填進去」之後，輸入就從未知變成已知——
+    <b>於是 decode 可以偽裝成 prefill 來平行算</b>。prefill 你已經知道它很快
+    （處理一整段 prompt 跟處理一個字的時間差不多），這就是投機解碼的全部魔法。
+  </p>
+  <p>
+    每輪能推進幾個字，只由兩個數字決定：草稿的<b>接受率 α</b> 和<b>每輪猜幾個字 K</b>。
+    期望值有閉式解——右邊直接算給你看，並且用三萬輪蒙地卡羅對答案。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊把 α 拉到 0.85、K 拉到 5</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 機制</span>
+  <h2>大模型怎麼知道哪個字猜錯了</h2>
+  <p>
+    這是最多人卡住的一點：<b>驗證的那一次前向，每個位置都同時吐出「它自己認為的下一個字」。</b>
+    Transformer 本來就是這樣算的——平常 decode 時我們只用最後一個位置的預測，
+    中間位置的預測全部丟掉。投機解碼只是<b>把那些本來就算好、卻被丟掉的預測撿回來用</b>。
+  </p>
+  <table class="vtab">
+    <tr>
+      <th class="lbl">位置</th>
+      <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+    </tr>
+    <tr>
+      <td class="lbl">草稿猜的</td>
+      <td class="d">D</td><td class="d">E</td><td class="d">F</td><td class="d">G</td><td class="d">H</td>
+    </tr>
+    <tr>
+      <td class="lbl">大模型在同一次前向給的</td>
+      <td class="t">D</td><td class="t">E</td><td class="t">X</td><td class="x">—</td><td class="x">—</td>
+    </tr>
+    <tr>
+      <td class="lbl">判定</td>
+      <td class="y">✓ 接受</td><td class="y">✓ 接受</td><td class="n">✗ 拒絕</td>
+      <td class="x">丟掉</td><td class="x">丟掉</td>
+    </tr>
+  </table>
+  <p>比對規則依取樣設定分兩種，兩種都不需要額外呼叫模型：</p>
+  <ul>
+    <li><b>Greedy（T=0）</b>：直接比字。大模型的 argmax 等於草稿猜的字就接受。</li>
+    <li><b>Sampling（T&gt;0）</b>：<em class="cut">rejection sampling</em>——
+      設草稿給這個字的機率是 q、大模型給的是 p，以 <span class="kbd">min(1, p/q)</span> 的機率接受；
+      拒絕時不是隨便挑一個，而是從<b>殘差分布</b>重新採樣。這一步是「無損」的技術核心，
+      下一節說為什麼。</li>
+  </ul>
+  <p>
+    第 3 格一旦被拒，第 4、5 格就沒有意義了——草稿是接在自己猜的 F 後面往下猜的，
+    前提已經錯了。所以<b>一輪的收穫是「第一個沒中之前的連續命中數」</b>，
+    不是「總共猜對幾個」。這也是為什麼右邊的模擬只需要找每輪第一個沒中的位置。
+  </p>
+  <button class="golab" data-nb="2️⃣">先猜再看：α=0.85、K=5 時最常見的是「全中」還是「只中一兩個」？</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 無損</span>
+  <h2>被拒之後，以及為什麼「無損」是數學保證</h2>
+  <p>被拒絕不是災難，是一次乾淨的重來：</p>
+  <ol>
+    <li><b>丟掉</b>——被拒的 G、H 連同它們在 <b>KV cache</b> 裡的位置一起 rollback
+      （草稿模型自己的 cache 也要清）。</li>
+    <li><b>新前綴</b>——大模型在第 3 格順手給的 <b>X</b> 直接變成新前綴的一部分。
+      <b>這個修正字是免費的</b>：它是同一次前向的產物，沒有多花任何時間。</li>
+    <li><b>重新猜</b>——草稿從 X 之後重新起草，<b>不是</b>接著自己猜錯的地方繼續。</li>
+    <li><b>再驗證</b>——循環到 EOS。</li>
+  </ol>
+  <p>
+    所以<b>每一輪的起點，都是一段經大模型認證過的乾淨前綴</b>，錯誤不會累積。
+    最壞情況（第一格就被拒）仍然拿到 1 個正確 token，等同不加速；
+    全中的話末端還會多送一個 bonus token。這就是右邊直方圖最左邊那根紅柱的意義：
+    <b>它不是零，也不是負的</b>。
+  </p>
+  <p>
+    至於「無損」——它不是「差不多一樣好」，是<b>可以證明的相等</b>：
+    接受與否由 rejection sampling 決定，最終序列的機率分布與大模型自己逐字生成
+    <b>完全相同</b>。不是近似、不是幾乎、不是統計上顯著沒差別，是同一個分布。
+  </p>
+  <p>
+    這件事的實務意義很大：<b>JSON 格式、tool calling 的參數、推理鏈都不會因為加速而出錯。</b>
+    你不需要「開了之後回頭驗一遍輸出品質」，也不需要為了保險把 K 調小。
+    要關掉它的理由永遠只跟<b>吞吐</b>有關，跟品質無關。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊看直方圖最左邊那根紅柱</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 代價</span>
+  <h2>它確實更耗算力：用閒置 FLOPs 換記憶體頻寬</h2>
+  <p>
+    天下沒有白吃的午餐，只有「本來就要倒掉的午餐」。投機解碼的交易是：
+    <b>多花算力（驗 K+1 個位置、外加跑 K 次草稿），少花記憶體頻寬（權重只搬一次）</b>。
+    省下的是瓶頸，多花的是本來就閒置的資源——所以它划不划算，
+    完全取決於<b>你的算力還閒不閒</b>。而算力閒不閒，由<b>併發數</b>決定。
+  </p>
+  <table class="cmp">
+    <tr><th>併發</th><th>算力狀態</th><th>結果</th></tr>
+    <tr><td><b>1–4 人</b></td><td>閒置 70%+</td><td>幾乎免費，純賺速度</td></tr>
+    <tr><td><b>中等</b></td><td>開始吃緊</td><td>仍划算，但邊際遞減</td></tr>
+    <tr><td><b>32+ 人</b></td><td>已經滿載</td><td>可能反而拖垮總吞吐</td></tr>
+  </table>
+  <p>
+    高併發時發生的事很具體：每一個「大概率會被拒」的草稿 token，
+    都在<b>擠佔大模型這一批的 batch 容量</b>——那個名額本來可以拿去服務別的使用者。
+    你把別人的吞吐，換成了自己的體感速度。
+  </p>
+  <p>
+    右邊 4️⃣ 把這件事畫成兩張圖：左邊是<b>每個人的速度</b>（使用者的體感），
+    右邊是<b>總產能</b>（老闆看的數字）。兩條曲線會在某個併發數交叉——
+    那是一個教學用的簡化模型，用來看趨勢；你自己那張卡的交叉點在哪，
+    要用第 8 節的方法實測。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊看交叉點在哪，再把 K 拉到 12 看它怎麼移</button>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 演進</span>
+  <h2>從 Medusa 到 DSpark：差別只在「草稿怎麼產生」</h2>
+  <p>
+    這幾年所有的投機解碼方法，改的都是同一件事：<b>草稿從哪來</b>——
+    自回歸、純並行、還是半自回歸。
+  </p>
+  <table class="cmp">
+    <tr><th>方法</th><th>草稿怎麼產生</th><th>突破</th><th>卡在哪</th></tr>
+    <tr>
+      <td><b>Medusa</b><br><span class="src">2024</span></td>
+      <td>大模型頭上長 K 個輕量預測頭</td>
+      <td>不用另訓 draft model</td>
+      <td>每個頭獨立，準確率僅 ~0.6</td>
+    </tr>
+    <tr>
+      <td><b>EAGLE 1/2/3</b></td>
+      <td>用 hidden state 當條件，輕量 Transformer 逐字猜</td>
+      <td>接受率最高，最貼近原生分布</td>
+      <td>仍是自回歸，猜 N 字跑 N 次 → 加速卡在 2～3×</td>
+    </tr>
+    <tr>
+      <td><b>DFlash</b><br><span class="src">2026.02</span></td>
+      <td>Block Diffusion，一次前向並行吐 16 個 token</td>
+      <td>草稿成本 O(1)</td>
+      <td>block 內互相不知道，尾部接受率崩塌</td>
+    </tr>
+    <tr>
+      <td><b>DSpark</b><br><span class="src">2026.07</span></td>
+      <td>並行骨幹 ＋ 輕量序列 head ＋ 置信度調度驗證</td>
+      <td>補回依賴又不亂驗</td>
+      <td>目前最完整的生產解</td>
+    </tr>
+  </table>
+  <p>把這張表濃縮成一條式子，你就有了一張選型地圖：</p>
+  <div class="codeblock">每 token 延遲 = (T_draft + T_verify) / τ
+
+τ = 每輪平均接受的 token 數（＝右邊 1️⃣ 那條曲線）</div>
+  <p>
+    分子分母各有旋鈕，總共只有三個：<b>草稿更快</b>（壓 T_draft，DFlash 走這條）、
+    <b>猜得更準</b>（拉高 τ，EAGLE 走這條）、<b>驗得更聰明</b>（DSpark 的置信度調度）。
+    你看到的每一篇新論文，都在轉這三顆之中的一顆。
+  </p>
+  <p>
+    幾個公開報導的數字，給你一點量級感：EAGLE 這類自回歸草稿大致停在 2～3×；
+    DFlash 在 <b>Baseten 的實測（Qwen3-8B on B200）是端到端 3×</b>，同組對照下 EAGLE 是 2×；
+    DSpark 已經跑在 DeepSeek-V4 線上，公開資料稱同等吞吐下
+    <b>每用戶生成速度提升 60–85%</b>，補回 token 依賴的額外延遲成本只有 0.2–1.3%。
+    這些是別人的環境跑出來的引用值，<b>不是</b>右邊 notebook 的輸出——
+    右邊給你的是「為什麼會是這個量級」的模型。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊看草稿成本怎麼決定最佳 K</button>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 實作</span>
+  <h2>vLLM 怎麼開</h2>
+  <p>
+    好消息是它<b>免訓練、一個參數開關</b>，vLLM / SGLang / llama.cpp 都已內建。
+    vLLM 統一走 <span class="kbd">speculative_config</span>（舊的
+    <span class="kbd">speculative_model</span> 參數已棄用）。離線推論：
+  </p>
+  <div class="codeblock">from vllm import LLM
+
+llm = LLM(
+    model="Qwen/Qwen3-8B",
+    speculative_config={
+        "method": "eagle3",
+        "model": "&lt;eagle3-head-repo&gt;",
+        "num_speculative_tokens": 5,
+    },
+    gpu_memory_utilization=0.85,
+)</div>
+  <p>三個常用鍵：</p>
+  <ul>
+    <li><span class="kbd">method</span>：<span class="kbd">ngram</span> /
+      <span class="kbd">suffix</span> / <span class="kbd">draft_model</span> /
+      <span class="kbd">mtp</span> / <span class="kbd">eagle3</span> /
+      <span class="kbd">dflash</span> / <span class="kbd">dspark</span>。</li>
+    <li><span class="kbd">model</span>：草稿模型或 EAGLE head 的路徑
+      （<span class="kbd">ngram</span>、<span class="kbd">suffix</span>、
+      <span class="kbd">mtp</span> 可省略）。</li>
+    <li><span class="kbd">num_speculative_tokens</span>：每步猜幾個——
+      <b>這就是右邊那根 K 拉桿</b>，也是「算力 vs 速度」的旋鈕。</li>
+  </ul>
+  <p>起服務時同一組鍵值用 CLI 以 JSON 傳入。零額外模型的最快上手法：</p>
+  <div class="codeblock">vllm serve Qwen/Qwen3-8B \
+  --speculative-config '{"method":"ngram", "num_speculative_tokens":4,
+                         "prompt_lookup_min":2, "prompt_lookup_max":5}'</div>
+  <p>用一個獨立的小模型當草稿：</p>
+  <div class="codeblock">vllm serve Qwen/Qwen3-8B \
+  --speculative-config '{"method":"draft_model", "model":"Qwen/Qwen3-0.6B",
+                         "num_speculative_tokens":3}'</div>
+  <p><b>建議路徑</b>（順序有意義，別跳）：</p>
+  <ol>
+    <li>先用 <span class="kbd">ngram</span> <b>零成本驗證有沒有效</b>——
+      不用另一個模型、不佔 VRAM，跑一輪就知道你的工作負載吃不吃這一套
+      （重複性高的任務，例如改寫、抽取、長文問答，n-gram 接受率意外地好）。</li>
+    <li>有效再換 <span class="kbd">eagle3</span> / <span class="kbd">dflash</span> 拉高接受率。</li>
+    <li><b>高併發務必實測 on/off 的總吞吐</b>，別憑感覺開著。</li>
+  </ol>
+  <p><b><span class="kbd">draft_model</span> 的兩個坑</b>：</p>
+  <ul>
+    <li><b>跨模型家族 tokenizer 不同</b>：必須加
+      <span class="kbd">"use_heterogeneous_vocab": true</span>——
+      但它會把草稿限制在兩邊共享的 token 上，<b>接受率通常很差</b>，
+      跑得起來卻幾乎沒加速。建議選同家族的小模型。</li>
+    <li><b>VRAM 要裝得下兩個模型</b>：單張 24G 卡跑 Qwen3-8B BF16 光權重就約 16 GB，
+      <span class="kbd">gpu_memory_utilization</span> 別設太低，
+      否則權重 ＋ KV cache ＋ 草稿模型塞不下。</li>
+  </ul>
+  <p class="note">
+    想拿逐請求的接受率，用官方腳本
+    <span class="kbd">examples/features/speculative_decoding/spec_decode_offline.py</span>——
+    那個數字就是右邊的 α，量出來之後就可以回到 3️⃣ 的曲線挑你的 K。
+  </p>
+  <button class="golab" data-nb="3️⃣">num_speculative_tokens 就是右邊的 K——去看它該設多少</button>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 調參</span>
+  <h2>順帶收尾：單人快 vs 多人穩</h2>
+  <p>
+    投機解碼是「單人快」這一側的最後一塊拼圖。既然講到這裡，
+    把整組取捨一次擺出來——同一張卡，兩種完全相反的調法：
+  </p>
+  <table class="cmp">
+    <tr><th>參數</th><th>快速模式（少人）</th><th>高併發模式（多人）</th><th>作用</th></tr>
+    <tr><td><span class="kbd">--max-num-seqs</span></td><td>1～4</td><td>64～256</td><td>最主要的旋鈕，同時 decode 的序列上限</td></tr>
+    <tr><td><span class="kbd">--max-num-batched-tokens</span></td><td>2048～4096</td><td>8192～16384</td><td>每次 iteration 的 token 預算，越大 prefill 越有效率</td></tr>
+    <tr><td><span class="kbd">--gpu-memory-utilization</span></td><td>0.85</td><td>0.92～0.95</td><td>KV cache 空間，直接決定能塞幾個人</td></tr>
+    <tr><td><span class="kbd">--max-model-len</span></td><td>可放寬</td><td>調到剛好夠用</td><td>每個序列的 KV 佔用與它成正比</td></tr>
+    <tr><td><span class="kbd">--kv-cache-dtype</span></td><td>auto</td><td>fp8</td><td>KV 減半 → 併發數約翻倍</td></tr>
+    <tr><td><span class="kbd">--enforce-eager</span></td><td>不要加（要 CUDA graph）</td><td>影響小</td><td>小 batch 時 kernel launch overhead 佔比高</td></tr>
+    <tr><td><span class="kbd">--speculative-config</span></td><td><b>開</b>，可 1.5～2×</td><td><b>關</b></td><td>高併發時 GPU 已飽和，猜測反而浪費算力</td></tr>
+    <tr><td><span class="kbd">--enable-prefix-caching</span></td><td>開</td><td>開</td><td>V1 引擎預設已開，系統提示重複時省超多</td></tr>
+    <tr><td><span class="kbd">--max-num-partial-prefills</span></td><td>1</td><td>2～4</td><td>控制長 prompt 的 prefill 不要卡住別人的 decode</td></tr>
+    <tr><td><span class="kbd">--scheduling-policy</span></td><td>fcfs</td><td>priority</td><td>多人時可以做優先級</td></tr>
+  </table>
+  <p>兩份可以直接抄的指令（以 24G 卡為例）：</p>
+  <p><b>A. 低延遲模式</b>——自己用，追求 token 噴很快</p>
+  <div class="codeblock">vllm serve Qwen/Qwen3-8B \
+  --max-num-seqs 4 \
+  --max-num-batched-tokens 4096 \
+  --max-model-len 16384 \
+  --gpu-memory-utilization 0.85 \
+  --enable-prefix-caching \
+  --port 8000</div>
+  <p><b>B. 高吞吐模式</b>——開給一群人打</p>
+  <div class="codeblock">vllm serve Qwen/Qwen3-8B \
+  --max-num-seqs 128 \
+  --max-num-batched-tokens 16384 \
+  --max-model-len 8192 \
+  --gpu-memory-utilization 0.94 \
+  --kv-cache-dtype fp8 \
+  --enable-prefix-caching \
+  --max-num-partial-prefills 2 \
+  --long-prefill-token-threshold 2048 \
+  --port 8000</div>
+  <h3 style="font-size:17px;font-weight:900;margin:28px 0 10px">怎麼確認你真的落在你以為的位置</h3>
+  <p>
+    先看<b>啟動 log</b>：<span class="kbd">GPU KV cache size</span> 和
+    <span class="kbd">Maximum concurrency for N tokens per request</span> 這兩行，
+    直接告訴你理論上能塞幾個人。然後實測，掃不同併發看每人速度怎麼掉：
+  </p>
+  <div class="codeblock">for c in 1 4 16 64; do
+  vllm bench serve \
+    --model Qwen/Qwen3-8B \
+    --base-url http://localhost:8000 \
+    --dataset-name random \
+    --random-input-len 1024 --random-output-len 512 \
+    --max-concurrency $c --num-prompts $((c*10))
+done</div>
+  <p>盯三個數字：</p>
+  <ul>
+    <li><b>Output token throughput</b>——總產能（右邊 4️⃣ 的右圖）。</li>
+    <li><b>Mean TPOT</b>——每人 token 間隔，也就是體感速度（4️⃣ 的左圖）。</li>
+    <li><b>Mean TTFT</b>——首字延遲。</li>
+  </ul>
+  <p>
+    實務上曲線長這樣：<span class="kbd">--max-num-seqs</span> 從 1 拉到 16～32，
+    總吞吐幾乎線性上升、每人速度只掉 20～30%——<b>這段是免費午餐</b>。
+    超過某個臨界點進入 compute-bound，每人速度開始等比例下滑，總吞吐卻不再成長。
+    所以：<b>先跑上面那個 sweep，找到 TPOT 開始陡降的那個併發數，
+    把 <span class="kbd">--max-num-seqs</span> 設在它附近</b>，而不是直接設 256。
+    設太高只會讓所有人一起變慢，還可能觸發 preemption——
+    log 裡出現 <span class="kbd">Sequence group ... is preempted</span> 就是塞爆了。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊看「甜蜜點」在模型裡長什麼樣</button>
+</section>
+
+<section id="s9">
+  <span class="eyebrow">09 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最下面有一格「你的實驗區」。三個挑戰，由易到難（notebook 裡都附折疊解答）：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 1️⃣ 的 α 從 0.40 一路拉到 0.95（K 固定 5），記下每輪期望產出。
+       體會一件事：<b>接受率才是主旋鈕</b>。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>α = 0.85、草稿成本 6% 時，<b>最佳 K 是多少</b>？
+       用 notebook 的 <code>speedup()</code> 掃 K = 1…20 找最大值。
+       找到之後想一想：你會選最高點那個 K，還是曲線開始變平的那個？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>4️⃣ 的 <code>T_FLOP</code>（每個序列的計算單價）改成 0.01——
+       換一張算力更強的卡之後，「投機解碼開始拖垮總吞吐」的交叉點會往左還是往右？
+       <b>先猜，再改常數驗證。</b></p>
+  </div>
+  <button class="golab" data-nb="5️⃣">到右邊的實驗區開工</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">10 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你的服務原本只有自己在用，開了投機解碼快很多。現在要開放給一個 60 人的團隊共用同一張卡，你該怎麼處理這個設定？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 維持開啟，並把 num_speculative_tokens 從 5 調到 16，人多更需要加速</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 直接關掉，投機解碼只適合單人</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 用 vllm bench serve 掃併發，實測 on/off 的總吞吐與 TPOT，用數字決定</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 維持開啟但把 gpu-memory-utilization 調高到 0.95，多的 KV cache 可以吸收掉額外算力</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>投機解碼是「用閒置算力換記憶體頻寬」，划不划算完全取決於你那張卡在那個併發下算力還閒不閒——這件事沒有通則，只能實測。C 的 sweep 同時給你總吞吐（老闆看的）與 TPOT（使用者看的），交叉點在哪一翻兩瞪眼。A 正好反過來：高併發時每個大概率被拒的草稿 token 都在擠佔 batch 名額，K 越大擠得越兇。B 太武斷——很多中等併發的場景開著仍然賺，直接關掉是把免費午餐丟掉。D 搞錯了瓶頸：多的 KV cache 解決的是「塞得下幾個人」，解決不了「算力已經滿載」。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype">情境題</span></p>
+      <h3>你想知道投機解碼對自己的工作負載（大量長文改寫與資料抽取）到底有沒有用，但不想先花時間訓草稿模型、也不想多佔 VRAM。第一步該做什麼？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 先訓一個 EAGLE3 head，接受率最高的方法才測得準</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 先開 method="ngram"，零額外模型跑一輪看有沒有效</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 隨便找一個小模型當 draft_model，加上 use_heterogeneous_vocab 就能跑</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 直接上 DFlash，公開實測是 3×，最快的方法一定最值得先試</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>n-gram 是唯一「零成本」的選項：不用另一個模型、不佔 VRAM、一行設定就能開關，而且改寫／抽取這類重複性高的任務接受率意外地好——它回答的是「我的流量吃不吃這一套」，這正是你現在要知道的事。有效之後再換 EAGLE3 / DFlash 拉高接受率，順序不能反：A 和 D 都是先付出訓練或整合成本，才發現自己的工作負載根本沒得賺。C 是本課明講的坑：跨家族 tokenizer 開了 heterogeneous vocab 雖然跑得起來，但草稿被限制在共享 token 上，接受率通常很差，量到的結論會低估投機解碼的潛力。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事按下面的設定跑起了服務，沒有任何錯誤訊息，但實測速度跟關掉投機解碼幾乎一樣。最可能的原因與修法是？</h3>
+      <div class="codeblock">vllm serve Qwen/Qwen3-8B \
+  --speculative-config '{"method":"draft_model",
+                         "model":"HuggingFaceTB/SmolLM2-360M",
+                         "use_heterogeneous_vocab": true,
+                         "num_speculative_tokens":5}'</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. num_speculative_tokens 太小，調到 16 就會有感</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 忘了加 --enable-prefix-caching，草稿模型沒吃到快取</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 草稿模型太小（360M）猜不準，要換一個 3B 以上的草稿模型</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 跨模型家族 tokenizer 不同，heterogeneous vocab 把草稿限制在共享 token 上，接受率極低——換同家族的 Qwen3-0.6B</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>Qwen3 和 SmolLM2 是不同家族、不同 tokenizer，<code>use_heterogeneous_vocab</code> 讓它「跑得起來」，代價是草稿只能在兩邊共享的 token 上提議——接受率 α 被壓得很低，而每輪產出是 α 的連乘（1 + α + α² + …），α 一低整條曲線就貼著 1.0，等於沒加速。修法是選同家族的小模型（Qwen3-0.6B），tokenizer 一致就不需要這個開關。A 反而更糟：α 很低時 K 越大越虧，草稿成本線性增加、產出卻早就收斂（右邊 3️⃣ 的紅線就是這個形狀）。B 無關：prefix caching 省的是 prefill，跟接受率沒關係。C 方向相反——草稿模型越大越貴，端到端加速比的分母 K × 草稿成本會直接吃掉收益。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>有人量到自己的接受率只有 0.6、草稿模型單步成本約大模型的 30%。他想「那我多猜一點就好」，把 K 從 5 調到 12，結果更慢了。右邊 notebook 的 <code>speedup()</code> 算出來是這樣——為什麼？</h3>
+      <div class="codeblock">&gt;&gt;&gt; round(speedup(alpha=0.60, k=5,  draft_cost=0.30), 3)
+0.953
+&gt;&gt;&gt; round(speedup(alpha=0.60, k=12, draft_cost=0.30), 3)
+0.543</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. K 超過 8 之後 vLLM 會關掉 CUDA graph，退化成 eager 模式</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 每輪產出隨 K 遞減收斂（α 的連乘），草稿成本卻隨 K 線性增加——分母追過分子</button>
+        <button type="button" class="quiz-opt" data-k="C">C. K 太大會讓 KV cache 不夠用而觸發 preemption</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 接受率 0.6 太低，把溫度調到 0 用 greedy 比對就會變快</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>加速比 = 每輪產出 ÷ (1 + K × 草稿成本)。分子是 1 + α + α² + … + α^K，α=0.6 時第 5 項只剩 0.078、第 12 項只剩 0.002，早就收斂在 2.5 附近；分母卻從 2.5 一路線性長到 4.6。多猜的那幾個字幾乎不可能用到，成本卻照付——這就是「最佳 K 隨草稿成本往左移」的來源，草稿越貴，最佳 K 越小（本例是 1）。真正該修的是 α 或草稿成本，不是 K。A 是虛構的行為。C 症狀相似但原因不同：preemption 是 KV cache 塞爆的症狀（log 會出現 <code>Sequence group ... is preempted</code>），跟這裡的算術無關。D 搞錯因果：greedy 比對是驗證規則，不會讓草稿變準；而且改採樣設定會改變你的輸出行為，不是加速手段。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>你的服務要輸出嚴格的 JSON 給下游解析，還會做 tool calling。團隊擔心「加速會不會讓模型偶爾吐壞掉的 JSON」，想加一輪輸出品質回歸測試才敢開。你該怎麼建議？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 可以直接開：接受由 rejection sampling 決定，輸出分布與逐字生成完全相同，品質不是要考慮的因素——要不要開只跟吞吐有關</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 開，但把 K 壓到 2 以下，猜越少出錯機率越低</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 開，但要把溫度設成 0，只有 greedy 模式才保證無損</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 別開，結構化輸出對 token 順序敏感，投機解碼的 rollback 會破壞 JSON 結構</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「無損」不是「差不多一樣好」，是可以證明的相等：rejection sampling 的接受／重採樣規則讓最終序列的機率分布與大模型自己逐字生成的分布完全相同，所以 JSON、tool calling 參數、推理鏈都不會因為加速而出錯。這正是投機解碼在生產環境被大量採用的原因——它是少數「純加速、零品質取捨」的手段。B 和 C 都是「保險起見」的直覺，但 K 與溫度都不影響正確性：K 只影響速度與算力，sampling 模式下的 rejection sampling 同樣是無損的（greedy 只是它的特例）。D 誤解了 rollback：被拒的 token 連同 KV cache 一起丟掉，每輪的起點都是大模型認證過的乾淨前綴，永遠不會有「半個被污染的結構」留在序列裡。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/llm-observability/">
+    <span class="tag">下一課</span>
+    <b>可觀測性與監控：看見你的 LLM →</b>
+  </a>
+  <a href="/local-llm/">
+    <span class="tag">主題</span>
+    <b>‹ 回「個人地端大語言模型實作」課程列表</b>
+  </a>
+</div>
+"""
+
+SCRIPT = r"""
+/* ═══ hero 互動：先猜後驗的一輪（草稿猜 5 個 → 大模型批改 → 附贈修正字）═══ */
+(function () {
+  var TRUTH = ["台北", "今天", "的", "天氣", "是", "晴時多雲", "，", "傍晚",
+               "有", "短暫", "陣雨", "，", "出門", "記得", "帶", "傘", "。"];
+  var WRONG = ["下雨", "陰天", "很熱", "颱風", "可能", "外套", "三十", "度",
+               "不", "會", "陽光", "溫度", "晚上"];
+  var K = 5;
+
+  var doneEl = document.getElementById("sd-done");
+  var draftEl = document.getElementById("sd-draft");
+  var verdict = document.getElementById("sd-verdict");
+  var alphaEl = document.getElementById("sd-alpha");
+  var alphaVal = document.getElementById("sd-alpha-val");
+  var btnStep = document.getElementById("sd-step");
+  var btnAuto = document.getElementById("sd-auto");
+  var btnReset = document.getElementById("sd-reset");
+  if (!doneEl) return;
+
+  var pos = 0, fwd = 0, origin = [], timer = null, busy = false;
+
+  function chip(text, cls, mark) {
+    var s = document.createElement("span");
+    s.className = "tok" + (cls ? " " + cls : "");
+    s.textContent = text;
+    if (mark) {
+      var m = document.createElement("span");
+      m.className = "mk";
+      m.textContent = mark;
+      s.appendChild(m);
+    }
+    return s;
+  }
+
+  function placeholder(el, text) {
+    el.innerHTML = "";
+    var c = chip(text, "");
+    c.style.opacity = ".45";
+    el.appendChild(c);
+  }
+
+  function renderDone() {
+    doneEl.innerHTML = "";
+    if (pos === 0) {
+      placeholder(doneEl, "（還沒開始）");
+      return;
+    }
+    for (var i = 0; i < pos; i++) {
+      doneEl.appendChild(
+        chip(TRUTH[i], origin[i] === "draft" ? "from-draft" : "from-target")
+      );
+    }
+  }
+
+  function stats() {
+    var rate = fwd ? (pos / fwd) : 0;
+    if (pos >= TRUTH.length) {
+      return '<span class="win">✓ 整句完成</span>：大模型只做了 <b>' + fwd +
+        "</b> 次前向，產出 <b>" + pos + "</b> 個字（<b>" + rate.toFixed(2) +
+        "</b> 字／次）。不加速的話，同一句要 <b>" + pos + "</b> 次前向。";
+    }
+    return "大模型前向 <b>" + fwd + "</b> 次 → 已產出 <b>" + pos +
+      "</b> 個字（<b>" + rate.toFixed(2) + "</b> 字／次）。" +
+      "不加速的話，" + fwd + " 次前向只有 " + fwd + " 個字。";
+  }
+
+  function wrongToken(exclude) {
+    var w;
+    do { w = WRONG[Math.floor(Math.random() * WRONG.length)]; } while (w === exclude);
+    return w;
+  }
+
+  function runRound() {
+    if (busy || pos >= TRUTH.length) return;
+    busy = true;
+    var a = Number(alphaEl.value) / 100;
+    var remain = TRUTH.length - pos;
+    var hit = 0;
+    while (hit < K && Math.random() < a) hit++;
+    if (hit > remain - 1) hit = remain - 1;   // 句子到底了
+
+    // 第 1 拍：草稿把 K 個字先填進去（還沒驗）
+    var guesses = [];
+    for (var i = 0; i < K; i++) {
+      guesses.push(i < hit ? TRUTH[pos + i] : wrongToken(TRUTH[pos + i]));
+    }
+    draftEl.innerHTML = "";
+    guesses.forEach(function (g) { draftEl.appendChild(chip(g, "draft")); });
+    verdict.innerHTML = "草稿一口氣猜了 5 個字…大模型正在<b>一次</b>驗證全部。";
+
+    // 第 2 拍：大模型驗一次，綠勾接受、紅叉回滾、附贈一個修正字
+    setTimeout(function () {
+      fwd += 1;
+      draftEl.innerHTML = "";
+      for (var i = 0; i < K; i++) {
+        draftEl.appendChild(
+          chip(guesses[i], i < hit ? "ok" : "no", i < hit ? "✓" : "✗")
+        );
+      }
+      var bonus = TRUTH[pos + hit];
+      draftEl.appendChild(chip(bonus, "fix", hit === K ? "＋bonus" : "＋修正"));
+
+      for (var j = 0; j < hit; j++) origin[pos + j] = "draft";
+      origin[pos + hit] = "target";
+      pos += hit + 1;
+
+      renderDone();
+      var msg = hit === K
+        ? "全中！5 個字全部接受，末端還附贈 1 個 bonus——這一輪賺了 6 個字。"
+        : (hit === 0
+          ? "第一個字就被拒：這一輪只前進 1 個字（等同不加速），但沒有更慢。"
+          : "接受 " + hit + " 個、拒絕之後的全部丟掉，大模型順手給的修正字免費。");
+      verdict.innerHTML = msg + "<br>" + stats();
+      if (pos >= TRUTH.length) {
+        verdict.innerHTML = stats();
+        btnStep.disabled = true;
+        btnAuto.disabled = true;
+        if (timer) { clearInterval(timer); timer = null; }
+      }
+      busy = false;
+    }, 520);
+  }
+
+  function reset() {
+    if (timer) { clearInterval(timer); timer = null; }
+    pos = 0; fwd = 0; origin = []; busy = false;
+    placeholder(draftEl, "（按「跑一輪」看草稿怎麼猜）");
+    btnStep.disabled = false;
+    btnAuto.disabled = false;
+    renderDone();
+    verdict.innerHTML = "大模型每驗一次，就往前推進「猜對的字數 ＋ 1」個字。";
+  }
+
+  alphaEl.addEventListener("input", function () {
+    alphaVal.textContent = alphaEl.value + "%";
+  });
+  btnStep.addEventListener("click", runRound);
+  btnReset.addEventListener("click", reset);
+  btnAuto.addEventListener("click", function () {
+    if (timer) { clearInterval(timer); timer = null; return; }
+    timer = setInterval(runRound, 900);
+    runRound();
+  });
+
+  renderDone();
+  placeholder(draftEl, "（按「跑一輪」看草稿怎麼猜）");
+})();
+"""

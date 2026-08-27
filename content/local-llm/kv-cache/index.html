@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>看懂 KV Cache · AI 互動教室</title>
+<meta name="description" content="快取＝存會被重複讀的東西。用瀏覽器裡真的算得出來的玩具注意力層，看懂為什麼只存 K、V 不存 Q，為什麼只有前綴能重用，以及 KV 快取要吃掉多少顯示卡記憶體。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="看懂 KV Cache · AI 互動教室">
+<meta property="og:description" content="快取＝存會被重複讀的東西。用瀏覽器裡真的算得出來的玩具注意力層，看懂為什麼只存 K、V 不存 Q，為什麼只有前綴能重用，以及 KV 快取要吃掉多少顯示卡記憶體。">
+<meta property="og:url" content="https://agentclass.pages.dev/kv-cache/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝存起來的 K/V、橘＝用一次就丟的 Q、綠＝有快取、紅＝重算／放不下
+     （與 notebook 的六張圖一致） */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+
+  /* hero：逐字生成，左邊每輪全部重算、右邊只亮新的一格 */
+  #kv-demo .lane { margin-bottom: 16px; }
+  #kv-demo .lane-name { font-size: 12px; font-weight: 800; letter-spacing: .06em; color: var(--ink-soft); margin-bottom: 7px; }
+  #kv-demo .cells { display: flex; gap: 6px; flex-wrap: wrap; min-height: 44px; }
+  #kv-demo .tok {
+    width: 38px; height: 42px; display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--grid); border-radius: 8px; background: var(--panel);
+    font-size: 17px; font-weight: 800; color: var(--ink);
+    transition: background .18s, border-color .18s, color .18s, transform .18s;
+  }
+  #kv-demo .tok.kept { border-color: var(--c1); color: var(--c1); background: #EDF2F9; }
+  #kv-demo .tok.hot { border-color: var(--cut); background: var(--cut); color: #fff; }
+  #kv-demo .tok.fresh { border-color: var(--c3); background: var(--c3); color: #fff; transform: translateY(-3px); }
+  #kv-demo .cost { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); margin-top: 8px; }
+  #kv-demo .cost b { color: var(--ink); font-size: 14px; }
+  #kv-demo .ctrl { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  #kv-demo button {
+    font: inherit; font-size: 13.5px; font-weight: 800; padding: 7px 15px;
+    border: 2px solid var(--ink); border-radius: 10px;
+    background: var(--ink); color: #fff; cursor: pointer;
+  }
+  #kv-demo button.ghost { background: var(--panel); color: var(--ink); }
+  #kv-demo button:hover:enabled { filter: brightness(1.1); }
+  #kv-demo button:disabled { opacity: .38; cursor: default; }
+  #kv-demo .verdict { margin-top: 12px; font-size: 13.5px; font-weight: 700; line-height: 1.85; min-height: 48px; }
+  @media (prefers-reduced-motion: reduce) { #kv-demo .tok { transition: none; } }
+
+  /* 三個角色 / 場景需求的小表 */
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 16px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); font-weight: 700; }
+  table.cmp td.num { font-family: var(--mono); white-space: nowrap; }
+  table.cmp tr.over td { color: var(--cut); font-weight: 700; }
+  .roles { display: grid; gap: 10px; margin: 16px 0; }
+  .role { border: 1.5px solid var(--grid); border-left: 4px solid var(--c1); border-radius: 10px; padding: 11px 14px; background: var(--panel); }
+  .role b { font-size: 15px; }
+  .role.q { border-left-color: var(--c2); }
+  .role p { font-size: 14px; margin-top: 3px; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  b.cut { color: var(--cut); }
+</style>
+</head>
+<body data-ready-figures="6">
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/local-llm/">‹ 個人地端大語言模型實作</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">KV CACHE · 03</span>
+  <h1>看懂 KV Cache</h1>
+  <p style="margin-top:18px">
+    上一課你調 temperature、top-p，看模型怎麼從一排候選字裡挑一個。
+    這一課往回追一步：那排候選是<b>怎麼算出來的</b>——
+    以及為什麼句子越長，每多寫一個字就越貴。
+    下面是同一句話生成兩次，左邊沒有快取、右邊有。按下去看看紅色的部分：
+  </p>
+
+  <div class="hero-demo" id="kv-demo">
+    <div class="lane">
+      <div class="lane-name">沒有 KV CACHE</div>
+      <div class="cells" id="kv-lane-a"></div>
+      <div class="cost" id="kv-cost-a"></div>
+    </div>
+    <div class="lane">
+      <div class="lane-name">有 KV CACHE</div>
+      <div class="cells" id="kv-lane-b"></div>
+      <div class="cost" id="kv-cost-b"></div>
+    </div>
+    <div class="ctrl">
+      <button id="kv-step">生成下一個字</button>
+      <button id="kv-auto" class="ghost">自動播放</button>
+      <button id="kv-reset" class="ghost">重來</button>
+    </div>
+    <div class="verdict" id="kv-verdict"></div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 兩階段</span>
+  <h2>Prefill 讀題，Decode 寫答案</h2>
+  <p>
+    模型回答問題其實分兩步，而且這兩步的個性完全相反。
+  </p>
+  <p>
+    <b>Prefill（讀題）</b>把你輸入的整段提示詞<b>一次全部</b>讀進去。
+    所有 token 的 K、V 在同一次矩陣乘法裡算完，位置之間沒有先後依賴——
+    這一步平行度高、跑得快。
+  </p>
+  <p>
+    <b>Decode（寫答案）</b>一次只生一個字，生完再生下一個。
+    沒得平行：下一個字要看前面所有字。這裡就是 KV Cache 要解決的戰場。
+  </p>
+  <p>
+    右邊第一張圖把每一步的兩種工作量畫在一起：<b style="color:var(--c1)">藍柱</b>是這一步
+    要算幾個 token 的 K/V，<b style="color:var(--c2)">橘柱</b>是這一步要讀多少格快取。
+    Decode 的藍柱永遠是 1，橘柱卻一路長高——
+    <b>每生一個字，都要把整個快取從記憶體讀一遍，只換來一個 token 的計算量。</b>
+    算力大量閒著，卡住的是記憶體頻寬。
+  </p>
+  <p class="note">
+    這個「算力閒著等記憶體」的怪現象先記著。第 6 課的投機解碼會回來收割它。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊拉生成長度，看兩根柱子背道而馳</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 三個角色</span>
+  <h2>Q、K、V：一次圖書館找書</h2>
+  <p>
+    每個字都會產生三個向量。用找書比喻最好懂：
+  </p>
+  <div class="roles">
+    <div class="role q">
+      <b>Q（Query）查詢 —— 「我想找什麼？」</b>
+      <p>當下這個新字提出的問題。像你走進圖書館時腦中那句「我要找講快取的書」。</p>
+    </div>
+    <div class="role">
+      <b>K（Key）索引 —— 「我是講什麼的？」</b>
+      <p>每個字的標籤，像書背上的書名。拿 Q 跟它比對，越相關的越受關注。</p>
+    </div>
+    <div class="role">
+      <b>V（Value）內容 —— 「我實際攜帶的資訊」</b>
+      <p>書的內文。比對完之後，按相關度把 V 加權取出來，就是這一步的輸出。</p>
+    </div>
+  </div>
+  <p>
+    流程一句話：<b>新字的 Q × 前面所有字的 K（算相關度）→ 按相關度加權取出所有字的 V → 得到下一個字。</b>
+  </p>
+  <p>
+    看清楚誰是誰的：<b style="color:var(--c2)">Q 只有一個，是「當下這個新字」的</b>；
+    <b style="color:var(--c1)">K 和 V 是「前面每一個字」的</b>，是被查的那張表。
+    右邊第二張圖是真的算出來的一組權重（加起來剛好是 1）——
+    往前拉那個下拉選單，你會看到權重的長度跟著變短：新字只看得到自己和前面的字。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊看「查表」長什麼樣</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 代價</span>
+  <h2>沒有快取：每寫一個字，前面全部重算一遍</h2>
+  <p>
+    K、V 如果不存起來，會發生什麼事？生第 1 個字，要算前面 4 個字的 K、V；
+    生第 2 個字，前面變 5 個字，<b>再算一次</b>；生第 3 個字，前面 6 個字，<b>又算一次</b>。
+    「今天天氣」的 K、V 在第一輪就算過了，結果每一輪都陪跑。
+  </p>
+  <p>
+    這不是多做一點——<b>總計算量隨長度平方成長</b>。右邊第三張圖把兩條線畫在一起：
+    有快取是一條幾乎貼著地板的直線，沒快取是一條翹起來的曲線。
+    預設值（提示 200 字、生成 300 字）之下，沒快取要算 <b>105,350</b> 個 token 的 K/V，
+    有快取只要 <b>500</b> 個——<b class="cut">多做了 211 倍的工</b>。
+  </p>
+  <p>
+    把生成長度再拉長一格，紅線的成長速度就明顯不一樣。那是平方項在動。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊拉長度，看紅線把綠線甩開</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 快取</span>
+  <h2>算過的存起來，答案一模一樣</h2>
+  <p>
+    KV Cache 做的事簡單得有點無趣：Prefill 算好的 K、V 放進顯示卡記憶體裡的一張表，
+    Decode 每一步只做四件事——
+  </p>
+  <ol>
+    <li>只為新字算出它的 <b style="color:var(--c2)">Q</b>（和它自己的 K、V）</li>
+    <li>拿 Q 去跟快取裡<b>所有舊的 K</b> 比對相關度</li>
+    <li>按相關度加權取用快取裡的 <b style="color:var(--c1)">V</b>，得到輸出</li>
+    <li>把新字的 K、V 也塞進快取，留給下一步用</li>
+  </ol>
+  <p>
+    重要的是：<b>快取不是近似、不是壓縮、不會掉品質。</b>
+    右邊那格真的跑了兩遍——一遍每步重算整串（合計 12 格），
+    一遍只算新字其餘查表（合計 5 格）——然後比對兩邊的輸出向量：
+    <b style="color:var(--c3)">完全相同</b>，最大差距在 1e-16 這個量級，
+    那是浮點數的捨入誤差，不是演算法的差別。
+  </p>
+
+  <h2 style="margin-top:36px">那為什麼只存 K、V，不存 Q？</h2>
+  <p>
+    答案不在 Q 有什麼特別，而在<b>誰會被重複讀</b>。
+    右邊第四張圖統計整趟生成裡每個 token 被讀取的次數：
+  </p>
+  <ul>
+    <li><b style="color:var(--c2)">Q</b>：每個 token 都是 <b>1</b>。問完、答案拿到，這一步就結束了。
+      之後生成任何新字，都是新字自己重新提問，永遠不會回頭用舊的 Q。</li>
+    <li><b style="color:var(--c1)">K、V</b>：堆得老高。生第 10 個字要查它們、第 100 個字還是要查它們——
+      只要對話繼續，就一直被用到。</li>
+  </ul>
+  <p>
+    一句話收尾：<b>快取的意義是「存會被重複讀取的東西」。</b>
+    這條原則到這裡就講完了，剩下兩節都是它的推論。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊驗證「有快取＝沒快取」</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 跨請求</span>
+  <h2>Prefix Caching：同一個技術，換一個範圍</h2>
+  <p>
+    到目前為止講的 KV Cache，範圍都在<b>同一次請求之內</b>：Decode 每生一個字，
+    重用這次對話前面算好的 K、V；請求結束，快取通常就丟掉。
+  </p>
+  <p>
+    <b>Prefix Caching</b> 就是把它延伸到<b>跨請求、跨使用者</b>：算好的 K、V 留著，
+    下一個請求如果開頭（前綴）一模一樣，這段的 Prefill 直接跳過。
+    典型場景是所有人共用同一份系統提示詞。
+  </p>
+  <p>
+    但它有一個硬條件：<b>只有「從第一個 token 開始、完全相同」的前綴才能重用。</b>
+    為什麼看起來一樣的字不能搬？右邊第五張圖用兩段話驗證：
+  </p>
+  <ul>
+    <li>「你好，天氣如何」對上「你好，明天天氣如何」：<b style="color:var(--c3)">前 3 格的 K 差 0.0%</b>——
+      逐位元完全相同，這幾格的 Prefill 可以整段跳過。第 4 格起就衝到 <b class="cut">70–125%</b>，一個字都救不回來。</li>
+    <li><b>理由 1：位置不同。</b>同一段話原封不動往後移 2 格，K 就差了 <b>23%</b>。
+      前文一模一樣，只是位置變了——位置編碼在算 K 之前就混進去了。</li>
+    <li><b>理由 2：前文不同。</b>換一段不同開頭的前文，再看同一個「天」字，K 差 <b>99%</b>。
+      模型有很多層，深層的 K、V 是「看過前面所有字」之後才算出來的。</li>
+  </ul>
+  <p>
+    所以「天氣如何」這四個字，在兩個開頭不同的請求裡是<b>兩組不同的 K、V</b>。
+    看起來一樣，搬過去就會算錯。
+  </p>
+  <p class="note">
+    這也是為什麼 Prefix Caching 的效果完全由<b>命中率</b>決定：省下的比例就是重複前綴的比例。
+    9 成前綴相同，Prefill 接近 10 倍；只有 2 成相同，大概 1.25 倍。而且是 token 級精確比對——
+    開頭多一個空格、多一行時間戳，後面幾千字的共用前綴就全部作廢。
+  </p>
+  <button class="golab" data-nb="5️⃣">到右邊看前綴從哪一格開始失效</button>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 帳單</span>
+  <h2>代價：拿記憶體換計算</h2>
+  <p>
+    天下沒有白吃的快取。K、V 要放在顯示卡記憶體裡，而且<b>會隨對話變長一直長大</b>。
+    每個 token 要吃多少，攤開來算就知道：
+  </p>
+  <div class="codeblock">每 token bytes = 層數 × KV 頭數 × 每頭維度 × 2（K 和 V 兩份） × 2（fp16 每個數 2 bytes）
+                = 32 × 8 × 128 × 2 × 2
+                = 131,072 bytes = 128 KiB ≈ 0.13 MB</div>
+  <p>
+    這是 Llama 3 8B（GQA）的配置。<span class="kbd">0.13 MB</span> 聽起來很小，
+    但它是<b>每個 token</b>、而且要<b>乘上同時上線的人數</b>：
+  </p>
+  <table class="cmp">
+    <tr><th>場景</th><th>tokens × 並發</th><th>需要的 KV 快取</th></tr>
+    <tr><td>手邊隨手測一句</td><td class="num">2k × 1</td><td class="num">0.26 GB</td></tr>
+    <tr><td>短文本 RAG</td><td class="num">8k × 1</td><td class="num">1.05 GB</td></tr>
+    <tr><td>整篇論文分析</td><td class="num">32k × 1</td><td class="num">4.19 GB</td></tr>
+    <tr class="over"><td>10 人同時上線</td><td class="num">8k × 10</td><td class="num">10.49 GB</td></tr>
+    <tr class="over"><td>整本書</td><td class="num">128k × 1</td><td class="num">16.78 GB</td></tr>
+    <tr class="over"><td>超長 context</td><td class="num">1M × 1</td><td class="num">131.07 GB</td></tr>
+  </table>
+  <p>
+    假設一張 16 GB 的卡、權重吃掉約 6 GB，剩下約 <b>10 GB</b> 給快取——
+    <b class="cut">紅色那三列就是放不下的那一邊</b>。而它們一點都不極端：
+    十個人同時用、丟一整本書進去、或是現在流行的百萬 context，都在這三列裡。
+  </p>
+  <p>
+    右邊第六張圖是可以拉的估算器：換層數、換 KV 頭數、換上下文長度與人數，
+    看你的設定落在虛線的哪一邊。放不下的時候怎麼辦？砍上下文、砍並發，
+    或者把快取搬到別的地方去——那是第 5 課的題目。
+  </p>
+  <button class="golab" data-nb="6️⃣">到右邊算你自己那台機器</button>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>右邊最下面有一格「你的實驗區」。三個挑戰，由易到難（notebook 裡都附了折疊解答）：</p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>回到 6️⃣ 把「KV 頭數」從 8 拉到 32（等於不共用 KV 頭），
+       看 <code>1M x1</code> 那根柱子從 131 GB 變成幾 GB。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>回到 3️⃣ 試兩組設定：提示 2000／生成 100，和提示 100／生成 2000。
+       兩組的 token 總數差不多，但「省下的倍數」差了十倍以上。哪一種情況快取更划算？為什麼？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>在實驗區換一組你自己的 A／B 句子，找出「從第幾個字開始 K 就不一樣了」。
+       試著讓兩句共用越長越好的前綴——然後想想：這件事對你寫 prompt 的<b>順序</b>有什麼啟示？</p>
+  </div>
+  <button class="golab" data-nb="7️⃣">到右邊的實驗區開工</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">08 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你要在一張 16 GB 的卡上跑 Llama 3 8B（權重約 6 GB），服務 10 個同時上線的使用者，每人 8k 上下文。上線前最該先算的是什麼？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 權重 6 GB 遠小於 16 GB，放得下就可以開跑</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 先估 KV 快取：128 KiB × 8k × 10 ≈ 10.5 GB，拿去跟「權重之後剩下的約 10 GB」比</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 先看這張卡的 TFLOPS 夠不夠算 10 個人的注意力</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把 batch 調大讓 GPU 更忙，把吞吐撐起來就不會有問題</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：吃掉 VRAM 的不只有權重，還有會隨對話一直長大的 KV 快取。這個場景要 10.49 GB，比權重之後剩下的約 10 GB 還多——上線後第一批使用者塞滿就會爆。A 是最常見的誤判，它只算了固定成本、漏掉了隨長度成長的那一項。C 方向錯了：Decode 階段每步只算一個 token 卻要把整個快取讀一遍，卡住的是記憶體（容量與頻寬），不是算力。D 反而讓事情更糟——batch 越大，同時存在的快取越多。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype">情境題</span></p>
+      <h3>你的客服機器人每個請求都帶同一份 1800 字的規則說明，再接上使用者的問題。你想讓 Prefix Caching 幫你跳過那 1800 字的 Prefill，哪個做法最有效？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 使用者問題放最前面、規則說明放後面，讓模型先看到問題</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 規則說明放最前面、使用者問題接在後面，而且規則那段一個字都不要動</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 在規則說明最前面加一行「現在時間：2026-08-28 14:03」，讓模型知道時間</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把規則說明拆成幾段，散在使用者問題的前後</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：可重用的只有「從第一個 token 起完全相同」的那一段，所以共用的東西必須擺在最前面、而且逐字穩定。A 把每次都不同的內容放在最前面，前綴長度直接歸零。C 更糟：那行時間戳每一次請求都不一樣，後面 1800 字的規則因為位置與前文都被它改變，一格都命中不了。D 的中間段落不是前綴，位置與前文都會隨使用者問題浮動，同樣無法重用。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>同事提議做一個「片段快取池」：把公司地址、產品規格這些常出現的段落各自算好 K/V 存起來，之後不管它們出現在 prompt 的哪個位置，都直接貼進快取跳過那段 Prefill。這個設計會怎樣？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 可行——只要段落的文字完全一樣，算出來的 K/V 就會一樣</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 可行，但要順便把那段的 Q 也存起來才完整</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 不可行——K/V 裡混著位置與前文的資訊，同一段字在不同位置、不同前文下算出來就是不同的向量，貼過去模型會算錯</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 不可行——快取只能放在 VRAM，段落一多就會爆掉</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：這是「非前綴不能重用」的正面版本。右邊第五張圖量過：同一段話只是往後移 2 格，K 就差了 23%；換一段不同的前文再看同一個字，差 99%。貼進去不會報錯，模型只會安靜地算錯——這種 bug 比崩潰難抓。A 正是那個誤解：文字一樣不代表 K/V 一樣。B 連 Q 都存更沒用，Q 只在它自己那一步被用一次。D 講的是容量問題，就算記憶體無限大，這個設計還是錯的。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>有人看到右邊第四張圖的統計，提議「那就連 Q 也一起存進快取，反正順手」。結果記憶體用得更多，生成速度卻一點都沒變快。最貼切的解釋是？</h3>
+      <div class="codeblock">整趟生成裡每個 token 被讀取的次數（提示 4 個 + 生成 6 個）
+
+token   K/V 被讀取   Q 被使用
+t0          6            1
+t1          6            1
+t2          6            1
+t3          6            1
+t4          6            1
+t5          5            1
+t6          4            1
+t7          3            1
+t8          2            1
+t9          1            1</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. Q 存錯地方了，應該存到 CPU 記憶體再搬回來</button>
+        <button type="button" class="quiz-opt" data-k="B">B. Q 只在它自己那一步被用一次，之後每個新字都是自己重新提問，沒有人會回頭讀舊的 Q——存了沒人讀</button>
+        <button type="button" class="quiz-opt" data-k="C">C. Q 要和 K 做矩陣乘法，存起來反而多一次搬運，所以拖慢了</button>
+        <button type="button" class="quiz-opt" data-k="D">D. Q 的維度和 K、V 對不齊，快取索引會錯位</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：右欄那張圖就是答案——Q 那一欄從頭到尾都是 1。快取只對「會被重複讀取的東西」有意義；K、V 每一步都被查，所以值得存，Q 用一次就丟，存下來只是佔記憶體。要避免這類判斷失誤，養成問一句話的習慣：「這個東西之後還會被誰讀？」C 描述的是變慢，但題目說的是沒變快，症狀不符；A 和 D 都不是真正的原因。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q5 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>上線前有人估了一下 KV 快取，算出 5.24 GB、看起來很安全，結果第 6 個使用者連進來就 OOM。估算哪裡錯了？</h3>
+      <div class="codeblock">per_token = 32 * 8 * 128 * 2          # 層數 x KV 頭數 x 每頭維度 x fp16 兩個 bytes
+need_gb   = per_token * 8000 * 10 / 1e9
+print(f"{need_gb:.2f} GB")            # → 5.24 GB
+
+# 實際：第 6 個使用者連進來就 OOM</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. GB 應該用 1024 換算，不是 1000</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 漏了「K 和 V 兩份」——每個 token 要存 K 一份、V 一份，正確是 131,072 bytes，這個場景其實要 10.49 GB</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 並發數不該乘進去，10 個使用者共用同一份快取</button>
+        <button type="button" class="quiz-opt" data-k="D">D. fp16 應該算 4 個 bytes</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：公式裡的 <code>* 2</code> 只算到「fp16 一個數 2 bytes」，漏掉「K 和 V 是兩份」。補上之後每 token 是 131,072 bytes（128 KiB），8k × 10 人 = 10.49 GB，剛好越過那台機器可用的約 10 GB——OOM 完全在預期之內。記憶體估算的兩個常漏項就是「K、V 兩份」和「乘上並發」。A 換算方向相反，會讓數字更小；C 是常見誤解，除非兩個請求共用前綴、否則每個人的快取是各自獨立的；D 是杜撰，fp16 就是 2 bytes。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/prompt-caching/">
+    <span class="tag">下一課</span>
+    <b>Prompt Caching：連續對話的錢怎麼算 →</b>
+  </a>
+  <a href="/local-llm/">
+    <span class="tag">主題</span>
+    <b>‹ 回「個人地端大語言模型實作」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero：逐字生成，左邊每輪全部重算、右邊只亮新的一格 ═══ */
+(function () {
+  const PROMPT = ["今", "天", "天", "氣"];
+  const GEN = ["很", "熱", "，", "想", "喝", "冰"];
+  const laneA = document.getElementById("kv-lane-a");
+  const laneB = document.getElementById("kv-lane-b");
+  const costA = document.getElementById("kv-cost-a");
+  const costB = document.getElementById("kv-cost-b");
+  const verdict = document.getElementById("kv-verdict");
+  const btnStep = document.getElementById("kv-step");
+  const btnAuto = document.getElementById("kv-auto");
+  const btnReset = document.getElementById("kv-reset");
+  let step = 0, sumA = 0, sumB = 0, timer = null;
+
+  function addTok(lane, ch, cls) {
+    const d = document.createElement("div");
+    d.className = "tok" + (cls ? " " + cls : "");
+    d.textContent = ch;
+    lane.appendChild(d);
+    return d;
+  }
+  function counters() {
+    costA.innerHTML = `累計算過 <b>${sumA}</b> 格 K/V`;
+    costB.innerHTML = `累計算過 <b>${sumB}</b> 格 K/V`;
+  }
+  function reset() {
+    if (timer) { clearInterval(timer); timer = null; btnAuto.textContent = "自動播放"; }
+    step = 0; sumA = PROMPT.length; sumB = PROMPT.length;
+    laneA.innerHTML = ""; laneB.innerHTML = "";
+    PROMPT.forEach(function (ch) { addTok(laneA, ch, ""); addTok(laneB, ch, "kept"); });
+    counters();
+    btnStep.disabled = false; btnAuto.disabled = false;
+    verdict.innerHTML =
+      `提示「今天天氣」在 Prefill 一次讀完 ＝ 兩邊都先算了 4 格 K/V。` +
+      `<br>接下來逐字生成——按按鈕，看左邊每一輪紅什麼。`;
+  }
+  function stepOnce() {
+    if (step >= GEN.length) return;
+    const ch = GEN[step];
+    step += 1;
+    const nowLen = PROMPT.length + step;
+
+    laneA.querySelectorAll(".tok").forEach(function (t) { t.classList.add("hot"); });
+    addTok(laneA, ch, "hot");
+    const fresh = addTok(laneB, ch, "fresh");
+    sumA += nowLen; sumB += 1;
+    counters();
+
+    setTimeout(function () {
+      laneA.querySelectorAll(".tok").forEach(function (t) { t.classList.remove("hot"); });
+      fresh.classList.remove("fresh");
+      fresh.classList.add("kept");
+    }, 460);
+
+    if (step >= GEN.length) {
+      btnStep.disabled = true; btnAuto.disabled = true;
+      if (timer) { clearInterval(timer); timer = null; btnAuto.textContent = "自動播放"; }
+      verdict.innerHTML =
+        `10 個字寫完：左邊算了 <b style="color:var(--cut)">${sumA}</b> 格 K/V、` +
+        `右邊只算了 <b style="color:var(--c3)">${sumB}</b> 格——差 ${(sumA / sumB).toFixed(1)} 倍，` +
+        `而且<b>兩邊的答案一模一樣</b>。<br>` +
+        `而這只是 10 個字。句子每長一倍，左邊的浪費就變四倍。`;
+    } else {
+      verdict.innerHTML =
+        `第 ${step} 個字「${ch}」：左邊把前面 <b style="color:var(--cut)">${nowLen}</b> 格的 K、V ` +
+        `全部重算一遍（其中 ${nowLen - 1} 格上一輪剛算過）；` +
+        `右邊只算新的 <b style="color:var(--c3)">1</b> 格，其餘直接查表。`;
+    }
+  }
+  btnStep.addEventListener("click", stepOnce);
+  btnReset.addEventListener("click", reset);
+  btnAuto.addEventListener("click", function () {
+    if (timer) {
+      clearInterval(timer); timer = null; btnAuto.textContent = "自動播放";
+    } else {
+      btnAuto.textContent = "暫停";
+      timer = setInterval(function () {
+        if (step >= GEN.length) { clearInterval(timer); timer = null; btnAuto.textContent = "自動播放"; return; }
+        stepOnce();
+      }, 900);
+    }
+  });
+  reset();
+})();
+</script>
+<script src="/shared/lesson.js" defer></script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

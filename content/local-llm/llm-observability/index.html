@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可觀測性與監控：看見你的 LLM · AI 互動教室</title>
+<meta name="description" content="同一句「LLM 變慢了」，Grafana 告訴你為什麼慢、trace 告訴你慢在哪一步。用可玩的告警模擬器與 trace 瀑布圖，把兩層監控一次看懂。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="可觀測性與監控：看見你的 LLM · AI 互動教室">
+<meta property="og:description" content="同一句「LLM 變慢了」，Grafana 告訴你為什麼慢、trace 告訴你慢在哪一步。用可玩的告警模擬器與 trace 瀑布圖，把兩層監控一次看懂。">
+<meta property="og:url" content="https://agentclass.pages.dev/llm-observability/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝機器層（指標／Grafana）、橘＝請求層（trace／MLflow）、
+     綠＝安全與正常、紅＝告警與失敗 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+
+  /* hero：可重播的 trace 案例 */
+  #tc .tc-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  #tc button.tc-case {
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    padding: 7px 12px; border-radius: 999px;
+    border: 1.5px solid var(--ink); background: var(--panel); color: var(--ink);
+  }
+  #tc button.tc-case:hover { background: var(--chip-bg); }
+  #tc button.tc-case.on { background: var(--c2); color: #fff; border-color: var(--c2); }
+  #tc .tc-log {
+    min-height: 214px; border-left: 3px solid var(--grid); padding-left: 14px;
+    font-size: 13.5px; line-height: 1.5;
+  }
+  #tc .tc-row { margin: 0 0 9px; opacity: 0; transform: translateY(4px); animation: tcIn .28s ease forwards; }
+  @keyframes tcIn { to { opacity: 1; transform: none; } }
+  #tc .tc-step {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    background: var(--chip-bg); border-radius: 6px; padding: 2px 7px; margin-right: 6px;
+    white-space: nowrap;
+  }
+  #tc .tc-row.bad .tc-step { background: var(--cut); color: #fff; }
+  #tc .tc-row.key .tc-step { background: var(--c2); color: #fff; }
+  #tc .tc-say { color: var(--ink-soft); }
+  #tc .tc-say b { color: var(--ink); }
+  #tc .tc-foot {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--grid);
+  }
+  #tc .tc-verdict { flex: 1 1 260px; font-size: 13px; }
+  #tc button.tc-replay {
+    font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    padding: 5px 12px; border-radius: 8px;
+    border: 1.5px solid var(--ink); background: var(--panel); color: var(--ink);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #tc .tc-row { animation: none; opacity: 1; transform: none; }
+  }
+
+  /* 節內小標與重點框 */
+  #lesson h3.sub {
+    font-size: 17px; font-weight: 900; letter-spacing: -.01em;
+    margin: 30px 0 10px; padding-left: 11px; border-left: 4px solid var(--ink);
+  }
+  .callout {
+    margin: 20px 0; background: var(--panel);
+    border: 2px solid var(--ink); border-radius: 12px;
+    padding: 14px 16px; box-shadow: 6px 6px 0 var(--grid);
+  }
+  .callout p { margin: 0 0 12px; }
+
+  /* 兩層對照表 */
+  table.two th:nth-child(2) { color: var(--c1); }
+  table.two th:nth-child(3) { color: var(--c2); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .layer {
+    display: inline-block; font-size: 11.5px; font-weight: 800; letter-spacing: .04em;
+    border-radius: 5px; padding: 2px 8px; color: #fff; margin-bottom: 8px;
+  }
+  .layer.infra { background: var(--c1); }
+  .layer.req { background: var(--c2); }
+</style>
+</head>
+<body data-ready-figures="5"><!-- 【必改】notebook 全部跑完會渲染出的 img/canvas 數量；
+  無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設） -->
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/local-llm/">‹ 個人地端大語言模型實作</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">OBSERVE · 07 · 兩層監控</span>
+  <h1>可觀測性與監控：<br>看見你的 LLM</h1>
+  <p style="margin-top:18px">
+    上一課你讓小模型先猜、大模型再驗，把生成加速了。速度調完之後，會冒出一個新問題：
+    <b>它跑得對嗎？</b>Agent 回傳 200、速度也不慢，答案卻可能整段是錯的；
+    一個卡住的重試迴圈可以在一夜之間把預算燒到三倍。狀態碼與日誌，看不見這些事。
+  </p>
+  <p>
+    下面三個案例都是從真實的 agent trace 紀錄改編的。按一個看看——
+    <b>沒有 trace，你只會知道「它做完了」；有 trace，你會知道它一路上做了什麼</b>：
+  </p>
+
+  <div class="hero-demo" id="tc">
+    <div class="tc-pick">
+      <button type="button" class="tc-case" data-i="0">🎙️ 沒人叫它，它自己開了 GPU</button>
+      <button type="button" class="tc-case" data-i="1">🔤 工具名隨機拼錯</button>
+      <button type="button" class="tc-case" data-i="2">🚧 hook 沒擋住</button>
+    </div>
+    <div class="tc-log" id="tc-log"></div>
+    <div class="tc-foot">
+      <span class="tc-verdict" id="tc-verdict"></span>
+      <button type="button" class="tc-replay" id="tc-replay">重播 ▸</button>
+    </div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。你會在裡面轉告警的旋鈕、攤開 trace 的瀑布圖，
+    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 為什麼</span>
+  <h2>看不見推理過程，就無法 debug、無法優化、無法控成本</h2>
+  <p>
+    傳統服務的監控問句很單純：有沒有 500？P99 幾毫秒？到了 agent 時代，這些問句全部失靈，
+    因為 LLM 應用有四種傳統監控接不住的失敗：
+  </p>
+  <table>
+    <tr><th>失敗型態</th><th>為什麼傳統監控看不到</th></tr>
+    <tr><td><b>非確定性的失敗</b></td><td>回傳 200、速度也快，答案卻完全是錯的——狀態碼看不出品質問題</td></tr>
+    <tr><td><b>多步驟黑盒</b></td><td>一次請求扇出十幾個模型呼叫、檢索與工具調用，純日誌無法定位是哪一環斷掉</td></tr>
+    <tr><td><b>成本會失控</b></td><td>token 依用量計費，一個卡住的重試迴圈可能一夜之間把預算燒到三倍</td></tr>
+    <tr><td><b>品質悄悄退化</b></td><td>模型升級或 prompt 改版後行為漂移，沒有評分機制就等客訴才發現</td></tr>
+  </table>
+  <p>
+    所以這個領域長出了專門的平台。不管你最後選哪一家，它們做的都是同樣四件事：
+  </p>
+  <table>
+    <tr><th>核心能力</th><th>回答什麼</th></tr>
+    <tr><td><b>追蹤 Tracing</b></td><td>記錄每次呼叫的輸入、輸出、token、延遲、錯誤，把巢狀的模型／工具／檢索步驟組成 trace 樹——這是一切的基礎</td></tr>
+    <tr><td><b>成本追蹤 Cost</b></td><td>把花費歸因到每位使用者、每個 prompt 模板、每個模型版本，才能找出正在流血的那條預算</td></tr>
+    <tr><td><b>評估 Evaluation</b></td><td>用 LLM-as-a-judge、人工標註或使用者回饋衡量輸出品質，在客訴前抓到退化</td></tr>
+    <tr><td><b>Prompt 管理</b></td><td>版本控制、A/B 測試、一鍵回滾，改 prompt 不用改程式碼、不用重新部署</td></tr>
+  </table>
+  <p class="note">選工具的方法很簡單：<b>依「你最痛的那一項」來選</b>——不同平台對這四項的側重差很多。</p>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 核心</span>
+  <h2>同一句「LLM 變慢了」，兩個視角缺一不可</h2>
+  <p>
+    這是整堂課最重要的一張表。可觀測性有兩層，它們回答的是<b>完全不同的問題</b>，
+    卻常常被當成同一件事：
+  </p>
+  <table class="two">
+    <tr><th></th><th>基礎設施監控</th><th>AI 應用觀測</th></tr>
+    <tr><td><b>工具</b></td><td>Prometheus + Grafana + Alertmanager</td><td>MLflow Tracing／Langfuse／Phoenix…</td></tr>
+    <tr><td><b>回答的問題</b></td><td>機器活著嗎？VRAM 剩多少？服務掛了沒？</td><td>這次呼叫問了什麼、回了什麼、慢在哪一步？</td></tr>
+    <tr><td><b>資料形態</b></td><td>時序指標（每 15 秒被拉一次）</td><td>trace / span（應用程式主動送）</td></tr>
+    <tr><td><b>粒度</b></td><td>主機級、服務級</td><td>單一請求級</td></tr>
+    <tr><td><b>出事時</b></td><td>先於使用者發現，推播到你手機</td><td>撈出那條 trace 除錯、跑評估防退步</td></tr>
+  </table>
+  <p>
+    把它們接起來的，就是那句「LLM 回覆變慢了」：
+  </p>
+  <div class="callout">
+    <p><span class="layer infra">機器層</span><br>
+      Grafana 上看見 vLLM 的 <span class="kbd">waiting</span> 排隊數持續大於 0、KV cache 使用率貼近 1.0——
+      <b>這告訴你「為什麼慢」</b>：容量不夠了。</p>
+    <p style="margin-bottom:0"><span class="layer req">請求層</span><br>
+      trace 上看見這一筆請求的 9.2 秒裡有 7.2 秒卡在 <span class="kbd">queue_wait</span>，
+      檢索與解碼都很正常——<b>這告訴你「慢在哪一步」</b>：不是你的 RAG 寫爛了。</p>
+  </div>
+  <p>
+    <b>只有機器層</b>：你知道排隊很長，但不知道哪些請求受害、使用者實際等了多久。
+    <b>只有請求層</b>：你知道某一步等了 7.2 秒，卻不知道為什麼要等。
+    兩層合起來，才叫可觀測性。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊攤開四條 trace，找出慢在哪一步</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 請求層</span>
+  <h2>trace 判讀：總時長沒有資訊量，self time 才有</h2>
+  <p>
+    一次「請求」在 agent 時代不是一件事，是一棵樹。trace 把這棵樹連同每一步的起訖時間記下來。
+    判讀第一課是分清楚兩種時間：
+  </p>
+  <ul>
+    <li><b>總時長（duration）</b>：這個 span 從開始到結束的牆鐘時間，<b>包含所有子步驟</b></li>
+    <li><b>自身時間（self time）</b>：總時長扣掉直接子步驟的時間，才是「這一層自己花掉的」</li>
+  </ul>
+  <p>
+    只看總時長，最上層那個包住全部的 span 永遠最慢，這句話等於沒說。
+    <b>self time 最大的那一步，才是兇手。</b>右邊四條 trace 換著看，
+    你會看到同樣是「變慢了」，兇手可能在檢索、在排隊、也可能是被拼錯的工具名拖進重試迴圈。
+  </p>
+
+  <h3 class="sub">MLflow Tracing：從一行到一棵樹</h3>
+  <p>
+    以 MLflow 為例（Apache 2.0、Linux Foundation、原生相容 OpenTelemetry），
+    最小的接法真的只有一行——所有經過 openai SDK 的呼叫都會自動變成 trace，
+    包含打你自己 GPU 機上的 vLLM：
+  </p>
+  <div class="codeblock">import mlflow
+
+# 要在任何呼叫之前執行
+mlflow.set_tracking_uri("http://localhost:5000")
+mlflow.openai.autolog()          # ← 就這一行
+
+# llm 的 base_url = http://localhost:8000/v1
+r = llm.chat.completions.create(
+    model="qwen3-4b",
+    messages=[{"role": "user",
+               "content": "什麼是 KV cache？"}],
+    max_tokens=128, temperature=0,
+)
+# 自動記下：prompt、完整回覆、token 用量、
+#           延遲、span 名稱與類型</div>
+  <p>
+    autolog 只看得到「單次呼叫」。要看出慢在檢索還是生成，用
+    <span class="kbd">@mlflow.trace</span> 把自己的函式包起來，巢狀結構會自動成形：
+  </p>
+  <div class="codeblock">@mlflow.trace(span_type=SpanType.RETRIEVER)
+def retrieve(query, top_k=2):
+    ...                                    # 算 embedding、取 cosine 相似度 top_k
+
+@mlflow.trace(name="rag_answer", span_type=SpanType.CHAIN)
+def rag_answer(question):
+    context = retrieve(question)
+    return llm.chat.completions.create(...)
+
+# UI 裡看到的 span 樹：
+#   rag_answer            CHAIN
+#     retrieve            RETRIEVER
+#       Embeddings        ← autolog 自動補上的
+#     Completions         ← autolog 自動補上的</div>
+  <p>
+    再往上疊三件事，這一層就完整了：
+  </p>
+  <table>
+    <tr><th>要回答</th><th>做法</th></tr>
+    <tr>
+      <td><b>「這個使用者的對話發生了什麼」</b></td>
+      <td>在 trace 上掛標準 metadata（<span class="kbd">mlflow.trace.user</span> /
+        <span class="kbd">mlflow.trace.session</span>），之後用
+        <span class="kbd">search_traces(filter_string=...)</span> 篩：user 跨 session 追同一個人，
+        session 還原一整段多輪對話</td>
+    </tr>
+    <tr>
+      <td><b>「使用者覺得好不好」</b></td>
+      <td>前端把該次回覆的 trace_id 一起送回來，倒讚就
+        <span class="kbd">log_feedback(trace_id, value=False, rationale=...)</span> 記回同一條 trace。
+        之後撈出所有被倒讚的對話除錯，或直接當評估資料集</td>
+    </tr>
+    <tr>
+      <td><b>「改了 prompt 有沒有變笨」</b></td>
+      <td><span class="kbd">mlflow.genai.evaluate()</span> 對同一組測資跑前後兩版，
+        <b>裁判就用你自己那顆本地模型</b>——免外部 API、資料不出門</td>
+    </tr>
+  </table>
+  <p>
+    最後一項是這一層的殺手鐧，值得展開。讓小模型當裁判有個經典地雷：它會回一整段散文，
+    你解析不出來。解法是用 structured outputs <b>鎖死裁決只能二選一</b>：
+  </p>
+  <div class="codeblock">@scorer
+def judge_correct(inputs, outputs, expectations):
+    verdict = llm.chat.completions.create(
+        model="qwen3-4b",
+        messages=[...問題 / 標準答案 / 考生答案...],
+        extra_body={"structured_outputs":
+            {"choice": ["正確", "錯誤"]}},   # ← 鎖二選一
+    ).choices[0].message.content
+    return verdict == "正確"
+
+res = mlflow.genai.evaluate(
+    data=data, predict_fn=ask, scorers=[judge_correct],
+)</div>
+  <p>
+    兩個容易翻車的地方：<span class="kbd">predict_fn</span> 的參數名要對齊測資 inputs 的 key；
+    裁判是<b>照 expectations 打分</b>的——測資裡如果寫了錯的標準答案（例如 1+1=3），
+    它就會照那個錯的判，分數自然掉下來。這其實是好事：它證明裁判真的在比對，而不是在誇獎。
+  </p>
+
+  <h3 class="sub">常見坑速查</h3>
+  <table>
+    <tr><th>症狀</th><th>原因與解法</th></tr>
+    <tr><td>剛跑完就查，一條 trace 都查不到</td><td>上傳是<b>背景非同步</b>的：先
+      <span class="kbd">mlflow.flush_trace_async_logging()</span> 再
+      <span class="kbd">search_traces()</span></td></tr>
+    <tr><td>trace 全跑去本地 <span class="kbd">./mlruns/</span></td><td>
+      <span class="kbd">set_tracking_uri()</span> 沒有在任何呼叫之前執行</td></tr>
+    <tr><td>tracking URI 回 404</td><td>反向代理底下的路徑前綴（例如 <span class="kbd">/mlflow</span>）忘了帶</td></tr>
+    <tr><td>正式環境流量太大</td><td>取樣（<span class="kbd">MLFLOW_TRACE_SAMPLING_RATIO=0.1</span>）
+      或改用輕量的 tracing-only SDK，別全量記</td></tr>
+    <tr><td>舊資料佔空間</td><td><span class="kbd">delete_traces(experiment_id, max_timestamp_millis=...)</span> 定期清</td></tr>
+  </table>
+  <p class="note">
+    有了 trace id 還可以更懶：把 trace id 和你的疑問一起貼給 AI 助理
+    （MLflow 官方有 MCP 工具與 skills），讓它讀完整條 trace 直接告訴你 prompt 哪裡出問題。
+    除錯迴圈就閉起來了：<b>記 trace → 貼 id 給 AI → 改 prompt → evaluate 驗證沒變笨</b>。
+  </p>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 成本</span>
+  <h2>把 token 歸戶，流血的那條預算才會現形</h2>
+  <p>
+    trace 除了時間，還記了每次呼叫的 token 用量。有 token 就能算錢；
+    有 user／model／功能路由這些標籤，就能回答「錢到底花在誰身上」。
+  </p>
+  <p>
+    成本失控最典型的長相是 <b>「請求數少、花費大」</b>：一條夜間批次、一個超長 prompt、
+    一個沒人看見的重試迴圈。平均延遲、錯誤率、QPS 這些指標<b>全都看不出它</b>——
+    它們是按請求數平均的，而肇事者的請求數很少。只有把 token 歸戶才抓得到。
+  </p>
+  <p>
+    右邊那批合成的 600 筆請求就是這個形狀：切換分組維度，同一筆錢會從三個角度指向同一個嫌犯。
+    看完你就知道為什麼「成本追蹤」會被列成核心能力之一。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊把成本歸戶到路由／模型／使用者</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 機器層</span>
+  <h2>誰產、誰收、誰看、誰叫</h2>
+  <p>
+    換另一半。機器層的架構是一條四段的鏈，每一段各司其職：
+  </p>
+  <div class="callout">
+    <p style="margin-bottom:0">
+      <b>exporter 產</b>（開一個 <span class="kbd">/metrics</span> 端點等人來抓）　→
+      <b>Prometheus 收＋判斷</b>（每 15 秒 pull 一輪、存時序、跑告警規則）　→
+      <b>Grafana 看</b>（儀表板）　→
+      <b>Alertmanager 送</b>（去重、分組、節流，推到 Telegram 之類的地方）
+    </p>
+  </div>
+  <p>
+    <b>pull 模式的好處</b>：被監控端什麼都不用知道，只要開一個端點。
+    新增一台機器 ＝ 跑 exporter ＋ 在 Prometheus 加一行 target。
+  </p>
+  <table>
+    <tr><th>exporter</th><th>提供什麼</th></tr>
+    <tr><td>GPU exporter</td><td>把 <span class="kbd">nvidia-smi</span> 翻成指標：VRAM、使用率、溫度、功耗</td></tr>
+    <tr><td>node exporter</td><td>主機本體：CPU、記憶體、磁碟</td></tr>
+    <tr><td>cAdvisor</td><td>每個容器的資源用量</td></tr>
+    <tr><td>vLLM 內建</td><td>排隊數 <span class="kbd">num_requests_waiting</span>、KV cache 使用率</td></tr>
+  </table>
+  <p>
+    兩個常被問的問題。<b>exporter 會吃 VRAM 嗎？</b>不會——它只透過 NVML 查數字，
+    不建 CUDA context，<b>監控本身零 VRAM 成本</b>。
+    <b>服務死掉要另外寫健康檢查嗎？</b>不用——Prometheus 對每個 target 都免費附贈一個
+    <span class="kbd">up</span> 指標：抓得到 = 1、抓不到 = 0。
+  </p>
+  <p class="note">
+    ⚠️ 一個安靜的陷阱：<span class="kbd">nvidia_smi_last_collect_success = 0</span> 代表
+    <b>exporter 活著，但它跑的 nvidia-smi 失敗了</b>（例如驅動更新後沒重開機）。
+    這時 <span class="kbd">up</span> 還是 1、沒有任何東西會叫，GPU 指標卻會無聲消失。
+    要把這個指標也放進告警規則。
+  </p>
+
+  <h3 class="sub">PromQL：先會這三句就夠用</h3>
+  <div class="codeblock">nvidia_smi_memory_free_bytes{host="gpu-a"}
+    → 這台現在剩多少 VRAM
+
+min_over_time(nvidia_smi_memory_free_bytes[24h])
+    → 過去 24 小時的「最低水位」：昨天的峰值把餘裕吃到多低？
+      這是動態制服務做容量規劃最需要、而 nvidia-smi 當下一瞥永遠看不到的數字
+
+rate(vllm:request_success_total[5m])
+    → vLLM 每秒完成幾個請求</div>
+  <p>
+    第二句值得畫重點。你隨手 <span class="kbd">nvidia-smi</span> 一看「還剩 3GB，很安全」，
+    但那只是此刻；<span class="kbd">min_over_time</span> 才會告訴你昨天半夜它曾經只剩 0.4GB。
+    <b>容量規劃看的是最低水位，不是當下水位。</b>
+  </p>
+
+  <h3 class="sub">告警規則：門檻之外，<span class="kbd">for:</span> 才是關鍵</h3>
+  <p>一組實際在跑的規則長這樣（兩組七條）：</p>
+  <table>
+    <tr><th>組</th><th>規則</th><th>條件</th><th>嚴重度</th></tr>
+    <tr><td>gpu</td><td>GPUFreeVRAMLow</td><td>任一台剩 &lt; 1.5GB 持續 5 分鐘</td><td>warning</td></tr>
+    <tr><td>gpu</td><td>GPUExporterDown</td><td>GPU exporter 抓不到 3 分鐘</td><td>critical</td></tr>
+    <tr><td>gpu</td><td>VLLMDown</td><td>任一 vLLM 服務抓不到 3 分鐘</td><td>critical</td></tr>
+    <tr><td>host</td><td>HostDown</td><td>整台主機失聯</td><td>critical</td></tr>
+    <tr><td>host</td><td>HostDisk / Mem / CPU</td><td>磁碟快滿／記憶體吃緊／CPU 高檔（3 條）</td><td>warning</td></tr>
+  </table>
+  <ul>
+    <li>
+      <b><span class="kbd">for:</span> 是告警品質的關鍵</b>：條件要「持續多久才算數」。
+      沒有它，VRAM 抖一下就叫；叫了幾次沒事之後大家就開始忽略告警——這叫
+      <b>告警疲乏</b>，是監控自殺的第一步。
+    </li>
+    <li>
+      <b>1.5GB 這個門檻怎麼來的</b>：那台上面的動態制服務，長文本峰值增量估 1～2GB。
+      所以 1.5GB 是<b>「該去看一眼」的水位，不是「已經死了」的水位</b>——<b>告警要留反應時間</b>。
+    </li>
+    <li>
+      規則寫在 <span class="kbd">rules.yml</span>、跟著 compose 走，不是在 UI 手點的：<b>重建即重現</b>。
+    </li>
+  </ul>
+  <p>
+    <span class="kbd">for:</span> 該設多久？這是可以算的。右邊的模擬器藏了 3 次無害抖動
+    （1／2／4 分鐘）和 1 次真事件（連續 12 分鐘），轉旋鈕就會看見取捨的形狀：
+    <b>誤報數是階梯狀下降的，每一階都是某次抖動的長度；偵測延遲則是直線上升</b>。
+    實務上的定法因此很具體——<b>量一下你系統真實的抖動有多長，取比它稍長的值</b>。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊轉旋鈕，把誤報調掉</button>
+  <button class="golab" data-nb="4️⃣">再把所有 for: 值掃一遍，看取捨曲線</button>
+
+  <h3 class="sub">告警禮儀：叫，但要叫得有禮貌</h3>
+  <p>
+    Prometheus 只負責「判斷」，送出去是 Alertmanager 的事。這四個參數是禮儀：
+  </p>
+  <table>
+    <tr><th>參數</th><th>示例值</th><th>意思</th></tr>
+    <tr><td><span class="kbd">group_by</span></td><td>alertname, host</td><td>同機同規則合併成一則，不洗版</td></tr>
+    <tr><td><span class="kbd">group_wait</span></td><td>30s</td><td>firing 後先等 30 秒，收集同組一起送</td></tr>
+    <tr><td><span class="kbd">repeat_interval</span></td><td>4h</td><td>一直沒修好，每 4 小時提醒一次</td></tr>
+    <tr><td><span class="kbd">send_resolved</span></td><td>true</td><td>修好也通知（✅ 告警解除）</td></tr>
+  </table>
+  <p>
+    <b>沒有這幾個值，一次網路抖動就能讓手機半夜連震二十下，然後大家把通知關掉——監控自殺。</b>
+    接到 Telegram 只要兩步：跟 <span class="kbd">@BotFather</span> 用
+    <span class="kbd">/newbot</span> 拿 token；對 bot 按一次 Start 後用
+    <span class="kbd">getUpdates</span> 挖出 chat_id（token 由環境變數注入，不進 git）。
+    <b>驗證鏈路不用真把 GPU 塞爆</b>：對 Alertmanager 的 REST 端點塞一則假告警，
+    30 秒後手機就該響。
+  </p>
+  <p class="note">
+    番外，但很好用的一個模式：<b>心跳檔 ＋ 定時 push</b>。
+    佇列輪詢那種行程沒有 <span class="kbd">/metrics</span> 可拉，就反過來——用計時器每 3 分鐘體檢，
+    抓兩種死法（① 服務單元不是 active ② 行程活著但主迴圈卡死：worker 每圈碰一下心跳檔，
+    超過 5 分鐘沒動就算死），異常直接推 Alertmanager REST，借同一條通知出口。
+    告警帶一個 10 分鐘後的到期時間，問題持續就每 3 分鐘續火、恢復了就自動解除。
+    這個模式適用任何非 HTTP 的長跑行程（批次工作、輪詢 worker、排程任務），
+    <b>不用為它多架一套監控</b>。
+  </p>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 判讀</span>
+  <h2>看「剩多少」，不是看「用多少」</h2>
+  <p>
+    一次真實的容量事故（RTX 4090 24GB、2026-07）：某天 A 機的 VRAM
+    <b>只剩 862 MiB</b>，上面最重要的語音合成服務隨時可能 CUDA OOM；
+    而同時間 B 機「看起來也快滿了」，卻其實非常安全。差別不在用了多少，在<b>要 VRAM 的方式</b>：
+  </p>
+  <table>
+    <tr><th>類型</th><th>代表</th><th>行為</th><th>風險</th></tr>
+    <tr><td><b>預留制</b></td><td>vLLM</td><td>啟動時鎖一塊，之後不再長</td><td>跑起來就穩</td></tr>
+    <tr><td><b>動態制</b></td><td>PyTorch 類服務（TTS、影像）</td><td>用多少要多少，長文本突然要更多</td><td>餘裕不夠 → 隨時 OOM</td></tr>
+  </table>
+  <p>
+    <b>判讀規則：卡上有動態制服務時，看「剩多少」而不是「用多少」。</b>
+    B 機用量更兇但全是預留制，啟動時就鎖好了，之後不會再長；
+    A 機看起來只是「有點滿」，但它的餘裕必須撐得住動態制服務的峰值增量。
+  </p>
+  <p>
+    當天的解法是把向量嵌入服務搬到 B 機，A 機的餘裕從 <b>0.86 GB 變成 4.10 GB</b>。
+    由此長出一條配置鐵律：<b>新的 GPU 服務一律排到沒有動態制服務的那台</b>。
+    右邊有這兩台機器的對照圖，拉一下峰值增量、打開那個搬遷開關看看。
+  </p>
+  <p>
+    而監控要做的事，就是<b>把這段人肉分析變成 24 小時自動的</b>：
+    剩餘 VRAM 隨時看得到，低於門檻持續一段時間就推播到手機。
+  </p>
+  <button class="golab" data-nb="5️⃣">到右邊看兩台機器的餘裕對照</button>
+
+  <h3 class="sub">儀表板即程式碼</h3>
+  <p>
+    儀表板該放哪些面板，也是有講究的——每一面板都要能回答一個問句：
+  </p>
+  <table>
+    <tr><th>面板</th><th>回答什麼</th></tr>
+    <tr><td>VRAM 剩餘（數字＋變色）</td><td>第一眼：綠 &gt;3GB／黃 1.5–3／紅 &lt;1.5，<b>門檻和告警規則一致</b></td></tr>
+    <tr><td>VRAM 使用量（時序）</td><td>趨勢：誰在長？什麼時候長？</td></tr>
+    <tr><td>GPU 使用率</td><td>忙不忙（注意：VRAM 滿 ≠ 算力忙）</td></tr>
+    <tr><td>溫度／功耗</td><td>散熱與供電體檢</td></tr>
+    <tr><td>vLLM running / waiting</td><td>waiting 持續大於 0 ＝ 容量不夠</td></tr>
+    <tr><td>vLLM KV cache 使用率</td><td>接近 1.0 就是排隊的原因</td></tr>
+  </table>
+  <p>
+    這些面板不是在 UI 上手點出來的：datasource 與 dashboard 的 JSON 全寫在 compose 的設定裡
+    （provisioning）。<b>好處是重建容器 ＝ 重建完整監控，零手工；代價是手改的儀表板重佈署會被蓋掉</b>
+    ——要改就改 compose 裡的 JSON。告警規則也是同樣的道理。
+  </p>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 選型</span>
+  <h2>沒有最好，只有最合適</h2>
+  <p>
+    先決定機器層那一半要多重。如果你只是要看幾台機器活不活著：
+  </p>
+  <table>
+    <tr><th>面向</th><th>輕量方案（如 Beszel）</th><th>專業堆疊（Prometheus + Grafana）</th></tr>
+    <tr><td>安裝</td><td>一份 compose，開箱即用</td><td>多元件，要寫設定、學 PromQL</td></tr>
+    <tr><td>資源</td><td>極小（agent 約 3–14 MB）</td><td>較高，要規劃時序資料庫資源</td></tr>
+    <tr><td>監控範圍</td><td>CPU／記憶體／磁碟／溫度／GPU／Docker</td><td>幾乎不限，有 exporter 就能收</td></tr>
+    <tr><td>查詢客製</td><td>固定圖表，無查詢語言</td><td>PromQL ＋ Grafana 高度客製</td></tr>
+    <tr><td>告警</td><td>內建門檻告警</td><td>Alertmanager，規則細膩</td></tr>
+    <tr><td>維護</td><td>幾乎零維運</td><td>需要人顧</td></tr>
+  </table>
+  <p>
+    <b>1～20 台主機、要快速上線、低維運 → 選輕量的。</b>
+    <b>要看應用／K8s 指標、要自訂查詢與細膩告警 → 選 Prometheus + Grafana。</b>
+    本課走的是後者——因為我們還要看 GPU 與 vLLM 的指標，那是輕量方案接不到的。
+  </p>
+
+  <h3 class="sub">請求層那一半：七家怎麼挑</h3>
+  <table>
+    <tr><th>工具</th><th>開源／自托管</th><th>核心強項</th><th>內建評測</th><th>OTel</th></tr>
+    <tr><td><b>Langfuse</b></td><td>開源，可自托管</td><td>prompt 層深度追蹤</td><td>內建評分器</td><td>兼容</td></tr>
+    <tr><td><b>MLflow</b></td><td>開源，可自托管</td><td>端到端 ML 平台</td><td>強（＋優化）</td><td>原生</td></tr>
+    <tr><td><b>LangSmith</b></td><td>SaaS 優先</td><td>LangChain 原生推理鏈</td><td>有限</td><td>經回調</td></tr>
+    <tr><td><b>Arize Phoenix</b></td><td>開源，可自托管</td><td>漂移偵測／LLM-judge</td><td>強</td><td>原生</td></tr>
+    <tr><td><b>Helicone</b></td><td>開源，可自托管</td><td>網關式低侵入接入</td><td>基礎</td><td>支援</td></tr>
+    <tr><td><b>AgentOps</b></td><td>SDK 開源，SaaS</td><td>生產會話回放</td><td>生命週期指標</td><td>原生</td></tr>
+    <tr><td><b>Braintrust</b></td><td>SaaS 優先</td><td>資料集評測</td><td>全面</td><td>標準</td></tr>
+  </table>
+  <p>一句話版的選型建議：</p>
+  <ul>
+    <li>要<b>資料自主 ＋ 功能全面</b>（醫療／金融這類敏感場景）→ Langfuse，一鍵自托管</li>
+    <li>要<b>追蹤＋評估＋模型管理一站到位</b>、避免廠商鎖定 → MLflow</li>
+    <li>技術棧<b>深綁 LangChain / LangGraph</b> → LangSmith，零摩擦</li>
+    <li>關心<b>長期品質與模型漂移</b> → Arize Phoenix</li>
+    <li>要<b>最小改動快速接入</b> → Helicone，網關式代理幾分鐘上線</li>
+    <li>把<b>評測當開發核心</b> → Braintrust，用資料集量化迭代</li>
+  </ul>
+  <p class="note">
+    小撇步：所有平台都有免費檔——<b>先把真實流量灌進去跑一週，比看任何評測都準。</b>
+  </p>
+
+  <h3 class="sub">底層標準：OpenTelemetry GenAI</h3>
+  <p>
+    選工具之前先認識這個正在統一領域的標準，因為它決定你未來換工具、
+    或接進既有 APM 的成本：按 GenAI 語意約定<b>埋點一次</b>，統一
+    「LLM 呼叫／agent 步驟／工具調用」的欄位；OTel 作為廠商中立的傳輸層，
+    <b>同一份資料可以送到任何支援它的後端，甚至同時送多個</b>。
+    所以「是否原生支援 OTel」是選工具的重要加分項——<b>埋點一次、到處可送 ＝ 不被鎖定</b>。
+  </p>
+
+  <h3 class="sub">閉環才叫 Ops</h3>
+  <p>把整堂課裝回一張表，一個像樣的 AgentOps 有六個模塊：</p>
+  <table>
+    <tr><th>模塊</th><th>回答什麼</th><th>本課對應</th></tr>
+    <tr><td>① Tracing 可觀測</td><td>每次呼叫發生了什麼、慢在哪</td><td>autolog ＋ 巢狀 span（第 3 節、1️⃣）</td></tr>
+    <tr><td>② Evaluation 評估</td><td>改了 prompt／模型，有沒有變笨</td><td>genai.evaluate ＋ 本地模型當裁判（第 3 節）</td></tr>
+    <tr><td>③ Feedback 回饋</td><td>使用者覺得好不好</td><td>讚／倒讚記回 trace（第 3 節）</td></tr>
+    <tr><td>④ Metrics 資源監控</td><td>GPU／服務還健康嗎</td><td>Prometheus ＋ Grafana（第 5 節）</td></tr>
+    <tr><td>⑤ Alerting 告警</td><td>出事誰來叫人</td><td>Alertmanager → 手機推播（第 5 節、3️⃣4️⃣）</td></tr>
+    <tr><td>⑥ Cost／容量</td><td>token 花多少、VRAM 水位夠不夠</td><td>trace token 統計（2️⃣）＋ PromQL 最低水位（5️⃣）</td></tr>
+  </table>
+  <p>
+    <b>觀測（①④）→ 發現問題（⑤③）→ 改進 → 評估驗證（②）→ 再觀測。</b>
+    少了任何一段，它就只是儀表板，不是 Ops。
+  </p>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 實戰</span>
+  <h2>換你動手</h2>
+  <p>
+    右邊三個函式都可以直接呼叫：<span class="kbd">make_vram_series()</span> 造時序、
+    <span class="kbd">evaluate_rule()</span> 評一組規則、
+    <span class="kbd">self_times()</span> 算 trace 的自身時間。
+  </p>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>
+      用 <span class="kbd">evaluate_rule</span> 印出「<span class="kbd">for:</span> = 0／2／5／13 分鐘」
+      四種設定的誤報數與偵測延遲，親手確認你在旋鈕上看到的行為。
+      注意 13 分鐘那一組發生了什麼事。
+    </p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>
+      你的機器抖動比較長：把抖動改成 <span class="kbd">(2, 5, 8)</span> 分鐘、真事件仍是 12 分鐘，
+      找出「誤報歸零又不漏報」的最小 <span class="kbd">for:</span>。
+      然後想想這個數字對 on-call 的人意味著什麼。
+    </p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>
+      把你自己遇過的一次慢請求寫成 spans 加進 <span class="kbd">TRACES</span>，
+      算出 self time 最大的那一步。自我驗證的方法在 notebook 裡：
+      <b>所有 span 的 self time 加總必須剛好等於根 span 的總時長</b>，對不上就是你的層級或起訖寫錯了。
+    </p>
+  </div>
+  <button class="golab" data-nb="6️⃣">到右邊的實驗區開工</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">09 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>使用者回報「你們的 AI 助理今天特別慢」。你手上兩套東西都有：Grafana 儀表板，以及每次呼叫的 trace。要最快找到原因，怎麼查？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 只看 Grafana：機器層的指標是所有問題的根源，trace 是給開發時期用的</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 只撈 trace：使用者抱怨的是單一請求的體驗，機器指標跟這件事無關</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 先撈一條慢的 trace 看 self time 最大的是哪一步，再帶著那一步回 Grafana 找對應的機器指標</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把 log level 調成 DEBUG，重現一次再讀日誌</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：兩層監控回答的是不同問句——trace 告訴你「慢在哪一步」，機器指標告訴你「為什麼慢」。實務上的順序是先用 trace 定位（例如 self time 最大的是 <span class="kbd">queue_wait</span> 7.2 秒），再帶著這個線索回機器層找對應指標（vLLM 的 waiting 排隊數、KV cache 使用率），一趟就到位。<b>A</b> 漏掉了「哪些請求受害、使用者實際等了多久」；<b>B</b> 會停在「等了 7.2 秒」卻永遠不知道為什麼要等——那不是你的 RAG 寫爛了，是容量不夠；<b>D</b> 是多步驟黑盒最沒效率的查法，純日誌無法定位扇出的十幾個呼叫是哪一環斷掉，而且不見得重現得出來。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>剛跑完一輪對話，馬上查自己的 trace，卻是空的。程式沒有拋任何例外。最可能的原因是？</h3>
+      <div class="codeblock">mlflow.openai.autolog()
+r = llm.chat.completions.create(model="qwen3-4b", messages=[...])
+
+traces = mlflow.search_traces(locations=[exp.experiment_id])
+print(len(traces))     # → 0</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. autolog 不支援自架的 OpenAI 相容端點，要改用 @mlflow.trace 手動插樁</button>
+        <button type="button" class="quiz-opt" data-k="B">B. trace 是背景非同步上傳的，要先 flush_trace_async_logging() 再查</button>
+        <button type="button" class="quiz-opt" data-k="C">C. search_traces 預設只回傳被標記過 feedback 的 trace</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 取樣比例預設不是 1.0，這一筆剛好沒被抽中</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：MLflow 為了不拖慢你的應用，trace 是<b>背景非同步</b>上傳的——呼叫回來的當下它還在路上，馬上查當然查不到。修正：查詢前先 <span class="kbd">mlflow.flush_trace_async_logging()</span>。這也提醒你正式環境不該同步等上傳。<b>A</b> 反了：autolog 攔的是 openai SDK 這一層，打自架的相容端點照樣記得到。<b>C</b> 不存在這種預設。<b>D</b> 症狀相似但原因不同——取樣要自己設 <span class="kbd">MLFLOW_TRACE_SAMPLING_RATIO</span>，預設是全記；而且如果真的是取樣問題，等一下再查也不會出現，flush 之後就會出現的才是非同步問題。另外兩個同家族的坑一起記：trace 全跑去本地 <span class="kbd">./mlruns/</span> ＝ <span class="kbd">set_tracking_uri()</span> 沒在任何呼叫之前執行；URI 回 404 ＝ 反向代理的路徑前綴忘了帶。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你的 GPU 剩餘 VRAM 告警一天叫七、八次，每次去看都沒事，同事已經把通知靜音了。量測後發現：無害的短暫抖動最長 4 分鐘，而真正需要處理的低水位事件通常持續十幾分鐘以上。最好的調整是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把門檻從 1.5GB 降到 0.3GB，只有真的快死了才叫</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 保留門檻，把 repeat_interval 從 4h 拉長到 24h</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 保留門檻，把 for: 設成 20 分鐘，確保絕對不誤報</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 保留門檻，把 for: 設成比最長抖動稍長的值（例如 5 分鐘）</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：誤報的來源是「抖一下就算數」，所以要動的是 <span class="kbd">for:</span>（持續多久才算數），而且它的定法是可以量出來的——<b>取比你系統最長的無害抖動稍長的值</b>。右邊模擬器裡，抖動是 1／2／4 分鐘，誤報歸零的第一個值就落在 4.25 分鐘，代價是偵測延遲同步變成 4 分鐘。<b>A</b> 是最常見的誤解：把門檻壓到 0.3GB 等於把告警設在「已經死了」的水位，動態制服務的峰值增量隨便就 1～2GB，你連反應時間都沒有了——<b>告警要留反應時間</b>。<b>B</b> 只是讓同一則吵得少一點，誤報照樣進來，信噪比沒改善。<b>C</b> 方向對但過頭：<span class="kbd">for:</span> 一旦超過事件本身的長度，這條規則就等於不存在（漏報），而且每多一分鐘你就晚一分鐘知道出事。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>Grafana 上的 GPU 面板從昨天下午開始就是「No data」，但 Prometheus 的 target 頁面顯示這個 exporter 一切正常，也沒有任何告警。查了一下指標：</h3>
+      <div class="codeblock">up{job="gpu-exporter", host="gpu-a"}            → 1
+nvidia_smi_last_collect_success{host="gpu-a"}   → 0
+nvidia_smi_memory_free_bytes{host="gpu-a"}      → （查無資料）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. Prometheus 的資料保留期只有 7 天，昨天的資料已經被清掉了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. exporter 行程活著（所以 up=1），但它內部跑的 nvidia-smi 失敗了——例如驅動更新後沒重開機</button>
+        <button type="button" class="quiz-opt" data-k="C">C. Grafana 的 datasource 設定掉了，換一個 datasource 就會回來</button>
+        <button type="button" class="quiz-opt" data-k="D">D. GPU 上的服務全部停掉了，沒有服務就沒有 GPU 指標</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：<span class="kbd">up</span> 只證明「這個 <span class="kbd">/metrics</span> 端點抓得到」，不證明端點裡的數字是新鮮的。GPU exporter 是靠呼叫 <span class="kbd">nvidia-smi</span> 取值的，驅動更新後沒重開機這類狀況會讓它取值失敗——行程還在、端點還回得了 200，<span class="kbd">up</span> 依然是 1，但 GPU 指標會<b>無聲消失</b>，沒有任何規則會叫。這正是為什麼要把 <span class="kbd">nvidia_smi_last_collect_success == 0</span> 也寫成一條告警規則。<b>A</b> 對不上：保留期到了會整段消失，不會只剩一個 <span class="kbd">last_collect_success=0</span>；<b>C</b> datasource 掛了的話所有面板都會壞，不會只有 GPU 那幾個；<b>D</b> 症狀相似但原因不同——GPU 指標來自 exporter 查驅動，跟上面有沒有跑服務無關，服務全停你會看到使用率 0、VRAM 幾乎全空，而不是查無資料。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>你有兩張 24GB 的卡要塞一個新服務。A 卡：用了 14GB，上面跑著一個 PyTorch 的語音合成服務（長文本時 VRAM 會臨時長 1～2GB）。B 卡：用了 18GB，上面三個服務全是 vLLM。新服務該放哪？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 放 B 卡：B 卡剩 6GB 且全是預留制，啟動後不會再長，這 6GB 是真的可用</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 放 A 卡：A 卡用得比較少（14GB &lt; 18GB），剩餘空間比較多</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 兩張都可以，各放一半的副本做負載平衡，反正加起來還有 16GB</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 先放 A 卡，等它 OOM 了再搬到 B 卡，反正服務會自動重啟</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>解釋：<b>卡上有動態制服務時，要看「剩多少」而不是「用多少」。</b>A 卡帳面上用得少（剩 10GB），但那 10GB 裡有一部分是留給語音合成服務峰值增量的保命餘裕，塞滿了就會在某個長文本請求進來時 CUDA OOM——而且掛掉的是原本跑得好好的那個服務。B 卡雖然用了 18GB，但三個服務全是預留制：啟動時就鎖好了，之後不再長，剩下的 6GB 是<b>確定可用</b>的。<b>B</b> 正是這一題要破除的直覺（看用多少）。<b>C</b> 沒有解決問題，只是把風險同時放到兩張卡上，A 卡照樣會 OOM。<b>D</b> 代價被低估了：OOM 打死的通常不只是新服務，重啟期間所有依賴它的功能都在掉請求。由此長出的配置鐵律是——<b>新的 GPU 服務一律排到沒有動態制服務的那台</b>，並且替有動態制服務的那台永遠保留一塊餘裕。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/lora-basics/">
+    <span class="tag">下一課</span>
+    <b>微調入門：LoRA 與 SFT、DPO →</b>
+  </a>
+  <a href="/local-llm/">
+    <span class="tag">主題</span>
+    <b>‹ 回「個人地端大語言模型實作」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero：可重播的 trace 案例（內容改編自真實 agent trace 紀錄）═══ */
+(function () {
+  var CASES = [
+    {
+      steps: [
+        { s: "Skill", q: "下載影片資產 —— <b>先列出可用字幕，然後下載字幕和封面</b>" },
+        { s: "Bash", q: "嘗試列出字幕 →「只有彈幕，<b>沒有正式字幕</b>」" },
+        { s: "Bash", q: "取得影片資訊 →「由於沒有字幕檔，<b>我需要下載音訊並轉錄</b>」", k: 1 },
+        { s: "Bash", q: "下載封面、下載音訊" },
+        { s: "Bash", q: "發現機器上<b>已經裝了 Whisper</b>，直接用你的 GPU 開始轉錄", k: 1 },
+        { s: "TaskOutput", q: "「Whisper 轉錄正在進行中，讓我等待完成」" }
+      ],
+      v: "全程<b>沒有人叫它動用 GPU</b>——它自己決定的。想堵住這條路，要靠權限、hook 與 system prompt 的明確約束；但前提是你得先「看見」它做了什麼。"
+    },
+    {
+      steps: [
+        { s: "plan", q: "問題：「我最喜歡的書籍排名第一的是什麼？」→ 需要連續呼叫好幾個工具" },
+        { s: "tool", q: "呼叫 <b>list_allowed_directraries</b> → 找不到這個工具，失敗", k: 2 },
+        { s: "plan", q: "重新規劃，再試一次" },
+        { s: "tool", q: "呼叫 <b>list_allowed_directraries</b> → 又拼錯了，再次失敗", k: 2 },
+        { s: "plan", q: "第三次規劃" },
+        { s: "tool", q: "呼叫 <b>list_allowed_directories</b> → 這次對了" }
+      ],
+      v: "模型太小、工具太多時的常見病（實測：Mistral Small 3.1 24B Q6_K ＋ 一堆工具）。整條鏈的狀態碼都是 200，日誌看不出異常——<b>只有 trace 會告訴你 token 燒在哪裡</b>。"
+    },
+    {
+      steps: [
+        { s: "setup", q: "已經寫了 hook：<b>只允許 agent 編輯某個資料夾底下的檔案</b>" },
+        { s: "Edit", q: "編輯專案內的檔案 —— 符合預期" },
+        { s: "Edit", q: "編輯了<b>另一個資料夾</b>的檔案 —— 限制沒有生效", k: 2 },
+        { s: "trace", q: "攤開 trace：實際被編輯過的路徑，一條一條列在那裡", k: 1 }
+      ],
+      v: "限制沒生效這種事，<b>trace 一看就破案</b>。修法是提示與強制雙保險：hook 之外，system prompt 也明講「只能編輯哪裡」，然後用 trace 驗證它有沒有守規矩。"
+    }
+  ];
+
+  var log = document.getElementById("tc-log");
+  var verdict = document.getElementById("tc-verdict");
+  var replay = document.getElementById("tc-replay");
+  var btns = [].slice.call(document.querySelectorAll("#tc .tc-case"));
+  if (!log) return;
+
+  var timers = [];
+  var current = 0;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function play(i) {
+    current = i;
+    timers.forEach(clearTimeout);
+    timers = [];
+    btns.forEach(function (b, j) { b.classList.toggle("on", j === i); });
+    log.innerHTML = "";
+    verdict.innerHTML = "";
+    var c = CASES[i];
+    c.steps.forEach(function (st, n) {
+      var cls = st.k === 2 ? "tc-row bad" : st.k === 1 ? "tc-row key" : "tc-row";
+      var html = '<p class="' + cls + '"><span class="tc-step">' + st.s +
+        '</span><span class="tc-say">' + st.q + "</span></p>";
+      var add = function () { log.insertAdjacentHTML("beforeend", html); };
+      if (reduce) { add(); } else { timers.push(setTimeout(add, 90 + n * 620)); }
+    });
+    var done = function () { verdict.innerHTML = c.v; };
+    if (reduce) { done(); } else { timers.push(setTimeout(done, 200 + c.steps.length * 620)); }
+  }
+
+  btns.forEach(function (b) {
+    b.addEventListener("click", function () { play(parseInt(b.dataset.i, 10)); });
+  });
+  if (replay) replay.addEventListener("click", function () { play(current); });
+  play(0);
+})();
+</script>
+<script src="/shared/lesson.js" defer></script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

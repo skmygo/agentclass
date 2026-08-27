@@ -4,8 +4,8 @@
 // （playwright 是 repo 根目錄的 devDependency：npm install 即得）
 import { chromium } from "playwright";
 
-const H1_TEXT = "課程標題（實驗場）"; // 【必改】notebook 第一個 md cell 的 h1 文字（可只取片段）
-const MIN_FIGURES = 1;               // 【必改】全部 cell 跑完至少會出現的 img/canvas 數量
+const H1_TEXT = "微調入門：LoRA 與 SFT、DPO（實驗場）"; // 【必改】notebook 第一個 md cell 的 h1 文字（可只取片段）
+const MIN_FIGURES = 5;               // 【必改】全部 cell 跑完至少會出現的 img/canvas 數量
 const READY_SELECTOR = "";           // 無圖課用：全部跑完會出現的元素 selector（設了就取代圖表計數；
                                      // 與課程頁 <body data-ready-selector> 宣告同一訊號）
 
