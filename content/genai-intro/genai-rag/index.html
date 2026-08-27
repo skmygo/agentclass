@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 與向量資料庫：先查再答 · AI 互動教室</title>
+<meta name="description" content="同一個模型、同一個問題：沒查手冊時一本正經教你「裝咖啡液體」，查了手冊後句句有據——RAG、向量資料庫、GraphRAG 一次看懂，對照全部來自實測紀錄。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="RAG 與向量資料庫：先查再答 · AI 互動教室">
+<meta property="og:description" content="同一個模型、同一個問題：沒查手冊時一本正經教你「裝咖啡液體」，查了手冊後句句有據——RAG、向量資料庫、GraphRAG 一次看懂，對照全部來自實測紀錄。">
+<meta property="og:url" content="https://agentclass.pages.dev/genai-rag/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：紅＝幻覺、綠＝有據、藍＝檢索、橘＝向量庫、紫＝進階流派 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --c4: #8172B2; --cut: #C44E52; }
+
+  .tldr { border-left: 4px solid var(--tc, var(--c1)); background: var(--chip-bg);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 12px 0 16px;
+    font-size: 14.5px; line-height: 1.7; }
+  .tldr b { color: var(--tc, var(--c1)); }
+
+  /* hero：有無 RAG 對照劇場 */
+  #rag-demo .picks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  #rag-demo .pick { font: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--grid); border-radius: 999px;
+    padding: 6px 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+  #rag-demo .pick:hover { border-color: var(--ink-soft); }
+  #rag-demo .pick.on { border-color: var(--c1); background: var(--chip-bg); color: var(--c1); }
+  #rag-demo .cols { display: flex; gap: 10px; flex-wrap: wrap; }
+  #rag-demo .card { flex: 1; min-width: 250px; border: 2px solid var(--grid); border-radius: 12px;
+    padding: 11px 13px; font-size: 13px; line-height: 1.8; }
+  #rag-demo .card.bad { border-color: var(--cut); }
+  #rag-demo .card.good { border-color: var(--c3); }
+  #rag-demo .card .hd { font-size: 11.5px; letter-spacing: .06em; font-weight: 800; margin-bottom: 6px; }
+  #rag-demo .card.bad .hd { color: var(--cut); }
+  #rag-demo .card.good .hd { color: var(--c3); }
+  #rag-demo .card .bd { white-space: pre-wrap; }
+  #rag-demo mark.b { background: #FBEAEA; color: var(--cut); font-weight: 700; padding: 0 2px; border-radius: 3px; }
+  #rag-demo mark.g { background: #E4F2E7; color: #2E7042; font-weight: 700; padding: 0 2px; border-radius: 3px; }
+  #rag-demo .verdict { margin-top: 10px; font-size: 13.5px; line-height: 1.75;
+    border-left: 3px solid var(--c1); padding-left: 10px; }
+  #rag-demo details { margin-top: 8px; font-size: 12.5px; }
+  #rag-demo details summary { cursor: pointer; color: var(--ink-soft); }
+  #rag-demo .src { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); font-weight: 800; white-space: nowrap; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
+
+  table.cheat { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  table.cheat td { border-bottom: 1px solid var(--grid); padding: 10px 12px; vertical-align: top; line-height: 1.7; }
+  table.cheat td.t { font-weight: 800; white-space: nowrap; width: 11em; }
+</style>
+</head>
+<body data-ready-figures="1"><!-- 【必改】notebook 全部跑完會渲染出的 img/canvas 數量；
+  無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設） -->
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/genai-intro/">‹ 生成式 AI 導論</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">GENAI BASICS · 07 · 應用與檢索</span>
+  <h1>RAG 與向量資料庫：<br>先查再答</h1>
+  <p style="margin-top:18px">
+    同一個模型、同一個問題、同一個 temperature=0——唯一的差別是<b>有沒有先查手冊</b>。
+    下面是真實紀錄：一份模型絕不可能背過的虛構咖啡機手冊，四個問題，
+    紅色是它<b>編出來</b>的、綠色是<b>手冊裡真有</b>的。點問題切換：
+  </p>
+
+  <div class="hero-demo" id="rag-demo">
+    <div class="picks" id="rag-picks"></div>
+    <div class="cols" id="rag-cols"></div>
+    <div class="verdict" id="rag-verdict"></div>
+    <div class="src">實測紀錄（qwen3.5-2b，temperature=0，2026-08）；「拿鐵大師 LM-500」手冊為本課虛構教材。</div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。手冊 12 段的<b>真向量</b>已打包在裡面，
+    檢索是現場算的——改壞了重新整理就復原。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · RAG</span>
+  <h2>RAG：先檢索，再生成</h2>
+  <div class="tldr" style="--tc:var(--c1)">
+    <b>一句話重點</b>：RAG ＝ 回答前先從你的資料庫<b>檢索</b>相關段落、塞進 prompt 再生成——
+    企業落地最常見的 LLM 架構。
+  </div>
+  <p>
+    開場那四組對照值得各看一眼，它們是三種不同的失敗：
+  </p>
+  <table class="cmp">
+    <tr><th>問題</th><th>無 RAG 發生了什麼</th></tr>
+    <tr><td>Q1 首次使用／Q2 除垢</td><td><b>整套流程都是編的</b>（裝咖啡液體、倒白醋跑 15–30 分鐘）——語氣自信、格式漂亮，全錯。這叫<b>幻覺</b>。</td></tr>
+    <tr><td>Q3 磨太細</td><td>咖啡通識大多講對了——但答不出「防堵塞保護自動停機」這種<b>只在你手冊裡</b>的規格。</td></tr>
+    <tr><td>Q4 保固</td><td>「2 年」矇對了（常見值），細節全編——<b>矇對的和編造的長得一模一樣</b>，你無法分辨哪句可信。</td></tr>
+  </table>
+  <p>
+    模型的知識來自訓練語料：有截止日期、沒看過你的私有資料、記憶又是模糊的統計。
+    要它回答「你家的事」，就得把資料<b>在提問當下</b>遞給它——這就是 RAG 解的問題。
+    有 RAG 的版本不只答對，還會<b>指出處</b>（「根據手冊段落【段落 3】…」），
+    答不了的說「手冊中沒有提到」——可信度是這樣來的。
+  </p>
+  <button class="golab" data-nb="2️⃣">到右邊 2️⃣ 並排讀四組對照的完整回答</button>
+  <button class="golab" data-nb="1️⃣">到右邊 1️⃣ 親手跑一次真向量檢索</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · VECTOR DB</span>
+  <h2>向量資料庫：存 embedding、查最近鄰</h2>
+  <div class="tldr" style="--tc:var(--c2)">
+    <b>一句話重點</b>：向量資料庫（Chroma、Qdrant…）專門存 <b>embedding 向量</b>、
+    做高速的「誰跟它最像」查詢——RAG 的檢索層。
+  </div>
+  <p>
+    第 1 課你算過 cosine 最近鄰；文件只有 12 段時用 numpy 就夠（右邊 1️⃣ 正是這樣做的）。
+    但文件變成十萬段，就需要專門的資料庫：建索引加速查詢、管理增刪、存 metadata。
+    入門首選 <span class="kbd">chromadb</span>——兩行就能開始，內建預設 embedding 模型：
+  </p>
+  <div class="codeblock">import chromadb
+
+client = chromadb.Client()
+manual = client.create_collection("lm500-manual")
+manual.add(
+    documents=chunks,                       # 12 段手冊文字
+    ids=[f"c{i}" for i in range(len(chunks))],
+)                                           # 自動算好 embedding 存起來
+
+hits = manual.query(
+    query_texts=["除垢燈亮了該怎麼處理？"],
+    n_results=3,                            # top-3
+)
+print(hits["documents"][0])                 # 檢索到的段落</div>
+  <p>
+    正式環境常見 <b>Qdrant</b>（獨立服務、支援過濾與分片）——
+    本站 <a href="/qdrant-basics/">llm-apps 系列的 Qdrant 課</a>有完整實作，
+    學完這課想動真格的可以接著上。
+  </p>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · PIPELINE</span>
+  <h2>拆開管線：沒有魔法，只有五步</h2>
+  <p>檢索到的段落是怎麼「進到」模型的？答案樸素到令人安心：<b>貼進 prompt</b>。</p>
+  <table class="cmp">
+    <tr><th>步驟</th><th>做什麼</th><th>本課對應</th></tr>
+    <tr><td class="n">1 切塊 chunking</td><td>文件切成段，一段講一件事</td><td>手冊 12 段</td></tr>
+    <tr><td class="n">2 向量化 embed</td><td>每段算 embedding 存入向量庫</td><td>jina-embed 1024 維</td></tr>
+    <tr><td class="n">3 檢索 retrieve</td><td>問題算向量、cosine 排序取 top-k</td><td>右邊 1️⃣</td></tr>
+    <tr><td class="n">4 組裝 augment</td><td>top-k 段落＋規則貼進 prompt</td><td>右邊 3️⃣ 印給你看</td></tr>
+    <tr><td class="n">5 生成 generate</td><td>模型照段落回答、查無則明說</td><td>右邊 2️⃣ 的綠卡</td></tr>
+  </table>
+  <p>
+    其中第 4 步的 system prompt 有一句關鍵咒語：<b>「手冊裡沒有的資訊，
+    要說『手冊中沒有提到』」</b>——它把模型從「編一個答案」的預設行為扳成「承認查不到」。
+    右邊 3️⃣ 印出了實測時真正送給模型的完整 prompt，一個字都沒藏。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊 3️⃣ 看組裝好的完整 prompt</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · BEYOND</span>
+  <h2>進階流派：GraphRAG 與多模態 RAG</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：GraphRAG 把文件先建成<b>知識圖譜</b>再檢索、多模態 RAG 把<b>圖片表格</b>
+    也向量化——都是為了回答「單靠幾段文字接不起來」的問題。
+  </div>
+  <p>
+    基本 RAG 的弱點：問題的答案<b>散在很多段、要先把關係接起來</b>時
+    （「這家公司過去三年的策略轉變是什麼？」），top-k 段落各自為政、接不出全貌。
+    <b>GraphRAG</b>（微軟開源）先用 LLM 把文件抽成「實體－關係」圖譜＋社群摘要，
+    檢索時沿著圖找、用摘要答全域問題：
+  </p>
+  <div class="codeblock">pip install graphrag
+graphrag init --root ./my-project        # 建設定
+graphrag index --root ./my-project       # 用 LLM 抽實體關係、建圖譜（要花錢，語料大時不便宜）
+graphrag query --root ./my-project \
+  --method global "這批文件的主要主題是什麼？"</div>
+  <p>
+    <b>多模態 RAG</b>則是把「文件」的定義擴大：簡報的圖表、掃描的表格、產品照片
+    也用多模態 embedding 模型向量化，跟文字一起檢索。
+    兩者都屬「知道有這回事」的延伸——先把基本 RAG 做穩，真的撞到牆再升級。
+    想在真環境把 RAG 完整做一遍，本站 <a href="/rag-zh/">llm-apps 系列的 RAG 課</a>是下一站。
+  </p>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 速查</span>
+  <h2>本課名詞速查卡</h2>
+  <p>發講義用的濃縮版——一個名詞一句話：</p>
+  <table class="cheat">
+    <tr><td class="t" style="color:var(--c1)">RAG</td>
+        <td><b>先檢索再生成</b>：回答前把相關段落塞進 prompt——企業落地最常見架構，治「編造」與「不知道你家的事」。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">向量資料庫 Vector DB</td>
+        <td>存 embedding、查最近鄰的資料庫（Chroma／Qdrant）——RAG 的檢索層。</td></tr>
+    <tr><td class="t" style="color:var(--cut)">幻覺 Hallucination</td>
+        <td>模型<b>自信地編造</b>不存在的事實——RAG＋「查無則明說」規則是最常用的解法。</td></tr>
+    <tr><td class="t" style="color:var(--c4)">GraphRAG / 多模態 RAG</td>
+        <td>融合<b>知識圖譜</b>與<b>圖像表格</b>的進階檢索——答案散在多處、接得起關係才答得了時用。</td></tr>
+  </table>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在右邊 1️⃣ 把 top-k 從 3 拉到 5，觀察第 4、5 名的相似度掉到多少、內容跟問題還有沒有關係。top-k 越大越好嗎？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>把實驗區改成 <span class="kbd">MY_Q = 3</span>（保固）、<span class="kbd">MY_K = 1</span>——只給一段答得了嗎？什麼樣的問題只靠 top-1 就夠、什麼樣的一定不夠？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>設計一個「檢索一定失敗」的問題（手冊沒寫的事，例如冰滴咖啡）。先猜：檢索會回什麼？靠什麼擋住模型開始編？</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？三題在 notebook 最後一格都有折疊解答——先自己做，再打開對照。</p>
+  <button class="golab" data-nb="4️⃣">到右邊 4️⃣ 的實驗區開工</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>公司要做內部規章問答機器人，試用時發現模型常把規定講錯、還講得很有自信。要讓回答可信，最該做的是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 在 prompt 加一句「請不要幻覺、不確定就不要亂講」</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 建 RAG：規章切塊入向量庫，回答時檢索相關段落塞進 prompt，並規定「只能根據段落回答、查無則明說」</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 把全部規章每次都整份塞進 prompt——上下文窗夠大就好</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 用公司規章微調（fine-tune）模型，把知識練進參數裡</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>可信要靠「有據」：RAG 讓每個回答都建立在當下檢索到的原文上，能指出處、能說查無，規章改了重新入庫即可——這正是它成為企業標配的原因。A 只是求它，擋不住本課 hero 那種自信編造（模型不知道自己在編）；C 短期可行但貴又慢，而且塞進大量無關條文會稀釋重點、答錯率反而上升（第 1 課的 context window 教訓）；D 成本高、更新慢（規章一改就要重練），而且微調改的是「行為風格」，對「精確記住條文」並不可靠——知識類需求先 RAG，是業界的預設順序。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事看了無 RAG 的實測回答（節錄如下），說：「你看，連保固 2 年都答對了，模型本來就會，不用做 RAG。」他哪裡看錯了？</h3>
+      <div class="codeblock">根據我們與您的合約，「拿鐵大師 LM-500」的保固期為 2 年。
+若發生非人為因素（如電源斷電、水質過鹹、使用不當）造成的損壞，
+我們將提供免費維修或更換零件服務。……
+【外部損傷】：例如機身被撞擊、受潮、或受到強光直射。</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 沒看錯——答對了就是會，RAG 是多餘的工程</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 模型偷偷上網查了手冊，所以才答對 2 年</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 「2 年」是矇的（保固常見值），「合約」「水質過鹹」「強光直射」全是手冊沒有的編造——矇對與編造混在同一段裡無法分辨，這正是需要 RAG 的證據</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 問題出在 temperature 沒設 0，設了就不會編</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這段是實測紀錄：手冊只寫「2 年保固；人為損壞、摔落、未除垢的水垢堵塞不保固」——回答裡的「合約」「電源斷電」「水質過鹹」「強光直射」通通是生成的。危險不在錯，在<b>對錯混在一起且語氣一致</b>：使用者沒有手冊可對照，只能全信或全疑。B 無中生有，這個模型沒有上網能力，答對是因為「2 年」是家電保固的高頻值；D 是常見誤解——這次實測本來就是 temperature=0，決定性抽樣只是讓輸出穩定，<b>穩定地編造</b>還是編造。A 的結論建立在「恰好抽對的一個字」上。正解是讓回答有出處：RAG。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你把公司 200 頁的產品手冊做成 RAG，但偷懶把「整份 PDF 抽出來的全部文字」當成一個 chunk 存進向量庫。會發生什麼事、該怎麼切才對？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 沒問題——反正檢索一定會命中這個唯一的 chunk，資訊也最完整</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 每次檢索都只會回同一大塊，整份手冊塞爆 prompt、重點被稀釋；應該按章節／段落切塊，一塊講一件事，檢索才有解析度</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 向量資料庫會自動把大 chunk 切好，不用自己處理</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 問題只在速度：一個 chunk 查起來比較慢，多切幾塊查得快</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>切塊（chunking）決定檢索的「解析度」：一個 chunk＝一次只能整塊給。全文一塊時，任何問題都命中同一塊，等於退化成「每次把整份手冊塞進 prompt」——token 爆炸、無關內容稀釋重點，而且一個向量要代表 200 頁的語意，跟任何具體問題的相似度都變得模糊。本課手冊切成 12 段、一段講一件事，Q2 檢索才能精準地把「除垢」那段排到 0.7；這是 A 想不到的代價。C 過度信任工具——切塊策略（大小、重疊、按語意或章節）是你要做的設計決策，庫只存你給的東西；D 搞錯了主要傷害，慢是小事，答不準才是大事。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/genai-tokens/">
+    <span class="tag">全系列完</span>
+    <b>↺ 從第 1 課再走一遍，名詞會全部串起來</b>
+  </a>
+  <a href="/genai-intro/">
+    <span class="tag">主題</span>
+    <b>‹ 回「生成式 AI 導論」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：有無 RAG 對照劇場（實測紀錄：qwen3.5-2b，temp=0，2026-08）═══
+   文字為實測原文（長回答節錄，全文可展開）；[[…]] 手動標註：bare 卡＝編造處、rag 卡＝手冊有據處。 */
+(function () {
+  const T = [
+    { q: "第一次使用前要做什麼？",
+      bare: "在第一次使用前，請務必按照以下步驟進行「首次啟動與初始化」：\n1. 準備清潔與維護液：[[請確認您的咖啡機內已裝滿符合 LM-500 規格的高品質咖啡液體]]（建議使用專用的「拿鐵大師」專用液體…）\n2. 首次加水與加粉：將水箱加滿水，[[將咖啡粉倒入粉碗]]，並放入濾網…",
+      bareFull: "…3. 首次啟動程序：按下「啟動」按鈕，如果機器發出「滴」聲並顯示「Ready」或「Ready to Brew」，表示機器已準備就緒。 4. 首次沖煮：如果顏色過深（像濃茶），請減少粉量…",
+      rag: "根據手冊段落【段落 1】，咖啡機首次使用前，請先執行[[兩次空水循環]]：水箱裝滿冷水、[[不放咖啡粉]]，按沖煮鍵讓水流完，以清除管線中的製造殘留。",
+      verdict: "手冊寫的是「不放咖啡粉、跑兩次清水」；無 RAG 版卻教你裝「咖啡液體」還加粉——<b>整套流程都是編的，語氣卻毫無破綻</b>。" },
+    { q: "除垢燈亮了怎麼辦？",
+      bare: "請依照以下步驟進行除垢：\n1. 準備除垢液：[[通常由白醋或檸檬酸與水按 1:1 比例混合]]…\n2. 執行除垢程序：請先將咖啡機完全關機並拔掉電源線，將除垢液倒入水箱，按下「啟動」按鈕。[[通常這需要 15 到 30 分鐘]]（視除垢液濃度和機型而定）…",
+      bareFull: "…3. 完成與檢查：將所有部件徹底清洗乾淨，並用熱水沖洗。將咖啡機重新上水，確認除垢燈是否會再次亮起。",
+      rag: "根據手冊段落【段落 3】，除垢燈亮起時，請將[[一包除垢劑與 1 公升清水混合]]倒入水箱，然後[[長按沖煮鍵 5 秒]]進入除垢模式。全程約需 [[20 分鐘]]，除垢結束後，請再跑一次清水循環。",
+      verdict: "配方、操作、時間三個關鍵數字全對上手冊 vs 全是通用常識拼裝——<b>「聽起來合理」和「照你的手冊做」是兩回事</b>。" },
+    { q: "咖啡粉磨太細會怎樣？",
+      bare: "當咖啡粉被磨得太細時：\n1. 萃取過濃（Over-extraction）：細粉比粗粉有更大的比表面積，結果就是咖啡液體顏色過深、味道苦澀…\n4. 研磨機負擔加重：過細的粉粒會增加研磨負荷，[[甚至可能因為粉粒過細而堵塞研磨刀頭或溢粉]]…",
+      bareFull: "…小建議：如果你手沖咖啡時發現咖啡太苦，請嘗試將咖啡粉稍微磨粗一點。",
+      rag: "根據手冊段落【段落 2】，咖啡粉研磨過細會導致[[過度萃取]]，且[[流速變慢]]。若情況嚴重，可能會觸發[[防堵塞保護而自動停機]]。",
+      verdict: "無 RAG 版的咖啡通識大致沒錯——但它答不出「防堵塞保護自動停機」這種<b>只存在你手冊裡的規格</b>。通識能矇，規格矇不了。" },
+    { q: "保固多久？哪些不保？",
+      bare: "1. 保固期多久？[[根據我們與您的合約]]，保固期為 2 年。若發生非人為因素（如電源斷電、[[水質過鹹]]、使用不當）造成的損壞，我們將提供免費維修…\n2. 哪些情況不保固？人為損壞、使用不當、自然老化、外部損傷（例如機身被撞擊、受潮、[[或受到強光直射]]）…",
+      bareFull: "…小貼士：使用 RO 純水或符合標準的軟水，定期清洗水壺和濾網，避免將水壺直接放入沸水鍋中加熱。",
+      rag: "根據手冊段落【段落 5】，本產品自購買日起提供 [[2 年保固]]。以下為不保固的情況：1. [[人為損壞]]。2. [[摔落]]。3. [[因未定期除垢造成的水垢堵塞]]。",
+      verdict: "「2 年」矇對了（家電保固常見值），但「合約」「水質過鹹」「強光直射」全是編的——<b>矇對的與編造的混在同一段，你無法分辨</b>。這就是要出處的理由。" },
+  ];
+  const picks = document.getElementById("rag-picks");
+  const cols = document.getElementById("rag-cols");
+  const verdict = document.getElementById("rag-verdict");
+  if (!picks) return;
+  let cur = 0;
+  T.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pick";
+    b.textContent = "Q" + (i + 1) + " " + t.q;
+    b.addEventListener("click", () => { cur = i; render(); });
+    picks.appendChild(b);
+  });
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function mk(s, cls) { return esc(s).replace(/\[\[/g, `<mark class="${cls}">`).replace(/\]\]/g, "</mark>"); }
+  function render() {
+    const t = T[cur];
+    picks.querySelectorAll(".pick").forEach((el, i) => el.classList.toggle("on", i === cur));
+    cols.innerHTML =
+      `<div class="card bad"><div class="hd">❌ 無 RAG（自由發揮）</div><div class="bd">${mk(t.bare, "b")}</div>` +
+      `<details><summary>展開更多節錄</summary><div class="bd">${mk(t.bareFull, "b")}</div></details></div>` +
+      `<div class="card good"><div class="hd">✅ 有 RAG（附檢索到的 top-3 段落）</div><div class="bd">${mk(t.rag, "g")}</div></div>`;
+    verdict.innerHTML = t.verdict;
+  }
+  render();
+})();
+</script>
+<script src="/shared/lesson.js" defer></script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

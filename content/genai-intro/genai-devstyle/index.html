@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新開發範式：Vibe Coding 到 Spec-Driven · AI 互動教室</title>
+<meta name="description" content="Vibe Coding、Agentic Engineering、Context Engineering、Spec-Driven Development——四個名詞其實是同一條光譜：專案越正式，你交給 AI 的東西越結構化。context 組裝的 token 帳用 tiktoken 真算給你看（省 69%）。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="新開發範式：Vibe Coding 到 Spec-Driven · AI 互動教室">
+<meta property="og:description" content="Vibe Coding、Agentic Engineering、Context Engineering、Spec-Driven Development——四個名詞其實是同一條光譜：專案越正式，你交給 AI 的東西越結構化。context 組裝的 token 帳用 tiktoken 真算給你看（省 69%）。">
+<meta property="og:url" content="https://agentclass.pages.dev/genai-devstyle/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝vibe、橘＝agentic、綠＝context、紫＝spec、紅＝代價 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --c4: #8172B2; --cut: #C44E52; }
+
+  .tldr { border-left: 4px solid var(--tc, var(--c1)); background: var(--chip-bg);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 12px 0 16px;
+    font-size: 14.5px; line-height: 1.7; }
+  .tldr b { color: var(--tc, var(--c1)); }
+
+  /* hero：同一需求、四種姿勢 */
+  #style-demo .picks { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  #style-demo .pick { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--grid); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; transition: border-color .15s, background .15s; }
+  #style-demo .pick:hover { border-color: var(--ink-soft); }
+  #style-demo .pick.on { border-color: var(--tc, var(--c1)); background: var(--chip-bg); color: var(--tc, var(--c1)); }
+  #style-demo .board { border: 2px solid var(--ink); border-radius: 12px; padding: 14px 16px; }
+  #style-demo .give { font-family: var(--mono); font-size: 12.5px; line-height: 1.8;
+    background: var(--chip-bg); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; }
+  #style-demo .who { margin-top: 10px; font-size: 13.5px; line-height: 1.7; }
+  #style-demo .who b { color: var(--tc, var(--c1)); }
+  #style-demo .src { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); font-weight: 800; white-space: nowrap; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
+
+  table.cheat { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  table.cheat td { border-bottom: 1px solid var(--grid); padding: 10px 12px; vertical-align: top; line-height: 1.7; }
+  table.cheat td.t { font-weight: 800; white-space: nowrap; width: 11em; }
+</style>
+</head>
+<body data-ready-figures="2"><!-- 【必改】notebook 全部跑完會渲染出的 img/canvas 數量；
+  無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設） -->
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/genai-intro/">‹ 生成式 AI 導論</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">GENAI BASICS · 06 · 開發新範式</span>
+  <h1>新開發範式：<br>Vibe Coding 到 Spec-Driven</h1>
+  <p style="margin-top:18px">
+    上一課看完模型怎麼「思考」，這一課換人類上場：<b>用 AI 寫程式的四種姿勢</b>。
+    需求都一樣——「做一個報帳單審核小工具」——但你<b>交給 AI 的東西</b>完全不同。
+    點四個分頁比比看（示範文本，用來對照範式的差異）：
+  </p>
+
+  <div class="hero-demo" id="style-demo">
+    <div class="picks" id="style-picks"></div>
+    <div class="board">
+      <div class="give" id="style-give"></div>
+      <div class="who" id="style-who"></div>
+      <div class="src">同一需求的四種交付物示範——差別不在 AI 多聰明，在你給它什麼、在哪裡驗收。</div>
+    </div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。這一課右邊只有兩個實驗，
+    但其中一個的 token 帳是真的用 tiktoken 量出來的——改壞了重新整理就復原。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · VIBE CODING</span>
+  <h2>Vibe Coding：講人話，讓 AI 寫</h2>
+  <div class="tldr" style="--tc:var(--c1)">
+    <b>一句話重點</b>：用自然語言描述需求、AI 生成程式，<b>人只做測試與判斷</b>——
+    快到不可思議，但品質全押在「你會不會驗」。
+  </div>
+  <p>
+    這個詞是 Andrej Karpathy 在 2025 年初丟出來的：與其逐行寫码，不如
+    「完全順著感覺走」——描述、生成、跑跑看、再描述。工具就是你身邊那些：
+    Claude Code、Cursor、GitHub Copilot。一個典型的 vibe 迴圈長這樣：
+  </p>
+  <div class="codeblock">你：做一個網頁小工具，貼上發票金額清單，
+    幫我算總額和平均，超過 2000 的標紅色。
+AI：（生成 80 行 HTML+JS）
+你：（貼進瀏覽器跑）標紅色沒生效。
+AI：（修正 CSS 選擇器）
+你：（再跑）可以了，收工。</div>
+  <p>
+    注意這個迴圈裡<b>人做了什麼</b>：沒讀一行程式碼，但<b>每一輪都動手驗證結果</b>。
+    這就是 vibe coding 的安全邊界——改壞的代價小（自用、可重來）、
+    對錯一眼可辨的東西，vibe 是最快的路。反過來，會碰錢、碰資料、
+    別人要接手維護的東西，「能動」跟「能上線」中間差的就是接下來三站。
+  </p>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · AGENTIC ENGINEERING</span>
+  <h2>Agentic Engineering：從「下指令」到「帶團隊」</h2>
+  <div class="tldr" style="--tc:var(--c2)">
+    <b>一句話重點</b>：Vibe Coding 的專業版——重心從「寫程式」移到
+    <b>編排與監督 Agent</b>：拆任務、設驗收、留脈絡。
+  </div>
+  <p>
+    當 AI 從「補全下一行」進化成「自己開檔案、跑測試、改到過」的 agent
+    （<a href="/genai-agents/">上上課</a>的主角），工程師的工作跟著變形：
+    像帶新同事一樣帶它——<b>任務拆到可驗收、規範寫到可查閱、進度有檢查點</b>。
+  </p>
+  <p>
+    最具體的動作是把「每次都要重講的事」寫成專案脈絡檔。
+    Claude Code 讀 <span class="kbd">CLAUDE.md</span>、Cursor 讀 rules 檔，格式就是普通 Markdown：
+  </p>
+  <div class="codeblock"># CLAUDE.md（放在 repo 根目錄，AI 每次對話自動讀）
+
+## 專案是什麼
+報帳審核工具：前端 React、後端 FastAPI、資料庫 PostgreSQL。
+
+## 硬性規則
+- 金額運算一律用 Decimal，禁止 float
+- API 改動要同步更新 tests/ 對應測試
+- 提交前跑 `make lint test`，全綠才算完成</div>
+  <p>
+    然後把「做完」定義成可驗證的條件（測試通過、lint 全綠、行為對照清單打勾），
+    讓 agent 對著驗收條件自我修正，而不是對著你的耐心修正。
+    到右邊 1️⃣ 挑幾個專案情境，看你該站在光譜的哪一格。
+  </p>
+  <button class="golab" data-nb="1️⃣">到右邊 1️⃣ 找你的專案在光譜上的位置</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · CONTEXT ENGINEERING</span>
+  <h2>Context Engineering：餵對資訊，比餵多資訊重要</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：<b>按需組裝最小的正確資訊</b>給模型，
+    取代「上下文越大越好」的迷信——省的是錢，賺的是準確率。
+  </div>
+  <p>
+    <a href="/genai-tokens/">第 1 課</a>說過：上下文窗再大，「塞越多」都不等於「答越好」，
+    而且每個 token 都要錢。Context engineering 就是把「該給什麼」當工程問題管理：
+    檢索出<b>相關的</b>知識段落（而不是整份文件）、把冗長歷史<b>摘要</b>（而不是全文重播）、
+    規範放在<b>固定位置</b>（而不是每次口頭重講）。
+  </p>
+  <p>
+    右邊 2️⃣ 的帳是真的：同一個客服問題，「全塞」757 個 token，
+    「檢索相關段＋歷史摘要」236 個——<b>省 69%</b>（tiktoken <span class="kbd">o200k_base</span> 實測，2026-08）。
+    每輪對話都付一次，乘上流量就是月底帳單的差距；
+    而且無關內容變少，模型被雜訊帶偏的機率也跟著降。
+  </p>
+  <table class="cmp">
+    <tr><th>實務動作</th><th>取代的壞習慣</th></tr>
+    <tr><td><b>檢索後只塞相關段</b>（下一課 RAG 的本行）</td><td>整份文件複製貼上</td></tr>
+    <tr><td><b>歷史摘要＋保留最近幾輪原文</b></td><td>對話全文無限重播</td></tr>
+    <tr><td><b>規範進 CLAUDE.md / system prompt 固定位置</b></td><td>每次對話重新交代一遍</td></tr>
+    <tr><td><b>工具與參考資料按需載入</b>（要用才給說明書）</td><td>把所有工具說明全掛上去</td></tr>
+  </table>
+  <button class="golab" data-nb="2️⃣">到右邊 2️⃣ 撥兩個開關，看 token 帳怎麼掉</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · SPEC-DRIVEN DEVELOPMENT</span>
+  <h2>Spec-Driven：規格是唯一真相源</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：先把行為寫成<b>規格（spec）</b>，AI 對著規格實作、對著規格驗收——
+    工具如 <b>Spec Kit／OpenSpec／BMAD</b>。
+  </div>
+  <p>
+    Vibe 的極限在「你講的話就是規格」——講漏了，AI 只能猜。
+    Spec-driven 把這件事翻過來：<b>行為先寫成結構化規格</b>，
+    需求變更先改 spec、再讓 AI 依 spec 改實作，審查時看的是「diff 是否符合 spec」。
+    OpenSpec 的規格長這樣（Requirement ＋ 可驗證的 Scenario）：
+  </p>
+  <div class="codeblock"># openspec/specs/expense-review/spec.md
+
+### Requirement: 超額單據必須標記
+金額超過部門上限的報帳單 SHALL 標記為「待主管覆核」。
+
+#### Scenario: 超過上限
+- WHEN 單據金額 > 部門上限
+- THEN 狀態設為「待主管覆核」，並通知主管</div>
+  <p>
+    GitHub 的 <b>Spec Kit</b> 把整條流程做成指令（在 Claude Code、Copilot 等代理裡用）：
+  </p>
+  <div class="codeblock">uvx --from git+https://github.com/github/spec-kit.git specify init my-project
+
+# 然後在 AI 代理裡依序走：
+/speckit.specify   # 描述要做什麼、為什麼（產生 spec）
+/speckit.plan      # 定技術選型與架構
+/speckit.tasks     # 拆成可執行的任務清單
+/speckit.implement # 依任務清單實作</div>
+  <p>
+    <b>BMAD</b> 則是把這條流程角色化的多 agent 框架（分析師、PM、架構師、開發各司其職）。
+    工具會換，骨架不變：<b>規格在前、實作在後、驗收對規格</b>。
+    什麼時候值得付這個「先寫規格」的成本？右邊 1️⃣ 的光譜圖給你判斷基準——
+    多人維護、合規要求越重，越該往這一站走。
+  </p>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 速查</span>
+  <h2>本課名詞速查卡</h2>
+  <p>發講義用的濃縮版——一個名詞一句話：</p>
+  <table class="cheat">
+    <tr><td class="t" style="color:var(--c1)">Vibe Coding</td>
+        <td>自然語言描述需求、AI 生成程式，<b>人只做測試判斷</b>——低風險小工具的最快路徑。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">Agentic Engineering</td>
+        <td>Vibe 的專業版：重心在<b>編排與監督 Agent</b>——拆任務、設驗收條件、寫 CLAUDE.md 留脈絡。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">Context Engineering</td>
+        <td><b>按需組裝最小正確資訊</b>取代無限上下文迷信——實測同一問題省 69% token，還降低被雜訊帶偏。</td></tr>
+    <tr><td class="t" style="color:var(--c4)">Spec-Driven Development</td>
+        <td>規格是唯一真相源，AI 對規格實作與驗收——工具如 <b>Spec Kit／OpenSpec／BMAD</b>。</td></tr>
+  </table>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在右邊 2️⃣ 把兩個開關全關，token 掉到多少、省幾成？再各只關一個——知識和歷史，哪個開關省得多？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>在實驗區把 <span class="kbd">knowledge</span> 改成 3000、<span class="kbd">history</span> 改成 1200（模擬塞大文件＋長對話），算一天一萬輪的量。什麼規模下 context engineering 從「可有可無」變成「非做不可」？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>「歷史摘要」有代價：想出三個「摘要會把事情弄壞」的具體情境，以及你會怎麼驗證摘要沒摘壞。（提示：想想被摘掉的訂單編號。）</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？三題在 notebook 最後一格都有折疊解答——先自己做，再打開對照。</p>
+  <button class="golab" data-nb="3️⃣">到右邊 3️⃣ 的實驗區開工</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你週末 vibe 出一個報帳小工具自己用，很順手。主管看到說「很棒，下個月全部門 40 人都用它報帳」。上線前最該補的是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 不用補，能動就好——AI 寫的程式碼品質通常不差</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把程式碼全部重看一遍、逐行理解後手動重寫一版</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 升級開發姿勢：補測試與驗收條件（金額計算、權限、異常輸入），關鍵行為寫成規格，讓後續修改有依據可驗</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 換一個更強的模型重新生成一次，品質自然提升</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>從「自用」到「40 人碰錢的工具」，改壞的代價變了，開發姿勢就要跟著換站——這正是光譜圖的用法。該補的不是「重寫」而是「可驗證性」：測試蓋住金額與權限這些會出事的路徑、行為寫成規格，之後不管人改還是 AI 改，都有東西可對。A 低估了場景變化（vibe 的品質保證只有「你驗過的那幾條路」）；B 把 AI 的產能優勢整個丟掉，而且逐行重寫不等於有測試；D 搞錯了問題——缺的是驗收機制，不是生成品質。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype">情境題</span></p>
+      <h3>你用 AI 代理改公司後端，發現每次新對話都要重講一遍「金額要用 Decimal」「改 API 要同步改測試」，偶爾忘了講它就犯。最好的解法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 每次對話開頭先貼一份完整的專案文件（三萬字）讓它讀熟</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把這些硬規則寫進 CLAUDE.md（或等效的 rules 檔）放在 repo 根目錄——AI 每次自動讀，不靠你的記性</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 換上下文窗更大的模型，就記得住之前對話講過的規則</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 規則太多 AI 記不住，這種改動還是人自己來</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「每次都要重講」是 context engineering 最典型的病徵，藥方是把規則放進<b>固定位置</b>：CLAUDE.md 這類專案脈絡檔每次對話自動載入，規則從「口頭交代」變成「基礎設施」。A 方向對但劑量錯——三萬字全塞是「無限上下文迷信」，又貴又稀釋重點，硬規則只需要幾行；C 誤解了機制——新對話是全新的上下文，窗再大也不會自動繼承上一場對話；D 放棄得太早，這問題有標準工程解。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你的團隊接了一個金融客戶的案子，對方稽核要求「每個系統行為都要能對應到書面需求」。團隊平常用 vibe + agent 開發，速度很快。你該怎麼調整？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 維持現狀，交付前請 AI 把程式碼反向整理成一份需求文件交差</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 全面禁用 AI，回到純手工開發才能保證可追溯</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 轉 spec-driven：行為先寫成規格（Requirement＋Scenario），AI 依規格實作、驗收對規格，變更走規格提案——AI 的速度留著，可追溯性補上</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 跟客戶解釋 AI 開發是業界趨勢，稽核標準應該與時俱進</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>稽核要的是「行為 → 需求」的對應鏈，這正是 spec-driven 的本行：規格先行，每個行為都能回答「規格哪一條允許」，變更有提案紀錄。關鍵是 C 沒有放棄 AI——Spec Kit／OpenSpec 這類工具就是設計來讓 AI 在規格框架裡高速實作的。A 是事後補文件：反向整理出來的「需求」只是實作的鏡子，說明不了「為什麼該這樣」，稽核一問就穿幫；B 把工具和流程混為一談，手工開發沒有 spec 一樣不可追溯；D 不是工程對策。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/genai-rag/">
+    <span class="tag">下一課</span>
+    <b>RAG 與向量資料庫：先查再答 →</b>
+  </a>
+  <a href="/genai-intro/">
+    <span class="tag">主題</span>
+    <b>‹ 回「生成式 AI 導論」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：同一需求、四種姿勢（示範文本，對照範式差異）═══ */
+(function () {
+  const MODES = [
+    { label: "Vibe Coding", c: "#4C72B0",
+      give: "做一個報帳單審核小工具：\n貼上發票清單，超過部門上限的標紅色，\n可以匯出 CSV。",
+      who: "<b>你交出：</b>一段話。<b>你驗收：</b>跑跑看、看順不順眼。快，但規格只存在你腦中。" },
+    { label: "Agentic Eng.", c: "#DD8452",
+      give: "任務拆解：\n1. 解析發票清單（附 3 筆範例資料）\n2. 超額標記（上限見 CLAUDE.md 規則）\n3. CSV 匯出\n驗收：tests/ 全綠 + 邊界案例清單打勾\n檢查點：每步做完先給我看 diff",
+      who: "<b>你交出：</b>拆好的任務＋驗收條件＋檢查點。<b>你驗收：</b>對驗收條件，不對感覺。" },
+    { label: "Context Eng.", c: "#55A868",
+      give: "（自動載入）CLAUDE.md：金額用 Decimal…\n（檢索附上）報帳規範 §3 部門上限表\n（檢索附上）現有 models.py 的 Invoice 類別\n（這一輪）實作超額標記邏輯",
+      who: "<b>你交出：</b>按需組裝的最小正確脈絡。<b>效果：</b>AI 不用猜你的規範——右邊 2️⃣ 算給你看這還省 69% 的 token。" },
+    { label: "Spec-Driven", c: "#8172B2",
+      give: "### Requirement: 超額單據必須標記\n金額超過部門上限的單據 SHALL 標記待覆核。\n#### Scenario: 超過上限\n- WHEN 單據金額 > 部門上限\n- THEN 狀態設為「待主管覆核」並通知主管",
+      who: "<b>你交出：</b>結構化規格。<b>你驗收：</b>實作 diff 是否滿足每條 Scenario——規格是唯一真相源。" },
+  ];
+  const picks = document.getElementById("style-picks");
+  const give = document.getElementById("style-give");
+  const who = document.getElementById("style-who");
+  if (!picks) return;
+  let cur = 0;
+  MODES.forEach((m, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pick";
+    b.style.setProperty("--tc", m.c);
+    b.textContent = m.label;
+    b.addEventListener("click", () => { cur = i; render(); });
+    picks.appendChild(b);
+  });
+  function esc(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function render() {
+    const m = MODES[cur];
+    picks.querySelectorAll(".pick").forEach((el, i) => el.classList.toggle("on", i === cur));
+    give.textContent = m.give;
+    give.style.borderLeft = `4px solid ${m.c}`;
+    who.innerHTML = m.who;
+  }
+  render();
+})();
+</script>
+<script src="/shared/lesson.js" defer></script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

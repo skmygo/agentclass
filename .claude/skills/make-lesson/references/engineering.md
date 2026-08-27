@@ -206,6 +206,22 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 - **課程頁自訂節內小標要加 class**（如 `h3.sub`）：`#lesson h3` 裸標籤選擇器以 ID 特異度
   蓋掉共用 `.quiz-q h3`，把全站測驗版型弄壞；修字串時用完整縮排比對，避免子字串誤中 quiz 區。
 
+### 一次建多堂課（genai-intro 七課平行，2026-08-28 補充）
+
+- **背景 Bash 有 ~10 分鐘上限**：全站 build（18 課 WASM export，~10 分鐘以上）與全站線上冒煙
+  丟 run_in_background 會在半路被 killed（且子行程可能殘留，重跑前先 `pgrep -af "build.sh|marimo export"`）。
+  長工改用 `setsid nohup bash -c '<cmd>; echo DONE_EXIT=$?' > log &` 脫離行程群組，
+  再用 Monitor `until grep -q DONE_EXIT log` 等完成標記。本機 dist server 同理用 setsid 起、
+  記 PID 收尾 kill。分批跑 smoke（每批 3–4 課）則可留在前景 600s 限內。
+- **WRAP／md cell 裡要放含 `"""` docstring 的程式範例**：外層字串一律 `r'''` 定界
+  （page-fill.py 檔頭有預警；`WRAP = r"""` 會被範例裡的三引號截斷，ruff 立刻抓到）。
+- **中文文案可能混入同形異碼字元**（實錄：西里爾字母混進中文段落，肉眼不可見）：
+  收尾對 content/<topic>/ 掃一次非 ASCII 且非 CJK 的字元
+  （unicodedata.name 含 CYRILLIC/GREEK/HANGUL/KANA 者列出人工過目；α、・這類刻意用字放行）。
+- **嵌真實 LLM 逐字稿當 hero**：模型輸出常含 `$x$`、`$$…$$`（LaTeX 記號）——進 `mo.md`
+  會被吃掉，hero 用純 JS `white-space:pre-wrap` 原文呈現最穩（也最誠實）。
+- **大 payload（如 int8 向量 b64）不要手抄**：spike 印出 → 佔位符 → python 腳本注入 lesson.py。
+
 ### 一次建多堂課：fork 平行＋port 分段（FastMCP 4 補充系列，2026-08-20）
 
 - **四堂課平行寫**：主代理先把每課的 spike 跑通（`_spikes/spike_*.py`，一課一支、`--部分名` 可只跑一段），

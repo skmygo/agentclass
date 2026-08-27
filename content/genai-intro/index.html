@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生成式 AI 導論 · AI 互動教室</title>
+<meta name="description" content="七堂互動課講懂 LLM 常見名詞：Token 與 Embedding、預訓練與 LoRA、KV Cache 與量化、CoT 與 Reasoning Model、Agent 與 MCP、Vibe Coding 與 Spec-Driven、RAG 與向量資料庫——每個名詞一句話重點、一段真實工具程式碼、一個親手玩的互動。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="生成式 AI 導論 · AI 互動教室">
+<meta property="og:description" content="七堂互動課講懂 LLM 常見名詞：Token 與 Embedding、預訓練與 LoRA、KV Cache 與量化、CoT 與 Reasoning Model、Agent 與 MCP、Vibe Coding 與 Spec-Driven、RAG 與向量資料庫。">
+<meta property="og:url" content="https://agentclass.pages.dev/genai-intro/">
+<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/topic.css">
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← 回主題列表</a>
+  <span class="eyebrow">TOPIC · GENERATIVE AI 101</span>
+  <h1>🎓 生成式 AI 導論</h1>
+  <p class="sub">
+    新聞和文件裡那些名詞——Token、LoRA、量化、CoT、Agent、MCP、RAG——
+    七堂課一次講懂。每個名詞一句話重點、一段真實工具的程式碼、
+    一個在瀏覽器裡親手玩的實驗；示範全部來自真實執行，不畫大餅。
+    不用數學背景、不用裝任何東西。
+  </p>
+
+  <!-- 課程卡片依課程順序排（第 1 課在最上） -->
+  <div class="lessons">
+    <a class="card" href="/genai-tokens/">
+      <span class="tag">BASICS · 01</span>
+      <h2>🔤 Token、Embedding 與上下文窗</h2>
+      <p>同一句話，中文比英文多花 70% 的 token——點四句話看真 tokenizer 怎麼下刀，
+         親手訓練一個迷你 BPE，再逛 16 個真向量的語意地圖。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/genai-training/">
+      <span class="tag">TRAINING · 02</span>
+      <h2>🏋️ 模型是怎麼練成的：預訓練到 RLHF</h2>
+      <p>預訓練燒 15 兆 token，LoRA 只調 0.5% 的參數——蒸餾的「暗知識」、
+         GRPO 的群組評分，全部真的算給你看。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/genai-inference/">
+      <span class="tag">SPEED · 03</span>
+      <h2>⚡ 推理加速：KV Cache、量化與 vLLM</h2>
+      <p>8B 模型 fp16 要 15 GB、int4 只要 3.7 GB——KV Cache、量化、投機解碼、
+         MoE 一次拆完，你的顯卡塞不塞得下馬上知道。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/genai-reasoning/">
+      <span class="tag">REASONING · 04</span>
+      <h2>🤔 會思考的模型：CoT 與 Reasoning Model</h2>
+      <p>同一題，直接答是 55（錯）、一步一步想是 5（對）——實測紀錄重播給你看，
+         再看多數決怎麼從 6/9 的答對率投出正解。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/genai-agents/">
+      <span class="tag">AGENTS · 05</span>
+      <h2>🤖 AI Agent 與 MCP：模型長出手腳</h2>
+      <p>模型自己決定「這題要查天氣」並吐出 JSON——四步實測 trace 重播，
+         拆穿 function calling 的水電工程，順便看懂 MCP 為什麼是 AI 界的 USB。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/genai-devstyle/">
+      <span class="tag">DEVSTYLE · 06</span>
+      <h2>🛠️ 新開發範式：Vibe Coding 到 Spec-Driven</h2>
+      <p>同一個需求，四種交給 AI 的姿勢——context 塞對了直接省 69% token（實測），
+         再看規格驅動開發怎麼把 vibe 變成工程。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/genai-rag/">
+      <span class="tag">RAG · 07</span>
+      <h2>📚 RAG 與向量資料庫：先查再答</h2>
+      <p>沒給手冊，模型一本正經教你把咖啡機「裝滿咖啡液體」；給了手冊，句句有據——
+         先查再答的全部數學，就是第 1 課那個 cosine。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+  </div>
+
+  <footer>
+    <a href="https://www.youtube.com/@itsmygouk" target="_blank" rel="noopener">YouTube 頻道</a> ·
+    <a href="https://blog.itsmygo.uk/" target="_blank" rel="noopener">部落格</a>
+  </footer>
+</div>
+</body>
+</html>

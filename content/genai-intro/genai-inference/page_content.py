@@ -1,0 +1,360 @@
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/genai-intro/genai-inference
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "推理加速：KV Cache、量化與 vLLM"
+DESCRIPTION = "KV Cache 為什麼吃光顯存、量化砍掉四分之三的模型檔、投機解碼先猜後驗、連續批次把 GPU 餵飽、MoE 大而不貴——六組部署名詞全部算給你看，128k 上下文的 16 GB 帳一目瞭然。"
+
+STYLE = r"""
+  /* 語義色：藍＝KV、橘＝量化、綠＝加速與吞吐、紫＝MoE、紅＝代價 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --c4: #8172B2; --cut: #C44E52; }
+
+  .tldr { border-left: 4px solid var(--tc, var(--c1)); background: var(--chip-bg);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 12px 0 16px;
+    font-size: 14.5px; line-height: 1.7; }
+  .tldr b { color: var(--tc, var(--c1)); }
+
+  /* hero：塞得進顯卡嗎 */
+  #fit-demo .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  #fit-demo .lbl { font-size: 12px; letter-spacing: .06em; font-weight: 800; color: var(--ink-soft); width: 4.5em; }
+  #fit-demo .opt { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--grid); border-radius: 999px;
+    padding: 5px 13px; cursor: pointer; transition: border-color .15s, background .15s; }
+  #fit-demo .opt:hover { border-color: var(--ink-soft); }
+  #fit-demo .opt.on { border-color: var(--c1); background: var(--chip-bg); color: var(--c1); }
+  #fit-demo .verdict { border: 2px solid var(--ink); border-radius: 12px; padding: 13px 16px;
+    font-size: 14px; line-height: 1.8; margin-top: 4px; }
+  #fit-demo .verdict .head { font-size: 17px; font-weight: 800; }
+  #fit-demo .verdict .n { font-family: var(--mono); font-weight: 800; }
+  #fit-demo .gauge { height: 14px; background: #EEF1F4; border-radius: 7px; overflow: hidden; margin: 8px 0 2px; }
+  #fit-demo .gauge > div { height: 100%; border-radius: 7px; transition: width .25s; }
+  #fit-demo .src { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); font-weight: 800; white-space: nowrap; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
+
+  table.cheat { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  table.cheat td { border-bottom: 1px solid var(--grid); padding: 10px 12px; vertical-align: top; line-height: 1.7; }
+  table.cheat td.t { font-weight: 800; white-space: nowrap; width: 11em; }
+"""
+
+WRAP = r"""
+<section id="hero">
+  <span class="eyebrow">GENAI BASICS · 03 · 推理效率與部署</span>
+  <h1>推理加速：<br>KV Cache、量化與 vLLM</h1>
+  <p style="margin-top:18px">
+    上一課看完模型怎麼練成，這一課換一個問題：<b>練好的模型，怎麼跑得動、跑得快？</b>
+    先從最實際的一題開始——這顆模型塞得進你的顯卡嗎？點點看（真算術：參數 × 每參數位元組）：
+  </p>
+
+  <div class="hero-demo" id="fit-demo">
+    <div class="row"><span class="lbl">模型</span><span id="fit-models"></span></div>
+    <div class="row"><span class="lbl">精度</span><span id="fit-quants"></span></div>
+    <div class="row"><span class="lbl">顯卡</span><span id="fit-gpus"></span></div>
+    <div class="verdict" id="fit-verdict"></div>
+    <div class="src">權重帳＝參數數 × 每參數位元組。實際還要留 KV cache 與 activation 的空間——所以「剛好塞下」通常等於「跑不動長上下文」。</div>
+  </div>
+
+  <p class="note">
+    右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。這一課每個名詞都有一筆算得出來的帳，
+    全部在右邊真的算。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · KV CACHE ＋ PAGEDATTENTION</span>
+  <h2>KV Cache：長上下文的記憶體黑洞</h2>
+  <div class="tldr" style="--tc:var(--c1)">
+    <b>一句話重點</b>：把算過的 Key/Value 存起來避免每步重算——代價是
+    <b>上下文越長、人越多，這塊記憶體越大</b>；vLLM 的 PagedAttention 用「分頁」管它。
+  </div>
+  <p>
+    第 1 課看過自迴歸：每生成一個 token 都要回頭看整段前文。不快取的話，
+    第 1000 個 token 要重算前面 999 個的注意力——所以引擎把每個 token 的 K/V 存下來。
+    這塊快取的大小是一條純架構公式，8B 級 GQA 模型算出來 <b>128 KB/token</b>：
+  </p>
+  <table class="cmp">
+    <tr><th>場景（8B 級、fp16 KV）</th><th>KV cache</th><th>對照</th></tr>
+    <tr><td>8k 上下文 × 1 人</td><td class="n">1.0 GB</td><td>小意思</td></tr>
+    <tr><td>128k 上下文 × 1 人</td><td class="n">16.0 GB</td><td>比模型權重（15 GB）還大</td></tr>
+    <tr><td>128k × 8 人</td><td class="n">128 GB</td><td>單卡完全無望</td></tr>
+  </table>
+  <p>
+    還有第二個問題：每個請求長度不一、邊聊邊長，記憶體怎麼配？早期引擎替每個請求
+    <b>預留最長長度</b>的連續空間，大部分空著。<b>PagedAttention</b>（vLLM 的招牌）
+    借作業系統分頁的概念：KV 切成小塊、用到才配。這是 vLLM 吞吐量領先的核心原因，
+    一行指令就用得到：
+  </p>
+  <div class="codeblock">pip install vllm
+vllm serve meta-llama/Llama-3.1-8B-Instruct
+# 之後用任何 OpenAI SDK 打 http://localhost:8000/v1 就行</div>
+  <button class="golab" data-nb="1️⃣">到右邊 1️⃣ 算你的 KV cache 有多大</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · QUANTIZATION</span>
+  <h2>量化：fp16 → int4，檔案砍四分之三</h2>
+  <div class="tldr" style="--tc:var(--c2)">
+    <b>一句話重點</b>：把權重從 16 bit 壓成 4～8 bit 整數，換記憶體與速度；
+    主流格式 <b>GPTQ／AWQ／GGUF</b> 都靠「分組量化」躲開離群值災難。
+  </div>
+  <p>
+    8B 模型三種精度的檔案大小（真算術）：fp16 <b>15.0 GB</b>、int8 <b>7.5 GB</b>、
+    int4 <b>3.7 GB</b>——消費級顯卡跑得動 8B，靠的就是這一刀。
+    代價是捨入誤差，而誤差最大的敵人是<b>離群值</b>：LLM 權重裡真的有少數特別大的值，
+    一個就能把整張量的量化刻度撐爆（右邊 2️⃣ 開個開關就看到誤差跳 5 倍）。
+    解法是<b>分組量化</b>：幾十到一百多個權重一組、各存各的縮放係數，災難被隔離在組內。
+  </p>
+  <p>你平常已經在用它了——Ollama 模型名尾巴的 <span class="kbd">q4_K_M</span> 就是 GGUF 的 4-bit 分組量化：</p>
+  <div class="codeblock">ollama run llama3.1:8b-instruct-q4_K_M    # GGUF int4，筆電就跑得動</div>
+  <p>用 transformers 載模型時要 4-bit，也是一個設定的事（bitsandbytes）：</p>
+  <div class="codeblock">from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+
+model = AutoModelForCausalLM.from_pretrained(
+    "meta-llama/Llama-3.1-8B-Instruct",
+    quantization_config=BitsAndBytesConfig(load_in_4bit=True),
+)</div>
+  <button class="golab" data-nb="2️⃣">到右邊 2️⃣ 親手量化一次、看離群值搞破壞</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · SPECULATIVE DECODING</span>
+  <h2>投機解碼：小模型先猜、大模型批次驗證</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：生成是串行的，但<b>驗證可以平行</b>——小模型連猜 k 個，
+    大模型一次驗完，輸出分布完全不變的免費加速。
+  </div>
+  <p>
+    自迴歸的痛在串行：第 N 個 token 一定要等第 N−1 個。投機解碼的洞見是：
+    讓一個小 10 倍以上的「草稿模型」先連猜 4 個，大模型<b>一次前向</b>驗收——
+    猜對照收、猜錯的位置重來。接受率 α = 0.8 時，每次大模型前向平均產出
+    <b>3.36 個 token</b>（α = 0.9 → 4.10 個；教學模型，右邊 3️⃣ 有封閉式與蒙地卡羅互驗）。
+    程式碼、JSON 這類可預測文字 α 高、賺最多；創意寫作 α 低、不划算。
+  </p>
+  <button class="golab" data-nb="3️⃣">到右邊 3️⃣ 拉 α 看每輪能收幾個</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · FLASH ATTENTION ＋ CONTINUOUS BATCHING</span>
+  <h2>把 GPU 餵飽：kernel 層與排程層</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：Flash Attention 在 <b>kernel 層</b>省記憶體搬運、
+    Continuous Batching 在<b>排程層</b>隨時補位——兩層一起拉高吞吐量。
+  </div>
+  <p>
+    <b>Flash Attention</b> 重排注意力的計算順序，避免把巨大的中間矩陣搬進搬出顯存——
+    數學結果一模一樣，只是快、省。transformers 裡是一個參數：
+  </p>
+  <div class="codeblock">model = AutoModelForCausalLM.from_pretrained(
+    "meta-llama/Llama-3.1-8B-Instruct",
+    attn_implementation="flash_attention_2",
+)</div>
+  <p>
+    <b>Continuous batching</b> 解的是另一層浪費：靜態批次要等整批全部寫完才換下一批，
+    先寫完的請求佔位空轉。右邊 4️⃣ 的排程模擬（教學模型）裡，同一批請求、同一顆 GPU，
+    靜態批次的槽位利用率只有 <b>62–64%</b>，連續批次逼近 <b>100%</b>——
+    vLLM 預設就是連續批次，這也是「自架服務吞吐差三倍」常見的真正原因。
+  </p>
+  <button class="golab" data-nb="4️⃣">到右邊 4️⃣ 跑排程模擬</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · MOE ＋ MLA</span>
+  <h2>MoE：參數很多，每次只用一點</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：兆級參數只啟用一小部分——<b>記憶體照總參數付、
+    計算照啟用參數付</b>；MLA 再把 KV cache 壓小，兩個瓶頸一起解。
+  </div>
+  <p>
+    MoE（Mixture of Experts）把每層的 FFN 換成一排「專家」，路由器替每個 token 挑 2 個。
+    Mixtral 8x7B 的帳（右邊 5️⃣ 用真實架構規格算）：總參數 <b>46.7B</b>、
+    每 token 實際啟用 <b>12.9B</b>（28%）。DeepSeek-V3 推到 671B／37B 啟用，
+    再配 <b>MLA</b>（Multi-head Latent Attention：把 K/V 先壓進低秩空間、用時再展開，
+    KV cache 大幅縮小）——這對組合就是「怎麼用有限算力跑兆級模型」的答案。
+  </p>
+  <p class="src">想深入這一課的每個主題？本站的 <a href="/local-llm/">local-llm 系列</a>有整堂的
+    <a href="/kv-cache/">KV Cache</a>、<a href="/speculative-decoding/">投機解碼</a>與
+    <a href="/ollama-vs-vllm/">引擎選型</a>可以接著上。</p>
+  <button class="golab" data-nb="5️⃣">到右邊 5️⃣ 看 Mixtral 的參數帳</button>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 速查</span>
+  <h2>本課名詞速查卡</h2>
+  <p>發講義用的濃縮版——一個名詞一句話：</p>
+  <table class="cheat">
+    <tr><td class="t" style="color:var(--c1)">KV Cache</td>
+        <td>快取算過的 Key/Value 避免重算；<b>長上下文會暴增</b>（8B 級 128 KB/token，128k → 16 GB）。</td></tr>
+    <tr><td class="t" style="color:var(--c1)">PagedAttention (vLLM)</td>
+        <td>用作業系統「分頁」概念管理 KV cache，記憶體浪費率大降——vLLM 吞吐領先的核心。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">Quantization</td>
+        <td>fp16 → int8/int4 壓縮（8B：15 → 3.7 GB）；主流 <b>GPTQ／AWQ／GGUF</b> 都用分組量化防離群值。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">Speculative Decoding</td>
+        <td>小模型先猜、大模型批次驗證——串行變並行、輸出分布不變的加速。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">Flash Attention /<br>Continuous Batching</td>
+        <td>kernel 層省搬運＋排程層隨時補位，一起拉高吞吐量。</td></tr>
+    <tr><td class="t" style="color:var(--c4)">MoE / MLA</td>
+        <td>兆級參數只啟用一部分（Mixtral 46.7B→12.9B）；MLA 低秩壓 KV——算力與 KV 兩個瓶頸的解法。</td></tr>
+  </table>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在右邊實驗區把 <span class="kbd">bytes_per</span> 換成 2／1／0.5 各跑一次：12 GB 的卡裝得下哪些組合？裝下之後還剩多少 token 的 KV 空間？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>把 3️⃣ 的 α 拉到 0.95，每輪能收幾個 token？再想一層：如果草稿模型不夠小（用 7B 幫 8B 猜），這筆帳為什麼會垮掉？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>「壓 KV」你其實學過三條路了（型別、head 數、MLA）。用 1️⃣ 的公式各算一次 128k 上下文的 GB 數，排出省最多到省最少，並說出各自的代價。</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？三題在 notebook 最後一格都有折疊解答——先自己做，再打開對照。</p>
+  <button class="golab" data-nb="6️⃣">到右邊 6️⃣ 的實驗區開工</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">08 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你只有一張 16 GB 的顯卡，主管問「能不能把 70B 的模型跑起來？聽說量化很厲害」。最誠實的回答是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 可以，int4 量化之後 70B 一定塞得進 16 GB</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 塞不進：70B int4 權重就要約 33 GB，還沒算 KV——單卡 16 GB 該選 8B 級量化版，或上多卡／雲端跑 70B</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 把上下文窗設小一點就塞得進了</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 用 Flash Attention 就能省下足夠的記憶體</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>先算帳再回答：70.6B × 0.5 byte ≈ 33 GB，int4 已經是常用格式裡最狠的一刀，仍是 16 GB 的兩倍——量化能砍 4 倍，不能變魔術。C 搞錯對象：縮上下文省的是 KV cache，權重一個位元組都不會少；D 也一樣，Flash Attention 省的是注意力的中間結果搬運，不動權重。B 是工程上的正解：需求先對齊資源（8B int4 只要 3.7 GB，16 GB 卡綽綽有餘），真要 70B 就多卡或雲端。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事在 24 GB 的 RTX 4090 上跑 8B fp16 模型，短對話都正常，一貼長文件（接近 128k token）就 OOM。他說「8B 才 15 GB，24 GB 的卡怎麼可能不夠」。他漏算了什麼？</h3>
+      <div class="codeblock">權重：8.03B 參數 × 2 bytes ≈ 15 GB
+KV：128k tokens × 128 KB/token ≈ 16 GB
+合計 ≈ 31 GB  >  24 GB</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 顯卡瑕疵，跑長輸入會過熱降頻導致 OOM</button>
+        <button type="button" class="quiz-opt" data-k="B">B. fp16 的模型檔其實比 15 GB 大得多，他低估了權重</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 他只算了權重、漏了 KV cache——128k 上下文的 KV 有 16 GB，比權重還大；解法是量化（權重或 KV）、縮短上下文，或換支援卸載的部署</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 長文件觸發了模型的安全機制，強制中斷</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「模型多大」和「跑起來要多大」是兩筆帳：權重固定 15 GB，KV cache 卻跟上下文成正比——128 KB/token × 128k ＝ 16 GB，長文件一貼，兩筆相加 31 GB 直接爆掉 24 GB。這也解釋了為什麼短對話沒事（KV 只有零點幾 GB）。A、D 都是編故事，OOM 是記憶體帳算得出來的必然；B 方向錯誤，fp16 權重就是參數數 × 2 bytes。修法照優先序：KV 量化成 fp8（16 → 8 GB）、權重量化、或乾脆限制服務的最長上下文。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>你們自架的聊天服務尖峰時段回應慢，但監控顯示 GPU 使用率長期只有五六成；請求有長有短、隨到隨來。最該先動的是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 加第二張 GPU，把流量分一半過去</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把模型量化成 int4，算得快就不塞車了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 檢查推理引擎的批次策略——長短請求混雜時靜態批次會讓 GPU 空轉，換成支援 continuous batching 的引擎（如 vLLM）通常是最大的一步</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 限制使用者的輸入長度，請求短就快</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「慢，但 GPU 很閒」是排程問題的招牌症狀：靜態批次要等整批最長的請求寫完才換批，先寫完的槽位全在空轉——本課模擬裡同一批請求靜態批次只有 62–64% 利用率、連續批次逼近滿載。A 是花錢買第二台一樣塞車的機器；B 解的是「GPU 太忙」，你的 GPU 是太閒；D 犧牲產品體驗去遷就排程器，本末倒置。先把排程層修好（vLLM 預設就是 continuous batching），不夠再談加卡。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事自己寫了個「整張量 absmax」腳本把模型壓成 int4，壓完模型輸出品質明顯變爛。他量了誤差（如下），結論是「int4 本來就不能用，只能回 int8」。哪裡想錯了？</h3>
+      <div class="codeblock">int4 全張量（無離群值的理想權重）: 平均誤差 0.002806
+int4 全張量（含一個 0.5 離群值）  : 平均誤差 0.014920   ← 他的情況
+int4 128個一組分組量化（同樣權重）: 平均誤差 0.002395</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 沒想錯，4 bit 資訊量太少，int4 天生不可用</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 問題不在 4 bit，在「整張量共用一條刻度」——真實權重有離群值，一個就把誤差撐大 5 倍；改用分組量化（GPTQ／AWQ／GGUF 的做法）誤差就回到理想值附近</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 他的權重檔壞了，重新下載模型就好</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 誤差 0.0149 很小，品質變爛跟量化無關</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>數據自己會說話：同樣的權重、同樣 4 bit，分組量化的誤差（0.0024）比他的全張量版（0.0149）低了 6 倍，甚至比「沒有離群值的理想情況」還好——可見兇手是「一條刻度伺候整張量」，離群值把刻度撐大、其他幾千個小權重全被犧牲。這正是主流格式全都做分組量化的原因。A 把實作缺陷當物理極限；C 無中生有；D 低估了誤差的意義——0.0149 已經接近權重本身的尺度（0.02），等於把訊號淹掉了。正解：別自己造量化輪子，用現成的 GPTQ／AWQ／GGUF 格式。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/genai-reasoning/">
+    <span class="tag">下一課</span>
+    <b>會思考的模型：CoT 與 Reasoning Model →</b>
+  </a>
+  <a href="/genai-intro/">
+    <span class="tag">主題</span>
+    <b>‹ 回「生成式 AI 導論」課程列表</b>
+  </a>
+</div>
+"""
+
+SCRIPT = r"""
+/* ═══ hero 互動：塞得進顯卡嗎（真算術：參數 × 每參數位元組 ÷ 2^30）═══ */
+(function () {
+  const MODELS = [
+    { nm: "8B 級", p: 8.03e9 },
+    { nm: "70B 級", p: 70.6e9 },
+  ];
+  const QUANTS = [
+    { nm: "fp16", b: 2 },
+    { nm: "int8", b: 1 },
+    { nm: "int4", b: 0.5 },
+  ];
+  const GPUS = [
+    { nm: "RTX 4060 · 8 GB", v: 8 },
+    { nm: "RTX 4070 · 12 GB", v: 12 },
+    { nm: "RTX 4090 · 24 GB", v: 24 },
+  ];
+  let mi = 0, qi = 2, gi = 1;
+  const $ = (id) => document.getElementById(id);
+  if (!$("fit-models")) return;
+  function mkRow(el, items, get, set) {
+    items.forEach((it, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "opt"; b.textContent = it.nm;
+      b.addEventListener("click", () => { set(i); render(); });
+      el.appendChild(b);
+    });
+  }
+  mkRow($("fit-models"), MODELS, () => mi, (i) => (mi = i));
+  mkRow($("fit-quants"), QUANTS, () => qi, (i) => (qi = i));
+  mkRow($("fit-gpus"), GPUS, () => gi, (i) => (gi = i));
+  function mark(el, cur) {
+    el.querySelectorAll(".opt").forEach((b, i) => b.classList.toggle("on", i === cur));
+  }
+  function render() {
+    mark($("fit-models"), mi); mark($("fit-quants"), qi); mark($("fit-gpus"), gi);
+    const gb = (MODELS[mi].p * QUANTS[qi].b) / 1024 ** 3;
+    const vram = GPUS[gi].v;
+    const pct = Math.min(100, (gb / vram) * 100);
+    const fits = gb <= vram * 0.9;
+    const tight = fits && gb > vram * 0.6;
+    const color = fits ? (tight ? "#DD8452" : "#55A868") : "#C44E52";
+    const head = fits
+      ? (tight ? "塞得下，但很擠" : "輕鬆塞下")
+      : "塞不下";
+    const tail = fits
+      ? (tight ? "權重就吃掉大半，長上下文的 KV cache 沒地方住——短對話可以，別想 128k。"
+               : "剩下的空間留給 KV cache 與 activation，還有餘裕跑長一點的上下文。")
+      : (QUANTS[qi].b > 0.5
+          ? "試試更狠的量化（int4），或換小一級的模型。"
+          : "int4 已經是常用格式裡最狠的一刀——這顆模型跟這張卡就是無緣，換小模型或上多卡／雲端。");
+    $("fit-verdict").style.borderColor = color;
+    $("fit-verdict").innerHTML =
+      `<div class="head" style="color:${color}">${head}</div>` +
+      `<div>權重 <span class="n">${gb.toFixed(1)} GB</span> ／ VRAM <span class="n">${vram} GB</span></div>` +
+      `<div class="gauge"><div style="width:${pct}%;background:${color}"></div></div>` +
+      `<div>${tail}</div>`;
+  }
+  render();
+})();
+"""
