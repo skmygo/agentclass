@@ -44,13 +44,14 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 4. **回頭補鏈**：新課上線後，同主題的前一課要補「下一課 →」指向新課
 5. 主題卡上的課程數字（`TOPIC · N 門課`）同步更新
 
-## 主題密碼閘（可選）
+## 課程密碼閘（可選）
 
-某些主題可設進入密碼（輕量防路人，**不是安全機制**——repo 公開、純前端、devtools 可繞過，設計如此）。
+**程式（notebook）或教學頁含教學 API key 的課才上鎖**；沒 key 的課與主題頁不鎖。
+輕量防路人，**不是安全機制**——repo 公開、純前端、devtools 可繞過，設計如此。
 實作是 `/shared/gate.js` 的不透明覆蓋層：內容照常載入（notebook 順便暖機、冒煙測試的可見性檢查不受影響），
-輸入一次同主題全部頁面解鎖（localStorage）。
+同一 `data-gate` 群組（通常＝主題 slug）輸入一次全部解鎖（localStorage）。
 
-- 上鎖＝該**主題頁＋該主題每一堂課程頁**的 `<head>`（緊接 css link 之後）各加一行：
+- 上鎖＝該課 `index.html` 的 `<head>`（緊接 css link 之後）加一行：
 
   ```html
   <script src="/shared/gate.js" data-gate="<topic-slug>" data-hash="<sha256(密碼) hex>"></script>
@@ -58,8 +59,8 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 
 - hash 這樣算（明碼不進 repo）：`python3 -c "import hashlib;print(hashlib.sha256('密碼'.encode()).hexdigest())"`
 - 這行在 page-fill 的替換區之外，重跑 page-fill 不會弄掉。
-- **在已上鎖主題新增課程時，新課的 index.html 也要加這行**（照抄同主題其他課的即可）；
-  主題有無上鎖看主題頁 `<head>` 有沒有 gate.js。
+- **新增含 key 的課程時記得加這行**（照抄同主題已上鎖課的即可）；哪些課上鎖用
+  `grep -rl gate.js content/*/*/index.html` 一眼看完。
 
 ## 課程頁必備（工程底線）
 

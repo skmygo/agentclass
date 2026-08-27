@@ -170,8 +170,11 @@ spike：`_spikes/spike_fastmcp_auth.py`、`spike_fastmcp_state.py`、`spike_fast
 - rag-mcp-agent：拿掉 system prompt「先用工具查手冊」模型**仍會查**（docstring 的「回答任何…前都應先呼叫」在撐）；`mcp.instructions` 在自寫迴圈裡其實沒送給模型。
 - shell：`pgrep -f "<字串>"` 在 until-loop 裡會匹配到自己的包裝命令永遠不結束，pattern 要精確到 `bin/python3 <script>`。
 
-## 本主題已設密碼閘（2026-08-27）
+## 密碼閘（2026-08-27，同日改為「含 key 的課才鎖」）
 
-- 全系列（主題頁＋ 10 堂課的 index.html `<head>`）掛 `/shared/gate.js`，`data-gate="llm-apps"`，
-  頁上只放 sha256、明碼不進 repo（repo 是公開的，密碼站長自己記）。用法與 hash 算法見 make-lesson skill 的 site.md「主題密碼閘」。
-- **本主題新增課程時，新課 index.html 記得照抄同主題任一課的 gate `<script>` 那行**，不然那堂課裸奔。
+- 上鎖原則：**notebook 或教學頁含教學 virtual key 的課才鎖**——目前是 litellm-basics、litellm-tools、
+  qdrant-basics、rag-zh、rag-mcp-agent 五堂（litellm-basics 連教學頁都印了 key）；
+  fastmcp4 四堂、mcp-servers（只有 `API_KEY=secret` 文件範例）與主題頁不鎖。
+- 五堂共用 `data-gate="llm-apps"` 群組：任一堂輸入一次、五堂全通。頁上只放 sha256、
+  明碼不進 repo（repo 是公開的，密碼站長自己記）。用法與 hash 算法見 make-lesson skill 的 site.md「課程密碼閘」。
+- **新增含 key 的課程時，新課 index.html 記得照抄已上鎖課的 gate `<script>` 那行**，不然那堂課裸奔。
