@@ -69,7 +69,7 @@
   .src { font-size: 12.5px; color: var(--ink-soft); font-style: normal; }
 </style>
 </head>
-<body data-ready-figures="4">
+<body data-nb-mode="app" data-ready-figures="4">
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
@@ -121,7 +121,7 @@
   <p class="note">
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
     首次載入約需 30–60 秒，正好夠你讀完第 1 節。上面這個小玩具是隨機抽的，
-    右邊會把同一件事跑三萬輪、跟公式對答案。改壞了重新整理就復原——盡量玩。
+    右邊會把同一件事跑三萬輪、跟公式對答案。玩壞了重新整理就復原——盡量玩。
   </p>
 </section>
 
@@ -455,8 +455,8 @@ llm = LLM(
 done</div>
   <p>盯三個數字：</p>
   <ul>
-    <li><b>Output token throughput</b>——總產能（右邊 4️⃣ 的右圖）。</li>
-    <li><b>Mean TPOT</b>——每人 token 間隔，也就是體感速度（4️⃣ 的左圖）。</li>
+    <li><b>Output token throughput</b>——總產能（實驗場 4️⃣ 的下圖）。</li>
+    <li><b>Mean TPOT</b>——每人 token 間隔，也就是體感速度（4️⃣ 的上圖）。</li>
     <li><b>Mean TTFT</b>——首字延遲。</li>
   </ul>
   <p>
@@ -483,14 +483,14 @@ done</div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
     <p>α = 0.85、草稿成本 6% 時，<b>最佳 K 是多少</b>？
-       用 notebook 的 <code>speedup()</code> 掃 K = 1…20 找最大值。
+       右邊的實驗區會替你掃過 K = 1…20。
        找到之後想一想：你會選最高點那個 K，還是曲線開始變平的那個？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 3</span>
-    <p>4️⃣ 的 <code>T_FLOP</code>（每個序列的計算單價）改成 0.01——
+    <p>4️⃣ 那根「每個序列每個位置的計算時間」拉到 0.01——
        換一張算力更強的卡之後，「投機解碼開始拖垮總吞吐」的交叉點會往左還是往右？
-       <b>先猜，再改常數驗證。</b></p>
+       <b>先猜，再拉拉看。</b></p>
   </div>
   <button class="golab" data-nb="5️⃣">到右邊的實驗區開工</button>
 </section>
@@ -544,7 +544,7 @@ done</div>
 
     <div class="quiz-q" data-answer="B">
       <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
-      <h3>有人量到自己的接受率只有 0.6、草稿模型單步成本約大模型的 30%。他想「那我多猜一點就好」，把 K 從 5 調到 12，結果更慢了。右邊 notebook 的 <code>speedup()</code> 算出來是這樣——為什麼？</h3>
+      <h3>有人量到自己的接受率只有 0.6、草稿模型單步成本約大模型的 30%。他想「那我多猜一點就好」，把 K 從 5 調到 12，結果更慢了。右邊的實驗區算出來是這樣——為什麼？</h3>
       <div class="codeblock">&gt;&gt;&gt; round(speedup(alpha=0.60, k=5,  draft_cost=0.30), 3)
 0.953
 &gt;&gt;&gt; round(speedup(alpha=0.60, k=12, draft_cost=0.30), 3)
@@ -591,7 +591,7 @@ done</div>
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
-  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
 </div>
 </main>
 

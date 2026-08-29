@@ -83,6 +83,46 @@ const quiz = await lp.evaluate(() => {
   return { count, fbShown };
 });
 const quizOk = quiz.count >= 2 && quiz.count <= 5 && quiz.fbShown;
+
+// 5) 手機 viewport（390×844）：版面結構 + 本課在手機上完整載入
+//    結構＝無橫向溢出（頁面與教學 pane 兩層）、底部切換列存在、教學區不預載 notebook；
+//    切到實作後：app 課直接開載、edit 課先出提示卡（確認後才載），最後等到就緒。
+const mctx = await browser.newContext({
+  viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+});
+const mp = await mctx.newPage();
+mp.on("pageerror", (err) => consoleErrors.push(`mobile pageerror: ${err.message}`));
+await mp.goto(lessonUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
+await mp.waitForSelector("#view-tabs", { timeout: 15_000 });
+const mStruct = await mp.evaluate(() => {
+  const lesson = document.querySelector("#lesson");
+  return {
+    pageOverflow: document.scrollingElement.scrollWidth - innerWidth,
+    lessonOverflow: lesson.scrollWidth - lesson.clientWidth,
+    tabsShown: getComputedStyle(document.querySelector("#view-tabs")).display !== "none",
+    preloaded: !!document.querySelector("#nb-frame").getAttribute("src"),
+    isApp: document.body.dataset.nbMode === "app",
+  };
+});
+const mProblems = [];
+if (mStruct.pageOverflow > 0) mProblems.push(`頁面橫向溢出 +${mStruct.pageOverflow}px`);
+if (mStruct.lessonOverflow > 1) mProblems.push(`教學區內橫向溢出 +${mStruct.lessonOverflow}px`);
+if (!mStruct.tabsShown) mProblems.push("底部切換列不可見");
+if (mStruct.preloaded) mProblems.push("教學區就預載了 notebook（lazy load 失效）");
+// gate 課有覆蓋層——用 DOM click() 繞過命中測試
+await mp.evaluate(() => document.querySelector('#view-tabs button[data-view="lab"]').click());
+if (!mStruct.isApp) {
+  try {
+    await mp.waitForSelector("#nb-notice button", { timeout: 10_000 });
+    await mp.evaluate(() => document.querySelector("#nb-notice button").click());
+  } catch { mProblems.push("edit 課切實作沒出提示卡"); }
+}
+if (mProblems.length === 0) {
+  try {
+    await mp.waitForSelector("#nb-status.ready", { timeout: TIMEOUT_MS });
+  } catch { mProblems.push("手機上載入未達就緒"); }
+}
+const mobileOk = mProblems.length === 0;
 await browser.close();
 
 console.log("---- smoke result ----");
@@ -90,10 +130,11 @@ console.log(`ready in           : ${tReady}s`);
 console.log(`figure outputs     : ${imgCount}`);
 console.log(`error text hits    : ${hits.length ? hits.join(" | ") : "none"}`);
 console.log(`quiz               : ${quizOk ? `ok (${quiz.count} 題)` : `BAD (count=${quiz.count}, feedback=${quiz.fbShown})`}`);
+console.log(`mobile (390x844)   : ${mobileOk ? "ok" : `BAD（${mProblems.join("；")}）`}`);
 console.log(`console errors     : ${consoleErrors.length}`);
 consoleErrors.slice(0, 5).forEach((e) => console.log(`  · ${e}`));
 
-if (hits.length > 0 || !quizOk) {
+if (hits.length > 0 || !quizOk || !mobileOk) {
   console.log("RESULT: FAIL");
   process.exit(1);
 }

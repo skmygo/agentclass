@@ -255,12 +255,52 @@ th { background: var(--chip-bg); font-weight: 800; }
 .quiz-score.show { display: block; }
 .quiz-score small { display: block; font-weight: 400; font-size: 13px; color: var(--ink-soft); margin-top: 6px; line-height: 1.8; }
 
-/* ── 窄螢幕：上下疊降級 ────────────────── */
+/* ── 窄螢幕（≤980px）：教學／實作視圖切換 ──────────────
+   底部切換列（#view-tabs）由 /shared/splitter.js 注入；
+   兩個 pane 同尺寸疊放、以 visibility 切換（保捲動位置與 WASM 狀態）。 */
+#view-tabs { display: none; }
+#nb-notice {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 32px 26px; background: var(--panel);
+}
+#nb-notice .inner { max-width: 420px; }
+#nb-notice p { font-size: 14.5px; }
 @media (max-width: 980px) {
-  body { overflow: auto; }
-  main { flex-direction: column; }
-  #lesson { width: 100%; min-width: 0; overflow: visible; }
-  #lab { border-left: 0; border-top: 2px solid var(--ink); height: 82vh; }
+  :root { --tabbar-h: calc(56px + env(safe-area-inset-bottom)); }
+  body { height: 100dvh; }
+  header {
+    height: auto; min-height: 48px; flex-wrap: wrap;
+    padding: 8px 14px; gap: 4px 10px;
+  }
+  header a { white-space: nowrap; }
+  header a.topic { overflow: hidden; text-overflow: ellipsis; max-width: 58vw; }
+  header a.tool { font-size: 12px; padding: 4px 11px; }
+  main { position: relative; }
+  #lesson, #lab {
+    position: absolute; top: 0; left: 0; right: 0; bottom: var(--tabbar-h);
+    width: auto; min-width: 0;
+  }
+  #lab { border-left: 0; }
+  body:not([data-view="lab"]) #lab { visibility: hidden; pointer-events: none; }
+  body[data-view="lab"] #lesson { visibility: hidden; pointer-events: none; }
+  .wrap { padding: 0 22px; }
+  /* 表格拒絕縮到內容最小寬以下——窄螢幕改為表格自身橫向捲動（同 GitHub markdown 慣例） */
+  #lesson table { display: block; width: 100%; overflow-x: auto; }
+  /* 內文裡的長 code token（路徑、參數名）撐不進窄欄——必要時允許斷在 token 中間 */
+  #lesson { overflow-wrap: anywhere; }
+  #view-tabs {
+    display: flex; gap: 8px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    height: var(--tabbar-h);
+    padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+    background: var(--panel); border-top: 2px solid var(--ink);
+  }
+  #view-tabs button {
+    flex: 1; font-family: inherit; font-size: 14.5px; font-weight: 800;
+    border: 2px solid var(--ink); border-radius: 999px;
+    background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  #view-tabs button[aria-selected="true"] { background: var(--ink); color: var(--panel); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

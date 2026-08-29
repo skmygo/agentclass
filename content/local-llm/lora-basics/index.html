@@ -53,7 +53,7 @@
   @media (max-width: 620px) { .duo { grid-template-columns: 1fr; } }
 </style>
 </head>
-<body data-ready-figures="5">
+<body data-nb-mode="app" data-ready-figures="5">
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
@@ -110,8 +110,8 @@
 
   <p class="note">
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
-    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
-    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每個實驗都有滑桿與選項可以拉，
+    拉完立刻重算——這是你的沙盒，盡量玩。
   </p>
 </section>
 
@@ -407,7 +407,7 @@ all-linear（再加 gate,up,down）：1,507,328 / 層   ← 2.875 倍</div>
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
-  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
 </div>
 </main>
 

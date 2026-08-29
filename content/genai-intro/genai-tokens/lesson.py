@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 Token、Embedding 與上下文窗（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課要親手摸四個地基名詞：**Token**（文字怎麼被切開）、**Embedding**（語意怎麼變成座標）、
     **Context Window**（模型一次能看多少）、**Autoregressive**（為什麼回答是一個字一個字蹦出來）。
@@ -240,7 +240,7 @@ def _(mo):
 def _(EMB_WORDS, mo):
     pick_a = mo.ui.dropdown(options=EMB_WORDS, value=EMB_WORDS[0], label="句子 A")
     pick_b = mo.ui.dropdown(options=EMB_WORDS, value=EMB_WORDS[1], label="句子 B")
-    mo.hstack([pick_a, pick_b], justify="start", gap=2)
+    mo.hstack([pick_a, pick_b], justify="start", gap=2, wrap=True)
     return pick_a, pick_b
 
 
@@ -416,22 +416,47 @@ def _(mo):
 
     ## 5️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。挑戰在左頁「換你動手」，做完再開解答對照。
+    下面是你的實驗區。挑戰在左頁「換你動手」，做完再開解答對照。
     """
     )
     return
 
 
 @app.cell
-def _(AR_COUNTS, BPE_CORPUS, bpe_segment, bpe_train):
-    # ===== 你的實驗區 =====
-    # LEVEL 1 起點：改 probe，看不同合併次數下它被切成幾塊
-    probe = "newest"
-    my_merges, _ = bpe_train(BPE_CORPUS, 10)
-    print("BPE:", probe, "→", bpe_segment(probe, my_merges))
+def _(AR_COUNTS, mo):
+    _keys = sorted(AR_COUNTS)
+    probe_char = mo.ui.dropdown(
+        options=_keys,
+        value="天" if "天" in _keys else _keys[0],
+        label="看哪一個字後面接過什麼",
+    )
+    mo.vstack(
+        [mo.md("**你的實驗區**——4️⃣ 的自迴歸生成，每一步就是在查這張表。"), probe_char]
+    )
+    return (probe_char,)
 
-    # LEVEL 2 起點：語料裡「天」後面接過哪些字？
-    print("P(下一字 | 天) 的計數：", AR_COUNTS.get("天"))
+
+@app.cell
+def _(AR_COUNTS, mo, probe_char):
+    _d = AR_COUNTS.get(probe_char.value, {})
+    _tot = sum(_d.values())
+    _rows = "\n    ".join(
+        f"| 「{_c}」 | {_n} | {_n / _tot:.0%} |"
+        for _c, _n in sorted(_d.items(), key=lambda _kv: -_kv[1])
+    )
+    _top = max(_d, key=_d.get)
+    mo.md(
+        f"""
+    語料裡「**{probe_char.value}**」後面總共接過 {_tot} 次：
+
+    | 下一個字 | 次數 | 機率 |
+    | --- | --- | --- |
+    {_rows}
+
+    最常接的是「**{_top}**」。4️⃣ 的 temperature 壓到 0.1 時，幾乎每次都走這一條；
+    拉到 2.0，下面那些低機率的字才開始有機會冒出來。
+    """
+    )
     return
 
 
@@ -452,8 +477,8 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    實驗區印出的計數：「天」後面接過「氣」4 次、「天」3 次、「要」2 次、
-    「心」「很」各 1 次——最常接的是「氣」。把 temperature 壓到 0.1 之後，
+    實驗區選「天」，會看到它後面接過哪些字與各自的機率——最常接的是「氣」。
+    把 4️⃣ 的 temperature 壓到 0.1 之後，
     每一步幾乎都挑最高機率的字，所以生成幾乎每次都走「天→氣」這條路；
     拉到 2.0 之後低機率的字也常被抽中，句子就開始亂走。
 

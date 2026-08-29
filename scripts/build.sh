@@ -3,6 +3,8 @@
 #   純瀏覽器課：content/<topic>/<id>/lesson.py     → WASM 匯出 + 教學頁
 #   外部軌課  ：content/<topic>/<id>/<id>_ext.py   → 教學頁 + notebook 原檔（無 WASM）
 # 一課只能一版程式（兩者並存＝錯誤）；<id>_gpu.py 是舊雙軌課的遺留尾綴，僅隨附複製。
+# 純瀏覽器課的互動模式由 lesson-mode 檔決定（課程層 > 主題層 > 預設 edit）：
+#   edit＝程式碼可見可改；app＝隱藏程式碼只留互動（marimo --mode run）
 #
 # URL 映射（檔案擺在主題下，但課程網址永遠在根層——分享連結不因搬主題而斷）：
 #   content/index.html            → /
@@ -83,13 +85,34 @@ done
 for lesson_py in "$ROOT"/content/*/*/lesson.py; do
   dir="$(dirname "$lesson_py")"
   id="$(basename "$dir")"
-  echo "── building lesson: $id"
+  # 互動模式：課程層 lesson-mode > 主題層 lesson-mode > 預設 edit
+  #   edit＝程式碼可見可改（程式碼本身就是教材，例如 ml-basics 教 scikit-learn）
+  #   app ＝隱藏程式碼與編輯器，只留說明／互動元件／輸出（右欄是教學模擬的課）
+  lesson_mode="edit"
+  [ -f "$(dirname "$dir")/lesson-mode" ] && lesson_mode="$(tr -d '[:space:]' < "$(dirname "$dir")/lesson-mode")"
+  [ -f "$dir/lesson-mode" ] && lesson_mode="$(tr -d '[:space:]' < "$dir/lesson-mode")"
+  case "$lesson_mode" in
+    edit) export_mode="edit" ;;
+    app)  export_mode="run"  ;;
+    *) echo "   ✗ $id 的 lesson-mode 只能是 app 或 edit（讀到「$lesson_mode」）" >&2; exit 1 ;;
+  esac
+  echo "── building lesson: $id [$lesson_mode]"
   if [ -d "$DIST/$id" ]; then
     echo "   ✗ 課程 id 重複：$id（課程網址在根層，id 必須全站唯一）" >&2
     exit 1
   fi
+  # app 模式課的教學頁要宣告 data-nb-mode="app"，就緒文案才不會叫學員去改格子
+  # （只比對 <body> 標籤本身——模板註解裡也有這個字串，全檔 grep 會誤傷 edit 課）
+  if [ "$lesson_mode" = "app" ] && ! grep -q '<body[^>]*data-nb-mode="app"' "$dir/index.html"; then
+    echo "   ✗ $id 是 app 模式，但 index.html 的 <body> 缺 data-nb-mode=\"app\"" >&2
+    exit 1
+  fi
+  if [ "$lesson_mode" = "edit" ] && grep -q '<body[^>]*data-nb-mode="app"' "$dir/index.html"; then
+    echo "   ✗ $id 的 index.html 宣告 data-nb-mode=\"app\"，但沒有對應的 lesson-mode 檔" >&2
+    exit 1
+  fi
   mkdir -p "$DIST/$id"
-  (cd "$ROOT" && uv run marimo export html-wasm "$lesson_py" -o "$DIST/$id/nb" --mode edit -f)
+  (cd "$ROOT" && uv run marimo export html-wasm "$lesson_py" -o "$DIST/$id/nb" --mode "$export_mode" -f)
   # marimo 0.23 預設 auto_instantiate=false，且 export 不吃專案設定 → 後處理強制開啟自動執行
   sed -i 's/"auto_instantiate": false/"auto_instantiate": true/' "$DIST/$id/nb/index.html"
   share_assets "$DIST/$id/nb" "$id"

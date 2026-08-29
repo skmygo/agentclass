@@ -264,12 +264,12 @@ WRAP = r"""
   <p>挑戰在 notebook 的 6️⃣ 節，由淺到深：</p>
   <div class="ex">
     <span class="lv">LEVEL 1</span>
-    <p>把 <span class="kbd">my_write</span> 改成 <span class="kbd">WRITE_1H</span>（1 小時 TTL，$20/MTok），
+    <p>把實驗區的「寫入 TTL」換成 <span class="kbd">1 小時</span>（$20/MTok），
       看三輪總價變多少、還省不省。長 TTL 是免費的嗎？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
-    <p>把 <span class="kbd">my_sys</span> 從 10K 改成 2K，再改成 40K，各跑 3 輪與 20 輪。
+    <p>把實驗區的「系統提示長度」從 10K 拉到 2K，再拉到 40K，每次都看 3 輪與 20 輪。
       「省的比例」對哪個參數比較敏感——系統提示長度，還是輪數？</p>
   </div>
   <div class="ex">

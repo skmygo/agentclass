@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 推理加速：KV Cache、量化與 vLLM（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課的名詞聽起來最「工程」，但每個都能算給你看：**KV Cache** 有多大、
     **量化**丟掉多少精度、**投機解碼**快在哪、**連續批次**省下什麼、
@@ -343,25 +343,55 @@ def _(mo):
 
     ## 6️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。挑戰在左頁「換你動手」，做完再開解答對照。
+    下面是你的實驗區。挑戰在左頁「換你動手」，做完再開解答對照。
     """
     )
     return
 
 
 @app.cell
-def _():
-    # ===== 你的實驗區 =====
-    # LEVEL 1 起點：你的顯卡裝得下哪個組合？（真算術：參數 × bytes）
-    params_b = 8.03e9          # 8B 級；70B 級改 70.6e9
-    bytes_per = 0.5            # fp16=2, int8=1, int4=0.5
-    my_vram_gb = 12.0
+def _(mo):
+    my_model = mo.ui.dropdown(
+        options={"8B 級（8.03B 參數、32 層）": (8.03e9, 32), "70B 級（70.6B 參數、80 層）": (70.6e9, 80)},
+        value="8B 級（8.03B 參數、32 層）",
+        label="模型大小",
+    )
+    my_quant = mo.ui.dropdown(
+        options={"fp16（2 bytes）": 2.0, "int8（1 byte）": 1.0, "int4（0.5 byte）": 0.5},
+        value="int4（0.5 byte）",
+        label="權重量化",
+    )
+    my_vram = mo.ui.slider(
+        4, 96, 2, value=12, label="你的顯卡有多少 VRAM（GB）", show_value=True
+    )
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——你的卡裝得下哪個組合？裝下之後還剩多少 KV 空間？"),
+            mo.hstack([my_model, my_quant], justify="start", gap=2, wrap=True),
+            my_vram,
+        ]
+    )
+    return my_model, my_quant, my_vram
 
-    weights_gb = params_b * bytes_per / 1024**3
-    kv_per_tok_kb = 2 * 32 * 8 * 128 * 2 / 1024   # 8B 級 GQA fp16
-    ctx_budget = (my_vram_gb - weights_gb) * 0.8 * 1024**2 / kv_per_tok_kb
-    print(f"權重 {weights_gb:.1f} GB / VRAM {my_vram_gb:.0f} GB")
-    print(f"剩餘空間約可放 {ctx_budget:,.0f} tokens 的 KV（八成折算）")
+
+@app.cell
+def _(mo, my_model, my_quant, my_vram):
+    _params, _layers = my_model.value
+    _weights = _params * my_quant.value / 1024**3
+    _free = my_vram.value - _weights
+    _kv_kb = 2 * _layers * 8 * 128 * 2 / 1024        # GQA 8 組 KV head、head_dim 128、fp16
+    _ctx = _free * 0.8 * 1024**2 / _kv_kb if _free > 0 else 0
+    mo.md(
+        f"""
+    | | |
+    | --- | --- |
+    | 權重佔用 | **{_weights:.1f} GB** ／ 你有 {my_vram.value} GB |
+    | 裝得下嗎 | **{"裝得下，還剩 %.1f GB" % _free if _free > 0 else "裝不下，差 %.1f GB" % -_free}** |
+    | 剩餘空間能放多少 KV | **{_ctx:,.0f} tokens**（每 token {_kv_kb:.0f} KB，八成折算） |
+
+    權重是**入場費**，KV 才是隨用量長大的那一塊——先看裝不裝得下，再看還剩多少位子給上下文。
+    """
+    )
     return
 
 
@@ -371,8 +401,13 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    12 GB 的卡：8B fp16 要 15 GB **裝不下**；int8（7.5 GB）與 int4（3.7 GB）裝得下，
-    而且 int4 剩下的空間夠放約五萬多 token 的 KV。改 `bytes_per` 三個值各跑一次就看得到。
+    12 GB 的卡跑 8B 級，量化下拉三次：
+
+    | 量化 | 權重 | 12 GB 裝得下？ | 剩餘可放 KV |
+    |---|---|---|---|
+    | fp16 | 14.96 GB | **裝不下**（差 2.96 GB） | — |
+    | int8 | 7.48 GB | 裝得下，剩 4.5 GB | 29,632 tokens |
+    | int4 | 3.74 GB | 裝得下，剩 8.3 GB | **54,138 tokens** |
 
     順序值得記：**先量化、再談卸載**——量化把需求直接變小，
     常常整個「裝不下」的問題就消失了。

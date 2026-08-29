@@ -44,7 +44,7 @@
   .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
 </style>
 </head>
-<body data-ready-figures="3">
+<body data-nb-mode="app" data-ready-figures="3">
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
@@ -78,7 +78,7 @@
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
     首次載入約需 30–60 秒，正好夠你讀完第 1 節。這一課只有兩筆帳要算：
     <b>KV 有多大</b>、<b>載回來比重算快多少</b>——兩筆都在右邊真的算，
-    改壞了重新整理就復原。
+    玩壞了重新整理就復原。
   </p>
 </section>
 
@@ -394,7 +394,7 @@
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
-  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
 </div>
 </main>
 

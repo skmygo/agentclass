@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 可觀測性與監控：看見你的 LLM（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     本課分兩半：**1️⃣2️⃣ 請求層**（一條 trace 裡發生了什麼、錢花在誰身上）、
     **3️⃣4️⃣5️⃣ 機器層**（告警什麼時候該叫、VRAM 該怎麼判讀）。
@@ -309,7 +309,7 @@ def _(group_by, np, plt, reqs):
     _names = [_names[i] for i in _order]
     _cost, _cnt = _cost[_order], _cnt[_order]
 
-    _fig, (_a1, _a2) = plt.subplots(1, 2, figsize=(8.2, 0.55 * len(_names) + 2.1))
+    _fig, (_a1, _a2) = plt.subplots(2, 1, figsize=(6.4, 1.1 * len(_names) + 3.4))
     _y = np.arange(len(_names))[::-1]
     _a1.barh(_y, _cost, color="#C44E52", edgecolor="#2B2B2B", height=0.6)
     for _i, _c in enumerate(_cost):
@@ -324,7 +324,7 @@ def _(group_by, np, plt, reqs):
     for _i, _n in enumerate(_cnt):
         _a2.text(_n, _y[_i], f"  {_n}", va="center", fontsize=9.5)
     _a2.set_yticks(_y)
-    _a2.set_yticklabels([])
+    _a2.set_yticklabels(_names, fontsize=10)
     _a2.set_xlim(0, _cnt.max() * 1.35)
     _a2.set_title("requests", fontsize=11)
     _a2.grid(axis="x", alpha=0.3)
@@ -714,35 +714,74 @@ def _(mo):
         r"""
     ## 6️⃣ 換你動手
 
-    上面用到的三個函式都可以直接呼叫，拿去做下面的挑戰：
+    **LEVEL 1**　把 3️⃣ 的 `for:` 拉到 0／2／5／13 分鐘四個位置（門檻固定 1.5 GB），
+    記下每一種的告警次數、誤報數與偵測延遲，確認你在圖上看到的行為。
 
-    - `make_vram_series(jitter_mins=(1, 2, 4), event_min=12, seed=7)` → `(序列, 真事件起, 真事件迄)`
-    - `evaluate_rule(序列, 起, 迄, 門檻, for_分鐘)` → `{"n_fires", "false_alarms", "detected", "delay_min", ...}`
-    - `self_times(spans)` → 每個 span 的 self time（`TRACES` 是那四條 trace 的原始資料）
+    **LEVEL 2**　你的機器抖動比較長：用下面的實驗區把抖動換成 **2／5／8 分鐘**
+    （真事件仍是 12 分鐘），找出「誤報歸零又不漏報」的最小 `for:`。
+    想想看這對你的 on-call 意味著什麼。
 
-    **LEVEL 1**　用 `evaluate_rule` 直接印出「`for:` = 0／2／5／13 分鐘」四種設定的誤報數與偵測延遲，
-    確認你在 3️⃣ 看到的行為。
+    **LEVEL 3**　回到 1️⃣ 把四條 trace 逐條看過，找出每一條 self time 最大的那一步，
+    並說得出它為什麼慢。自我驗證：**所有 span 的 self time 加總，必須剛好等於根 span 的總時長**。
+    （想把自己的慢請求加進來比對，就把 .py 下載回去，`TRACES` 就在裡面。）
 
-    **LEVEL 2**　你的機器抖動比較長：把抖動改成 `(2, 5, 8)` 分鐘、真事件仍是 12 分鐘，
-    找出「誤報歸零又不漏報」的最小 `for:`。想想看這對你的 on-call 意味著什麼。
-
-    **LEVEL 3**　把你自己的一次慢請求寫成 `spans` 加進 `TRACES`，算出 self time 最大的那一步。
-    自我驗證：**所有 span 的 self time 加總，必須剛好等於根 span 的總時長**——對不上就是你的
-    起訖時間或層級寫錯了。
-
-    做完記得：**點右上角下載按鈕（或左側教學頁的「下載 .py」）把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _():
-    # ===== 你的實驗區 =====
-    MY_TH = 1.5
-    MY_FOR_MIN = 5.0
-    print(f"我的規則：free_vram < {MY_TH}GB for: {MY_FOR_MIN}m")
+def _(mo):
+    my_jitter = mo.ui.dropdown(
+        options={
+            "1／2／4 分鐘（預設那台）": (1, 2, 4),
+            "2／5／8 分鐘": (2, 5, 8),
+            "3／7／12 分鐘": (3, 7, 12),
+        },
+        value="2／5／8 分鐘",
+        label="這台機器的抖動有多長",
+    )
+    my_th = mo.ui.slider(
+        0.5, 4.2, 0.1, value=1.5, label="告警門檻（剩餘 VRAM < ? GB）", show_value=True
+    )
+    my_for = mo.ui.slider(
+        0.0, 15.0, 0.25, value=5.0, label="for:（持續幾分鐘才算數）", show_value=True
+    )
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——換一台抖動更長的機器，同一組規則還守得住嗎？"),
+            my_jitter,
+            mo.hstack([my_th, my_for], justify="start", gap=2, wrap=True),
+        ]
+    )
+    return my_for, my_jitter, my_th
+
+
+@app.cell
+def _(evaluate_rule, make_vram_series, mo, my_for, my_jitter, my_th):
+    _v, _e0, _e1 = make_vram_series(jitter_mins=my_jitter.value)
+    _r = evaluate_rule(_v, _e0, _e1, my_th.value, my_for.value)
+    _delay = f"{_r['delay_min']:.1f} 分鐘" if _r["detected"] else "——沒抓到"
+    _verdict = (
+        "✅ 誤報 0、真事件也抓到了——這組規則過關。"
+        if _r["false_alarms"] == 0 and _r["detected"]
+        else "❌ 真事件漏掉了：`for:` 已經比事件本身還長。"
+        if not _r["detected"]
+        else f"⚠️ 還有 {_r['false_alarms']} 次誤報：半夜會被吵醒 {_r['false_alarms']} 次。"
+    )
+    mo.md(
+        f"""
+    抖動 {my_jitter.selected_key}、門檻 {my_th.value:.1f} GB、`for: {my_for.value:g}m`：
+
+    | 告警次數 | 誤報 | 抓到真事件 | 偵測延遲 |
+    | --- | --- | --- | --- |
+    | {_r["n_fires"]} | **{_r["false_alarms"]}** | {"是" if _r["detected"] else "否"} | {_delay} |
+
+    {_verdict}
+    """
+    )
     return
 
 
@@ -752,31 +791,26 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    ```python
-    for f in (0, 2, 5, 13):
-        r = evaluate_rule(vram, EV0, EV1, 1.5, f)
-        print(f"for:{f:>3}m  告警 {r['n_fires']}  誤報 {r['false_alarms']}  "
-              f"抓到真事件 {r['detected']}  延遲 {r['delay_min']}")
-    ```
+    門檻固定 1.5 GB，把 `for:` 拉到四個位置，3️⃣ 的表格會這樣走：
 
-    你應該看到：`for:0m` 有 4 次告警、其中 3 次是誤報、延遲 0；
-    `for:2m` 誤報剩 2（2 分鐘與 4 分鐘那兩次抖動還是叫了）；
-    `for:5m` 誤報 0、延遲 4.75 分鐘；
-    `for:13m` 誤報 0 但 `detected=False`——**規則比事件還長，等於沒裝**。
+    | `for:` | 總告警 | 誤報 | 抓到真事件 |
+    |---|---|---|---|
+    | 0m | 4 | 3 | 是（延遲 0） |
+    | 2m | 3 | 2 | 是 |
+    | 5m | 1 | **0** | 是（延遲 4.75 分鐘） |
+    | 13m | 0 | 0 | **沒有（漏報）** |
+
+    `for:2m` 時 2 分鐘與 4 分鐘那兩次抖動還是叫了；`for:13m` 誤報歸零，
+    但真事件也一起漏掉——**規則比事件還長，等於沒裝**。
     """
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    ```python
-    v2, e0, e1 = make_vram_series(jitter_mins=(2, 5, 8), event_min=12)
-    for f in [x / 4 for x in range(0, 61)]:          # 0 ~ 15 分鐘，每 15 秒一格
-        r = evaluate_rule(v2, e0, e1, 1.5, f)
-        if r["false_alarms"] == 0 and r["detected"]:
-            print(f"最小可用 for: = {f} 分鐘，偵測延遲 {r['delay_min']:.2f} 分鐘")
-            break
-    ```
+    實驗區選「2／5／8 分鐘」，門檻留在 1.5 GB，把 `for:` 一格一格往右推
+    （每格 15 秒），第一個同時滿足「誤報 0」與「抓到真事件」的位置就是答案。
 
-    答案是 **8.25 分鐘**（比最長的 8 分鐘抖動多一格）。代價寫在同一行：偵測延遲也跟著變成 8 分鐘。
+    答案是 **8.25 分鐘**（比最長的那次 8 分鐘抖動多一格）。
+    代價就寫在同一列：偵測延遲也跟著變成整整 8 分鐘。
 
     對 on-call 的意義：**抖動越長，你能保證的「發現速度」就越差**。
     這時候與其一直拉長 `for:`，不如回頭修抖動本身（例如把那個會週期性佔用 VRAM 的批次工作錯開），
@@ -785,22 +819,18 @@ def _(mo):
             ),
             "💡 LEVEL 3 提示": mo.md(
                 r"""
-    寫法：照 `TRACES` 的格式 `(深度, 名稱, 類型, 起 ms, 迄 ms, 成功嗎)`，**前序排列**
-    （父 span 在前，它的子 span 緊接在後、深度 +1）。
+    1️⃣ 逐條切過去，self time 最長的那一步分別是：
 
-    ```python
-    my_trace = [
-        (0, "my_request", "CHAIN", 0, 5200, True),
-        (1, "retrieve",   "RETRIEVER", 10, 900, True),
-        (1, "generate",   "LLM", 920, 5180, True),
-    ]
-    st = self_times(my_trace)
-    print(list(zip([s[1] for s in my_trace], st)))
-    print("self time 總和 =", sum(st), " / 根 span 總時長 =", my_trace[0][4] - my_trace[0][3])
-    ```
+    | trace | 冠軍 | self time |
+    |---|---|---|
+    | ok | `generate` | 1,440 ms |
+    | slow_retrieve | `vector_search` | 1,560 ms |
+    | slow_generate | `queue_wait` | **7,200 ms** |
 
-    **驗證方式**：最後兩個數字必須相等。不相等的常見原因有兩個——
-    子 span 的時間超出父 span 的範圍（起訖抄錯），或是層級寫錯（把孫子寫成兒子）。
+    每一條的 self time 全部加起來，都剛好等於根 span 的總時長
+    （1,850／3,210／9,240 ms）——**這個等式是你檢查 trace 有沒有寫壞的免費工具**。
+    不相等的常見原因有兩個：子 span 的時間超出父 span 的範圍（起訖抄錯），
+    或是層級寫錯（把孫子寫成兒子）。
 
     找到最慢的一步之後，再問自己第二個問題：**這一步慢，是它自己的問題，還是機器層的問題？**
     像 `queue_wait` 這種，trace 只會告訴你「等了很久」，原因得回機器層的儀表板找。

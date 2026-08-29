@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 微調入門：LoRA 與 SFT、DPO（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     真正的微調要在有 GPU 的機器上跑；這裡不訓練模型，而是把 **LoRA 的每一個參數**
     ——`r`、`lora_alpha`、`target_modules`——算給你看，讓你知道自己在調什麼。
@@ -57,7 +57,7 @@ def _(mo):
     Transformer 每一層都有好幾個 `d × d` 的方陣 W。**全參數微調**要更新整個 W；
     **LoRA** 把 W 凍結，另外掛兩個小矩陣 `B(d×r)` 與 `A(r×d)`，只訓練這兩個。
 
-    拉拉看下面兩根拉桿——注意右邊那張圖的 y 軸是**對數刻度**，不然 LoRA 那根柱子會矮到看不見。
+    拉拉看下面兩根拉桿——注意兩張圖的 y 軸都是**對數刻度**，不然 LoRA 那根柱子會矮到看不見。
     記憶體那欄是粗估：每個**可訓練**參數在訓練時還要多帶梯度與優化器狀態（這裡以 3 份 fp32 計）。
     """
     )
@@ -87,7 +87,7 @@ def _(C_LORA, C_W, dim_slider, plt, rank_slider):
     shrink = full_params / lora_trainable
     STATE_BYTES = 12  # 梯度 + 兩份優化器狀態，各 fp32（4 bytes）
 
-    _fig, _axes = plt.subplots(1, 2, figsize=(8.2, 3.5))
+    _fig, _axes = plt.subplots(2, 1, figsize=(6.4, 6.4))
     _names = ["Full FT", f"LoRA r={r_rank}"]
     _colors = [C_W, C_LORA]
 
@@ -144,7 +144,7 @@ def _(mo):
     - **α 越大 → 越強**（係數的分子）
     - **r 越小 → 越強**（係數的分母）
 
-    左圖是不同 α 之下、力道隨 r 的變化曲線，空心圈是你現在選的組合；右圖把幾個常見設定並排比較。
+    上圖是不同 α 之下、力道隨 r 的變化曲線，空心圈是你現在選的組合；下圖把幾個常見設定並排比較。
     注意曲線不是直直往下掉：係數是 α/r，但 B·A 本身是 r 個小矩陣疊起來的，r 越大它自己越大——
     兩邊抵銷之後，實際力道大約隨 **α / √r** 變化。這正是「rank 改變時幅度自動調、不會參數多就更新猛」的意思。
     """
@@ -190,7 +190,7 @@ def _(C_BAD, C_LORA, C_W, alpha_slider, plt, rank2_slider, strength):
     now_strength = strength(a_now, r_now)
 
     _ranks = [1, 2, 4, 8, 16, 32, 64]
-    _fig2, _ax2 = plt.subplots(1, 2, figsize=(8.2, 3.5))
+    _fig2, _ax2 = plt.subplots(2, 1, figsize=(6.4, 6.4))
 
     for _alpha, _c, _ls in [(8, C_W, ":"), (16, C_LORA, "-"), (32, C_BAD, "--")]:
         _ax2[0].plot(
@@ -264,26 +264,41 @@ def _(mo):
 
     下面拿兩個 64×64 的矩陣對照：一個是**有結構的更新**（少數幾個方向疊起來，
     加上一點雜訊——這是教學用的合成矩陣，真實模型的 ΔW 沒辦法在瀏覽器裡算，但味道就是這樣），
-    另一個是**純亂數矩陣**。左圖是它們的奇異值（每個方向有多重要），右圖是「只留前 r 個方向」的還原誤差。
+    另一個是**純亂數矩陣**。上圖是它們的奇異值（每個方向有多重要），下圖是「只留前 r 個方向」的還原誤差。
 
-    拉動下面的拉桿，看你需要幾個方向才夠。
+    拉動下面的拉桿，看你需要幾個方向才夠；換一種「更新的結構」，需要的方向數也會變。
     """
     )
     return
 
 
 @app.cell
-def _(np):
+def _(mo):
+    task_shape = mo.ui.dropdown(
+        options={
+            "少數方向為主（典型的微調更新）": ([1.0, 0.55, 0.3, 0.15], 0.05),
+            "四個方向一樣重（要學一整套新東西）": ([1.0, 1.0, 1.0, 1.0], 0.05),
+            "少數方向為主 ＋ 十倍雜訊": ([1.0, 0.55, 0.3, 0.15], 0.5),
+        },
+        value="少數方向為主（典型的微調更新）",
+        label="這次更新的結構",
+    )
+    task_shape
+    return (task_shape,)
+
+
+@app.cell
+def _(np, task_shape):
     # 兩個對照矩陣（固定 seed，重跑結果一樣）
     _g3 = np.random.default_rng(7)
     _t = np.linspace(0, 1, 64)
     _u = [np.sin(np.pi * _t), np.cos(2 * np.pi * _t), np.sin(3 * np.pi * _t), _t - 0.5]
     _v = [np.cos(np.pi * _t), np.sin(2 * np.pi * _t), _t**2 - 0.3, np.cos(4 * np.pi * _t)]
-    _w = [1.0, 0.55, 0.3, 0.15]
+    _w, _noise = task_shape.value
 
     M_task = sum(_wi * np.outer(_ui, _vi) for _wi, _ui, _vi in zip(_w, _u, _v))
     M_task = M_task / np.linalg.norm(M_task)
-    M_task = M_task + (0.05 / 64) * _g3.normal(size=(64, 64))  # 約 5% 相對雜訊
+    M_task = M_task + (_noise / 64) * _g3.normal(size=(64, 64))  # 相對雜訊
 
     M_rand = _g3.normal(size=(64, 64))
     M_rand = M_rand / np.linalg.norm(M_rand)
@@ -315,7 +330,7 @@ def _(C_LORA, C_W, M_rand, M_task, S_rand, S_task, plt, rank_error, svd_rank):
     err_task = rank_error(M_task, r_svd)
     err_rand = rank_error(M_rand, r_svd)
 
-    _fig3, _ax3 = plt.subplots(1, 2, figsize=(8.2, 3.5))
+    _fig3, _ax3 = plt.subplots(2, 1, figsize=(6.4, 6.4))
     _ax3[0].plot(range(1, 33), S_task[:32] / S_task[0], marker="o", markersize=3,
                  color=C_LORA, label="structured update")
     _ax3[0].plot(range(1, 33), S_rand[:32] / S_rand[0], marker="s", markersize=3,
@@ -352,11 +367,11 @@ def _(S_task, err_rand, err_task, mo, np, r_svd):
     只留前 **{r_svd}** 個方向時：有結構的更新誤差只有 **{err_task:.1%}**，
     純亂數矩陣卻還有 **{err_rand:.1%}**。
 
-    差別在左圖：有結構的矩陣，奇異值幾格就掉到地板
+    差別在上圖：有結構的矩陣，奇異值幾格就掉到地板
     （前 4 個方向就吃下 **{_energy4:.1%}** 的能量，前 6 個是 {np.round(S_task[:6] / S_task[0], 3).tolist()}）；
     亂數矩陣的奇異值幾乎一樣高，你留多少個方向都還原不了它。
 
-    **LoRA 賭的就是「微調的更新比較像左邊那條線」**——實務上這個賭注多半成立，
+    **LoRA 賭的就是「微調的更新比較像上圖那條掉得快的線」**——實務上這個賭注多半成立，
     所以 r 用 **8 或 16** 就夠用，不必給到幾百。反過來說，如果你的任務真的要模型
     大改（學一整個新領域），那就是這個假設開始吃緊的時候，r 要往上加。
     """
@@ -481,7 +496,7 @@ def _(mo):
     - **SFT**（監督式微調）：給標準答案，讓模型模仿 → `prompt` + `response`
     - **DPO**（直接偏好最佳化）：給好壞對比，讓模型偏向較好的 → `prompt` + `chosen` + `rejected`
 
-    下面這格把兩種 JSONL 各印一行真的出來（每行一筆，訓練腳本直接讀）。
+    下面把兩種 JSONL 各印一行真的出來（每行一筆，訓練腳本直接讀）。
     """
     )
     return
@@ -565,7 +580,7 @@ def _(C_BAD, C_GOOD, C_W, beta_slider, np, plt):
     beta_now = beta_slider.value
     p_new = tilted(beta_now)
 
-    _fig5, _ax5 = plt.subplots(1, 2, figsize=(8.2, 3.5))
+    _fig5, _ax5 = plt.subplots(2, 1, figsize=(6.4, 6.4))
     _x = np.arange(4)
     _ax5[0].bar(_x - 0.2, P_REF, width=0.4, color=C_W,
                 edgecolor="#1C2B33", linewidth=1.2, label="reference model")
@@ -629,34 +644,55 @@ def _(mo):
         r"""
     ## 6️⃣ 練習：換你動手
 
-    下面這格是你的實驗區，改完按 ▶ 重跑。建議挑戰（由易到難）：
+    三個挑戰，由易到難：
 
     1. **LEVEL 1**：把 1️⃣ 的 `r` 從 16 拉到 8，看縮小倍數變成幾倍；再把 `d` 拉到 8192，
        看全參數微調那根柱子跑到哪裡去。
-    2. **LEVEL 2**：在 2️⃣ 找出一組 `(α, r)`，讓**力道跟基準（α=16, r=16）幾乎一樣**，
-       但**可訓練參數是基準的 4 倍**。下面實驗區的 `my_alpha` / `my_rank` 可以直接算給你看。
-    3. **LEVEL 3**：把 3️⃣ 那個「有結構的更新」改得更難壓縮（例如把 `_w` 四個權重都改成 1.0，
-       或把雜訊從 `0.05/64` 加大十倍），再看 r=4 的誤差怎麼變——這對「該用多大的 r」意味著什麼？
+    2. **LEVEL 2**：找出一組 `(α, r)`，讓**力道跟基準（α=16, r=16）幾乎一樣**，
+       但**可訓練參數是基準的 4 倍**。用 2️⃣ 的兩根拉桿試，
+       下面的實驗區會同時告訴你力道與參數量各是基準的幾倍。
+    3. **LEVEL 3**：把 3️⃣ 的「這次更新的結構」換成**四個方向一樣重**，
+       再換成**十倍雜訊**，各看一次 r=4 的還原誤差。
+       只有其中一種會讓誤差真的爆掉——先猜是哪一種，再對照結果想想
+       這對「該用多大的 r」意味著什麼。
 
-    做完記得：**點右上角下載按鈕（或左側教學頁的「下載 .py」）把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _(strength):
-    # ===== 你的實驗區 =====
-    # 改這兩個數字，跟基準（α=16, r=16）比比看力道與參數量
-    my_alpha = 16
-    my_rank = 16
+def _(mo):
+    my_alpha = mo.ui.slider(1, 64, 1, value=16, label="lora_alpha α", show_value=True)
+    my_rank = mo.ui.slider(1, 64, 1, value=16, label="rank r", show_value=True)
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——跟基準（α=16、r=16）比比看力道與參數量。"),
+            mo.hstack([my_alpha, my_rank], justify="start", gap=2, wrap=True),
+        ]
+    )
+    return my_alpha, my_rank
 
+
+@app.cell
+def _(mo, my_alpha, my_rank, strength):
     _base = strength(16, 16)
-    _mine = strength(my_alpha, my_rank)
-    print(f"α={my_alpha}, r={my_rank}")
-    print(f"  力道 ‖ΔW‖ = {_mine:.4f}  （基準的 {_mine / _base:.2f} 倍）")
-    print(f"  可訓練參數 = 基準的 {my_rank / 16:.2f} 倍")
+    _mine = strength(my_alpha.value, my_rank.value)
+    _ratio = _mine / _base
+    mo.md(
+        f"""
+    α = **{my_alpha.value}**、r = **{my_rank.value}**：
+
+    | | 對基準的倍數 |
+    | --- | --- |
+    | 力道 ‖ΔW‖（{_mine:.4f}） | **{_ratio:.2f} 倍** |
+    | 可訓練參數 | **{my_rank.value / 16:.2f} 倍** |
+
+    {"力道實質相同，但參數量差很多——這就是題目要的那組。" if 0.95 <= _ratio <= 1.05 and my_rank.value != 16 else "兩欄的倍數是各走各的：力道跟著 α/√r，參數量直接跟著 r。"}
+    """
+    )
     return
 
 
@@ -676,12 +712,7 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    答案是 **α = 32、r = 64**。貼進上面的實驗區：
-
-    ```python
-    my_alpha = 32
-    my_rank = 64
-    ```
+    答案是 **α = 32、r = 64**（實驗區的兩根拉桿拉到這組看看）。
 
     你會看到力道 ≈ 基準的 **0.99 倍**（實質相同），但可訓練參數是基準的 **4 倍**。
 
@@ -692,12 +723,19 @@ def _(mo):
             ),
             "💡 LEVEL 3 提示": mo.md(
                 r"""
-    方向：把 3️⃣ 建矩陣那格的 `_w = [1.0, 0.55, 0.3, 0.15]` 改成 `[1.0, 1.0, 1.0, 1.0]`，
-    奇異值不再快速衰減，前幾個方向吃下的能量變少；把雜訊改成 `(0.5 / 64)` 更明顯——
-    雜訊本身是滿秩的，怎麼壓都壓不掉。
+    選「四個方向一樣重」，奇異值不再快速衰減，前幾個方向吃下的能量變少；
+    選「十倍雜訊」更明顯——雜訊本身是滿秩的，怎麼壓都壓不掉。
 
-    **怎麼驗證你做對了**：看右圖橘線在 r=4 的誤差。原本約 4.6%，改完應該明顯上升；
-    如果它幾乎沒動，代表你改的權重沒有真的讓方向變多（例如只改了雜訊卻改太小）。
+    **看下圖橘線在 r=4 的誤差**：
+
+    | 更新的結構 | r=4 的還原誤差 |
+    |---|---|
+    | 少數方向為主（預設） | 4.6% |
+    | 四個方向一樣重 | 4.6% |
+    | 少數方向為主 ＋ 十倍雜訊 | **40.7%** |
+
+    有意思的是前兩者幾乎一樣——因為不管四個方向的權重怎麼配，**方向就是只有四個**，
+    r=4 都吃得下，剩下的誤差全部來自雜訊。真正壓不掉的是雜訊那一項。
 
     **意味著什麼**：ΔW 越「不低秩」，同樣的 r 就還原得越差 → 任務越是要模型學一整套新東西，
     r 就得往上加（或改用 `all-linear` 讓可調空間變大）。反過來，只是調語氣的任務，

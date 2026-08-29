@@ -45,3 +45,20 @@
 - CoT 逐字稿含 `$x$`／`$$…$$`：hero 走純 JS pre-wrap 原文呈現（mo.md 會當 LaTeX 吃掉）。
 - 左頁文案數字「先跑再寫」：兩個 fork 都發生過先寫估算值、實跑對不上再回頭改
   （94.3%→94.4%、「約六萬」→54,138）——accordion 解答的數字也是宣稱。
+
+## 改成 app 模式（2026-08-28）
+
+- 全系列 7 課改成 **app 互動模式**（`content/genai-intro/lesson-mode`）：右欄隱藏程式碼，
+  只留說明／互動元件／輸出。理由同 local-llm——右欄是教學模擬（BPE 玩具、計費估算、
+  多數決機率、檢索 cosine），程式碼不是教學標的。
+- 7 課原本都有「你的實驗區」自由編碼格，全部改成互動元件，並且**不再與主體重複**：
+  - genai-tokens＝任一個字的下一字計數表（補 4️⃣ 的 temperature 觀察）
+  - genai-inference＝模型／量化／VRAM 三選一的裝得下試算
+  - genai-training＝1️⃣2️⃣ 拉桿的總結卡（含蒸餾軟標籤與狗÷車倍數）
+  - genai-reasoning＝「9 次抽樣答對幾次」→ 各投票數的多數決答對率
+  - genai-rag＝1️⃣ 選定問題後 top-1…5 的字數與 token 帳
+  - genai-agents＝工具呼叫 JSON 的即時驗證器（含 JSONDecodeError 訊息）
+  - genai-devstyle＝四個零件的 token 帳與每日總量
+- 主體也補了兩個 UI（原本挑戰題要改常數才做得到）：genai-agents 的城市 dropdown、
+  local-llm/speculative-decoding 的 `T_FLOP` 滑桿。
+- 左頁「換你動手」指向實驗區變數名的句子（`MY_Q`／`MY_K`／`knowledge`）一併改成拉桿講法。

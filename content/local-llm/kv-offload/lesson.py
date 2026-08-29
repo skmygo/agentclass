@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 KV Cache 分層：LMCache 與 SSD 卸載（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課的算盤只有兩筆帳：**KV 有多大**（決定放得下哪一層），
     **載回來比重算快多少**（決定值不值得）。兩筆都在下面真的算。
@@ -355,38 +355,61 @@ def _(mo):
 
     ## 5️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。建議挑戰（由易到難）：
+    這一課所有的拉桿都在上面，下面這張卡把它們的當前值收在一起。建議挑戰（由易到難）：
 
-    1. **LEVEL 1**：把 1️⃣ 的 KV 型別改成 fp8，看 128k 的需求掉到多少、
+    1. **LEVEL 1**：把 1️⃣ 的「KV 存成什麼型別」改成 fp8，看 128k 的需求掉到多少、
        4️⃣ 的判斷會不會從「開 CPU 層」翻回「VRAM 就裝得下」。
-    2. **LEVEL 2**：算出**損益平衡的 prefill 吞吐**（頻寬 ÷ 每 token 的 KV）。
-       為什麼這個純頻寬上限幾乎永遠大於 1，實測卻只有 1.1–2.3x？差額跑到哪去了？
-    3. **LEVEL 3**：換成你自己服務的真實數字（模型層數與 KV head 數看 config、
-       prefill 吞吐壓一次長 prompt、SSD 頻寬用 `fio` 量），重跑一次判斷器；
+    2. **LEVEL 2**：3️⃣ 圖表標題上那個「SSD ties recompute at N tok/s」就是**損益平衡吞吐**
+       （頻寬 ÷ 每 token 的 KV）。為什麼這個純頻寬上限幾乎永遠大於 1，
+       實測卻只有 1.1–2.3x？差額跑到哪去了？
+    3. **LEVEL 3**：把上面每一根拉桿都換成你自己服務的真實數字（模型層數與 KV head 數看
+       config、prefill 吞吐壓一次長 prompt 量），看 4️⃣ 的判斷器怎麼說；
        再用你量到的實際加速比回推「你真正吃到了標稱頻寬的幾成」。
 
-    做完記得：**點左側教學頁的「下載 .py」把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _(BW_SSD, HEAD_DIM):
-    # ===== 你的實驗區 =====
-    # 改成你自己模型與機器的數字，看結論會不會翻盤
-    my_layers, my_kv_heads, my_dtype_bytes = 32, 8, 2
-    my_ctx, my_users = 131072, 1
-    my_vram_free, my_cpu_ram = 10.0, 64.0
+def _(
+    BW_SSD,
+    concurrency,
+    cpu_ram,
+    ctx_len,
+    kv_bytes_per_token,
+    kv_gb_per_token,
+    mo,
+    prefill_tps,
+    vram_free,
+):
+    _need = ctx_len.value * concurrency.value * kv_gb_per_token
+    _tier = (
+        "VRAM"
+        if _need < vram_free.value
+        else "CPU RAM"
+        if _need < cpu_ram.value
+        else "SSD"
+    )
+    _breakeven = BW_SSD / kv_gb_per_token
+    mo.md(
+        f"""
+    **你目前這台機器**（上面所有拉桿的當前值）：
 
-    my_kv_per_tok = 2 * my_layers * my_kv_heads * HEAD_DIM * my_dtype_bytes
-    my_need = my_ctx * my_users * my_kv_per_tok / 1024**3
-    my_tier = ("VRAM" if my_need < my_vram_free
-               else "CPU RAM" if my_need < my_cpu_ram else "SSD")
-    print(f"每 token KV = {my_kv_per_tok / 1024:.0f} KB")
-    print(f"{my_ctx} tokens x {my_users} 人 → {my_need:.2f} GB → 放在 {my_tier}")
-    print(f"損益平衡 prefill 吞吐 = {BW_SSD / (my_kv_per_tok / 1024**3):,.0f} tokens/s")
+    | | |
+    | --- | --- |
+    | 每 token 的 KV | **{kv_bytes_per_token / 1024:.0f} KB** |
+    | {ctx_len.selected_key} 上下文 × {concurrency.value} 人 | **{_need:.2f} GB** → 放在 **{_tier}** |
+    | SSD 損益平衡吞吐 | **{_breakeven:,.0f} tokens/s** |
+    | 你的 prefill 吞吐 | {prefill_tps.value:,} tokens/s |
+    | 純頻寬算出來的加速比 | **{_breakeven / prefill_tps.value:.1f}x** |
+
+    最後一列是**上限**，不是你會拿到的數字——實測只有 1.1–2.3x。
+    差額在哪？那正是 LEVEL 2 的題目。
+    """
+    )
     return
 
 
@@ -396,11 +419,7 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    把 1️⃣ 的「KV 存成什麼型別」選成 **fp8（1 byte，KV 量化）**，或在實驗區改：
-
-    ```python
-    my_dtype_bytes = 1
-    ```
+    把 1️⃣ 的「KV 存成什麼型別」選成 **fp8（1 byte，KV 量化）**。
 
     每 token 的 KV 從 128 KB 掉到 **64 KB**，128k 上下文的需求從 16 GB 掉到 **8 GB**——
     比預設的 10 GB 可用 VRAM 還小，4️⃣ 的判斷器會從橘色（開 CPU 層）翻回藍色（VRAM 就裝得下）。
@@ -411,13 +430,9 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    損益平衡點是「加速比 ＝ 1」的那個吞吐：
-
-    ```python
-    kv_gb_per_tok = 2 * 32 * 8 * 128 * 2 / 1024**3   # 8B 級 GQA、fp16
-    breakeven = 6.0 / kv_gb_per_tok                   # SSD 6 GB/s
-    print(f"{breakeven:,.0f} tokens/s")               # → 49,152 tokens/s
-    ```
+    損益平衡點是「加速比 ＝ 1」的那個吞吐：**SSD 頻寬 ÷ 每 token 的 KV**。
+    預設設定（8B 級 GQA、fp16、每 token 128 KB、SSD 6 GB/s）算出來是
+    `6.0 / (128/1024/1024) = 49,152 tokens/s`——3️⃣ 的圖標題與總結卡上都是這個數字。
 
     要 prefill 快到每秒五萬個 token，重算才追得上從 SSD 載回——一般服務離這個數字很遠，
     所以**純頻寬上限幾乎永遠大於 1**。但實測只有 1.1–2.3x，差額全在頻寬以外：

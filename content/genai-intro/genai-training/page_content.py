@@ -244,7 +244,7 @@ trainer.train()</div>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
-    <p>在 2️⃣ 找出「暗知識剛好浮出來、又還沒被蒸糊」的溫度區間。T=1 學生學到什麼？T=10 又失去什麼？（實驗區有印好的數字可對照。）</p>
+    <p>在 2️⃣ 找出「暗知識剛好浮出來、又還沒被蒸糊」的溫度區間。T=1 學生學到什麼？T=10 又失去什麼？（右邊 4️⃣ 的實驗區會同步顯示狗 ÷ 車的倍數。）</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 3</span>

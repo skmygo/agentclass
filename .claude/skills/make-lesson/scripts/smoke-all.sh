@@ -31,9 +31,19 @@ fi
 trap '[ -n "$server_pid" ] && kill "$server_pid" 2>/dev/null' EXIT
 
 pass=0; fail=0; failed=()
+mobile_specs=()
 for smoke in "$ROOT"/content/*/*/smoke-test.mjs; do
   dir="$(dirname "$smoke")"; id="$(basename "$dir")"
-  if [ -f "$dir/lesson.py" ]; then url="$BASE/$id/nb/index.html"; else url="$BASE/$id/"; fi
+  if [ -f "$dir/lesson.py" ]; then
+    url="$BASE/$id/nb/index.html"
+    mode="edit"
+    if [ -f "$dir/lesson-mode" ]; then mode="$(cat "$dir/lesson-mode")"
+    elif [ -f "$(dirname "$dir")/lesson-mode" ]; then mode="$(cat "$(dirname "$dir")/lesson-mode")"; fi
+    [ "$mode" = "app" ] && mobile_specs+=("${id}:app") || mobile_specs+=("${id}:edit")
+  else
+    url="$BASE/$id/"
+    mobile_specs+=("${id}:ext")
+  fi
   result="$(cd "$ROOT" && node "$smoke" "$url" 2>&1 | tail -1)"
   if [ "$result" != "RESULT: PASS" ]; then
     result="$(cd "$ROOT" && node "$smoke" "$url" 2>&1 | tail -1)"   # 線上 CDN 冷資產／首載慢：重試一次
@@ -41,4 +51,8 @@ for smoke in "$ROOT"/content/*/*/smoke-test.mjs; do
   if [ "$result" = "RESULT: PASS" ]; then pass=$((pass+1)); echo "✓ $id"; else fail=$((fail+1)); failed+=("$id"); echo "✗ $id — $result"; fi
 done
 echo "── smoke: $pass pass / $fail fail${failed:+（${failed[*]}）}"
-[ $fail -eq 0 ]
+
+# 手機 viewport（390×844）：全課結構檢查 + app/edit 各一堂抽樣全載（見 mobile-smoke.mjs）
+mfail=0
+(cd "$ROOT" && node .claude/skills/make-lesson/scripts/mobile-smoke.mjs "$BASE" "${mobile_specs[@]}") || mfail=1
+[ $fail -eq 0 ] && [ $mfail -eq 0 ]

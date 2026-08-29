@@ -17,8 +17,7 @@ def _(mo):
     全部都是算得出來的——下面每個結論都同時給**理論公式**與**蒙地卡羅真抽**，
     兩邊對得上，你才該相信它。
 
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了重新整理頁面就回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算。
     """
     )
     return
@@ -354,28 +353,39 @@ def _(mo):
 
 
 @app.cell
+def _(T_FLOP, mo):
+    t_flop = mo.ui.slider(
+        start=0.01, stop=0.20, step=0.01, value=T_FLOP,
+        label="每個序列每個位置的計算時間（越小＝這張卡算力越充裕）", show_value=True,
+    )
+    t_flop
+    return (t_flop,)
+
+
+@app.cell
 def _(
     C_DRAFT,
     C_GREY,
     C_TARGET,
     D_COST,
-    T_FLOP,
     T_MEM,
     alpha,
     expected_tokens,
     k,
     np,
     plt,
+    t_flop,
 ):
+    _flop = t_flop.value
     _conc = np.array([1, 2, 4, 8, 16, 32, 64, 128])
     _tau = expected_tokens(alpha.value, k.value)
 
-    _t_off = T_MEM + _conc * T_FLOP
-    _t_on = T_MEM * (1 + k.value * D_COST) + _conc * (k.value + 1) * T_FLOP
+    _t_off = T_MEM + _conc * _flop
+    _t_on = T_MEM * (1 + k.value * D_COST) + _conc * (k.value + 1) * _flop
     _pu_off, _pu_on = 1.0 / _t_off, _tau / _t_on
     _tot_off, _tot_on = _conc * _pu_off, _conc * _pu_on
 
-    _fig, (_a1, _a2) = plt.subplots(1, 2, figsize=(9.4, 4.1))
+    _fig, (_a1, _a2) = plt.subplots(2, 1, figsize=(6.4, 7.4))
     for _ax, _off, _on, _t in (
         (_a1, _pu_off, _pu_on, "per-user speed"),
         (_a2, _tot_off, _tot_on, "total throughput"),
@@ -401,7 +411,7 @@ def _(
         )
     _fig.suptitle(
         f"simplified model: alpha={alpha.value:.2f}, K={k.value}, "
-        f"draft cost={D_COST:.0%}, compute cost per seq={T_FLOP}",
+        f"draft cost={D_COST:.0%}, compute cost per seq={_flop:.2f}",
         fontsize=10,
     )
     _fig.tight_layout()
@@ -413,14 +423,14 @@ def _(
 def _(mo):
     mo.md(
         r"""
-    左圖（每個人的速度）幾乎永遠是開著比較快——**使用者的體感就是這張圖**。
-    右圖（總產能）才是老闆看的：低併發時開著也贏，但過了交叉點之後，
+    上圖（每個人的速度）幾乎永遠是開著比較快——**使用者的體感就是這張圖**。
+    下圖（總產能）才是老闆看的：低併發時開著也贏，但過了交叉點之後，
     同一張卡服務所有人的總產能反而**掉下去**。
 
     兩張圖說的是同一件事：投機解碼買的是**per-user 速度**，付的是**算力**。
     算力免費（低併發）時它是白拿的；算力稀缺（高併發）時你是在拿別人的名額換自己的速度。
 
-    把 K 拉到 12 再看右圖：交叉點會往左移——猜越多，越早開始拖垮總吞吐。
+    把 K 拉到 12 再看下圖：交叉點會往左移——猜越多，越早開始拖垮總吞吐。
     """
     )
     return
@@ -432,32 +442,60 @@ def _(mo):
         r"""
     ## 5️⃣ 練習：換你動手
 
-    下面這格是你的實驗區，改完按 ▶ 重跑。三個挑戰：
+    下面是你的實驗區。三個挑戰：
 
     1. **LEVEL 1**：把 1️⃣ 的 α 從 0.40 拉到 0.95（K 固定 5），
        記下每輪期望產出各是多少。
-    2. **LEVEL 2**：α = 0.85、草稿成本 6% 時，**最佳 K 是多少**？
-       用 `speedup()` 掃 K = 1…20 找出最大值。
-    3. **LEVEL 3**：4️⃣ 的 `T_FLOP`（每個序列的計算單價）如果變成 0.01
-       （換一張算力更強的卡），交叉點會往左還是往右移？先猜，再改常數驗證。
+    2. **LEVEL 2**：把實驗區的 α 設成 0.85、草稿成本設成 6%，
+       **最佳 K 是多少**？（實驗區會替你掃過 K = 1…20。）
+       再想一件事：實務上你會選最高點的那個 K 嗎？
+    3. **LEVEL 3**：4️⃣ 那根「每個序列每個位置的計算時間」如果從 0.04 拉到 0.01
+       （換一張算力更強的卡），交叉點會往左還是往右移？先猜，再拉拉看。
 
-    做完記得：**點右上角下載按鈕（或左側教學頁的「下載 .py」）把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _(expected_tokens, speedup):
-    # ===== 你的實驗區 =====
-    # 改這三個數字，看它們怎麼決定一切
-    my_alpha = 0.85
-    my_k = 5
-    my_draft_cost = 0.06
+def _(mo):
+    my_alpha = mo.ui.slider(
+        0.05, 0.99, 0.05, value=0.85, label="接受率 α（草稿猜得準不準）", show_value=True
+    )
+    my_k = mo.ui.slider(1, 20, 1, value=5, label="一次猜幾個字（K）", show_value=True)
+    my_draft_cost = mo.ui.slider(
+        0.0, 0.30, 0.01, value=0.06, label="草稿成本（佔目標模型一次前向的幾成）", show_value=True
+    )
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——三根拉桿決定一切。"),
+            mo.hstack([my_alpha, my_k], justify="start", gap=2, wrap=True),
+            my_draft_cost,
+        ]
+    )
+    return my_alpha, my_draft_cost, my_k
 
-    print(f"每輪期望產出 : {expected_tokens(my_alpha, my_k):.2f} tokens")
-    print(f"端到端加速比 : {speedup(my_alpha, my_k, my_draft_cost):.2f}x")
+
+@app.cell
+def _(expected_tokens, mo, my_alpha, my_draft_cost, my_k, speedup):
+    _a, _kk, _dc = my_alpha.value, my_k.value, my_draft_cost.value
+    _scan = [(_i, speedup(_a, _i, _dc)) for _i in range(1, 21)]
+    _best_k, _best = max(_scan, key=lambda _r: _r[1])
+    # 「開始變平」的 K：第一個已經拿到最佳值 95% 的 K
+    _flat_k = next(_i for _i, _v in _scan if _v >= _best * 0.95)
+    mo.md(
+        f"""
+    α = **{_a:.2f}**、K = **{_kk}**、草稿成本 **{_dc:.0%}**：
+
+    - 每輪期望產出：**{expected_tokens(_a, _kk):.2f} tokens**
+    - 端到端加速比：**{speedup(_a, _kk, _dc):.2f}x**
+
+    掃過 K = 1…20（α 與草稿成本不動）：最佳是 **K = {_best_k}**（{_best:.2f}x），
+    而 **K = {_flat_k}** 就已經拿到 {_scan[_flat_k - 1][1]:.2f}x——曲線從這裡開始變平。
+    """
+    )
     return
 
 
@@ -467,39 +505,30 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    直接拉 1️⃣ 的滑桿就看得到，也可以一次印出來：
+    1️⃣ 圖上那個紅點的標籤（`your setting: K=5 -> N tokens`）就是答案，拉四次記下來：
 
-    ```python
-    for a in (0.40, 0.60, 0.85, 0.95):
-        print(f"alpha={a}: {expected_tokens(a, 5):.2f} tokens/round")
-    ```
-
-    你應該看到 **1.66 → 2.38 → 4.15 → 5.30**。
+    | α | 0.40 | 0.60 | 0.85 | 0.95 |
+    |---|---|---|---|---|
+    | 每輪期望產出 | 1.66 | 2.38 | 4.15 | **5.30** |
     α 從 0.40 到 0.95，每輪產出翻了 3 倍多——
     **接受率才是主旋鈕**，這也是 Medusa → EAGLE → DSpark 一路在改的東西。
     """
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    ```python
-    best = max(range(1, 21), key=lambda kk: speedup(0.85, kk, 0.06))
-    for kk in range(1, 21):
-        mark = "  <-- best" if kk == best else ""
-        print(f"K={kk:2d}: {speedup(0.85, kk, 0.06):.3f}x{mark}")
-    ```
-
-    你應該看到最佳 **K = 9，加速比 ≈ 3.48x**。注意 K = 6 就已經有 3.33x 了——
+    實驗區最後一行直接寫出來了：最佳 **K = 9，加速比 3.48x**。
+    注意 K = 6 就已經有 3.33x 了——
     最後那 3 個字只多換到 4% 速度，卻讓每輪多燒 3 次草稿前向與 3 個 batch 名額。
     **實務上寧可選曲線開始變平的那個 K，不是最高點的那個 K。**
     """
             ),
             "💡 LEVEL 3 提示": mo.md(
                 r"""
-    方向：`T_FLOP` 是「每個序列每個位置的計算時間」，它變小＝這張卡的算力更充裕，
-    所以算力要更晚才會被塞滿。改常數那格的 `T_FLOP = 0.04` → `0.01` 再看 4️⃣ 右圖。
+    方向：那根拉桿是「每個序列每個位置的計算時間」，它變小＝這張卡的算力更充裕，
+    所以算力要更晚才會被塞滿。把它從 0.04 拉到 0.01，再看 4️⃣ 下圖。
 
     怎麼驗證自己做對了：交叉點（虛線）應該往**右**移，甚至跑出 128 以外消失
-    （代表在這個範圍內開著永遠不虧）。反過來把 `T_FLOP` 調大到 0.12，
+    （代表在這個範圍內開著永遠不虧）。反過來把它拉到 0.12，
     交叉點會往左衝到很小的併發數——**同一組 α 與 K，換一張卡結論就會反過來**，
     這就是為什麼左邊教學頁一直說「高併發務必自己實測 on/off」。
     """

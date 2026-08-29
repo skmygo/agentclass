@@ -78,7 +78,7 @@ WRAP = r"""
   <p class="note">
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
     首次載入約需 30–60 秒，正好夠你讀完第 1 節。裡面每一根拉桿都在<b>真的算</b> softmax、
-    真的跑生成迴圈——改壞了重新整理就復原，這是你的沙盒，盡量玩。
+    真的跑生成迴圈——玩壞了重新整理就復原，這是你的沙盒，盡量玩。
   </p>
 </section>
 
@@ -288,7 +288,7 @@ WRAP = r"""
   <p>挑戰在右邊 notebook 的第 6 節，由淺到深：</p>
   <div class="ex">
     <span class="lv">LEVEL 1</span>
-    <p>把實驗區的 <span class="kbd">my_T</span> 改成 <span class="kbd">0.05</span> 和 <span class="kbd">2.0</span>，各記下「量子」的機率。差幾個數量級？</p>
+    <p>把 2️⃣ 的 <span class="kbd">temperature</span> 拉到 <span class="kbd">0.05</span>，再拉到 <span class="kbd">2.00</span>，各記下「量子」的機率。從「幾乎不可能」變成多少？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>

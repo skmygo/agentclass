@@ -9,6 +9,7 @@
 content/index.html                →  /              首頁（主題列表）
 content/<topic>/index.html        →  /<topic>/      主題頁（課程列表）
 content/<topic>/<lesson-id>/      →  /<lesson-id>/  課程（index.html 教學頁 + notebook .py + smoke-test.mjs + NOTES.md）
+                                     lesson-mode（可選，app|edit；同名檔放主題層＝整包主題共用）
                                      /<lesson-id>/nb/   marimo WASM notebook（純瀏覽器課；build.sh 產）
                                      外部軌課無 nb/：notebook 是 <id>_ext.py，在 molab 執行
 content/shared/                   →  /shared/       全站共用（lesson.css/lesson.js/topic.css/splitter.js/gate.js + WASM assets）
@@ -25,11 +26,47 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
   課程語義色覆蓋、hero 專屬樣式與互動 JS。
 - 純瀏覽器課：就緒訊號預設用 `<body data-ready-figures="N">` 宣告（N = notebook 圖表數）；
   無圖課改宣告 `data-ready-selector="<css>"`（notebook 全部跑完會出現的元素）。
+- 互動模式是 app 的課，`<body>` 要加 `data-nb-mode="app"`：共用 lesson.js 會把就緒文案
+  從「每一格都能改、能重跑」換成「拉滑桿、換選項」。宣告與 `lesson-mode` 檔**必須一致**，
+  build.sh 兩邊都會擋（少一邊直接 exit 1）。
 - 外部軌課：**不引 `/shared/lesson.js`**（那是內嵌 notebook 的行為，外部課用不到，
   引了反而在無 `#nb-frame` 的頁面產生 console 噪音）；右欄 `#molab-panel` 的
   版型樣式在共用 lesson.css。
 - 首頁與主題頁共用 `/shared/topic.css`。
 - **改共用檔＝改全站**，動之前想清楚；課程專屬需求寫在該課頁面的 `<style>`/inline script。
+
+## RWD 與行動裝置（980px 斷點，全站一條線）
+
+版面依視窗寬度二態，**斷點 980px**——這個數字貫穿 lesson.css、splitter.js、spec 與
+驗證腳本，別引入第二個數字：
+
+- **≥981px**：左右雙欄＋可拖 splitter（桌機行為，比例記憶 localStorage）。
+- **≤980px**：底部固定「教學｜實作」切換列（`splitter.js` 注入 `#view-tabs`、樣式在
+  lesson.css），兩個 pane 同尺寸疊放、以 `visibility` 切換（保捲動位置與 WASM 執行狀態），
+  預設落在教學；golab 連結在窄螢幕自動改為「切到實作視圖」。
+
+**Lazy load（僅 ≤980px）**：課程頁 iframe 標記是 `data-src`（模板已內建，**不要寫死
+`src`**）；lesson.js 決定升格時機——桌機進頁即載；窄螢幕於首次進實作區才載：
+app 課切過去直接載，edit 課先出「建議用電腦」提示卡（`#nb-notice`）＋「仍要載入」按鈕。
+就緒輪詢與 180s 逾時從開載那一刻起算。
+
+**兩級制**：app 模式課＝手機**完整可互動**（正式支援目標）；edit 模式課＝教學頁完整
+可讀＋提示卡（不擋路、不保證編輯體驗）；外部軌課＝molab 面板照常＋「手機體驗有限」
+note（`page_ext.html` 模板已內建，別刪）。
+
+**新課鐵律（違反則手機必爆，mobile smoke 會擋）**：
+
+- 圖表 **figsize 寬 ≤6.5**；**禁 1×2 並排 subplot**——需要對照就改 2×1 上下堆疊。
+  （手機全寬約 354px：960px 寬的圖縮到 37% 必不可讀；650px 圖縮到 55% 實測可讀。）
+- `mo.hstack` 並排大型元件（滑桿、下拉）一律加 `wrap=True`，不然手機上會內部橫向捲動。
+- **文案禁桌機版面假設**：不寫「左側教學頁」「右欄」「拖動分隔線」這類方位指令——用
+  「教學頁」「實驗場」「課程頁上方的『下載 .py』」等版面無關講法；圖表 panel 指涉用
+  「上圖／下圖」（堆疊後沒有左右）。
+- 教學頁的寬表格與長 code token 已由共用 CSS 處理（窄螢幕表格自身橫捲、code 允許斷字），
+  但那是安全網，別依賴它塞超寬內容。
+
+**驗證**：`smoke-all.sh` 內建全站 390×844 結構檢查＋抽樣全載（`scripts/mobile-smoke.mjs`）；
+單課 smoke 模板含手機段（結構＋該課全載）；手機截圖 `preview-shots.mjs --vp 390x844`。
 
 ## 導覽鏈（每一環都要能點）
 
@@ -71,7 +108,8 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 
 - `/shared/lesson.css`、`/shared/splitter.js` 引用
 - 「下載 .py」入口（學員帶得走）
-- 窄螢幕（≤980px）上下疊降級、`prefers-reduced-motion`、`:focus-visible`（都在共用 CSS）
+- RWD：≤980px 換底部「教學｜實作」切換列＋lazy load（規範見上方「RWD 與行動裝置」節）、
+  `prefers-reduced-motion`、`:focus-visible`（都在共用 CSS/JS）
 - `lang="zh-Hant"`、有意義的 `<title>`（課名 · AI 互動教室）、meta description
 - favicon ＋ og/twitter meta（模板已內建；og 的 title/description/url 三欄由 page-fill
   依 page_content.py 自動同步，og:image 全站共用 `/shared/og-cover.png`）
@@ -86,6 +124,9 @@ content/shared/                   →  /shared/       全站共用（lesson.css/
 - 右欄載入狀態提示（`#nb-status`）；左頁第一節在等待時間內讀得完（應對載入等待的預設手法）
 - 就緒訊號：`<body data-ready-figures="N">`（預設；N＝圖表數）或
   `data-ready-selector="<css>"`（無圖課：全部跑完會出現的元素）
+- 互動模式 app 的課：`<body data-nb-mode="app">`＋`lesson-mode` 檔（判準見 SKILL.md）。
+  這種課的**挑戰題與文案只能要求互動元件做得到的事**——「改這格、按 ▶ 重跑」
+  「把 `my_x` 改成 0.5」在 app 模式下是空指令，一律改成「把滑桿拉到 X，看 Y 怎麼變」。
 
 外部軌課（`assets/templates/page_ext.html`）另有：
 
@@ -151,7 +192,8 @@ gate 上鎖的課用 DOM `click()` 繞過覆蓋層，斷言照常有效。
 - **課卡文案是賣點不是摘要**：一句話讓人想點進去（「把混亂切成秩序」優於「決策樹介紹」）
 - **開場即互動**：第一屏就有可以動手的東西，別用三段文字暖場（這也是應對 notebook
   首次載入的預設手法——搭配「第一節在等待時間內讀得完」，等待就不無聊）
-- **每節都有行動點**：讀完一段就有「到右邊做」的具體任務，讀與做交替
+- **每節都有行動點**：讀完一段就有「到實驗場做」的具體任務（golab chip；窄螢幕自動
+  切到實作視圖），讀與做交替——chip 文案別寫死「右邊」這種方位詞
 - **數字都是真的**：圖表、範例、準確率全部來自真實執行結果，不畫示意圖唬人
 - **挑戰與練習**：預設給分級挑戰（先做得到 → 有點難 → 開放式）——形式可換；
   notebook 內**附折疊解答**是不變量（模板已有 `mo.accordion` 格）

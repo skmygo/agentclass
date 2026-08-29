@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 模型是怎麼練成的：預訓練到 RLHF（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課有三筆帳要親手算：**微調的參數帳**（LoRA 為什麼能在消費級 GPU 上跑）、
     **蒸餾的溫度**（暗知識是怎麼被蒸出來的）、**GRPO 的群組優勢**
@@ -96,7 +96,7 @@ def _(hid, layers, lora_r):
 
 @app.cell
 def _(full_mem_gb, lora, lora_mem_gb, np, plt, total):
-    _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(7.4, 3.9))
+    _fig, (_ax1, _ax2) = plt.subplots(2, 1, figsize=(6.4, 6.8))
     _p = [total / 1e6, lora / 1e6]
     _ax1.bar(["full", "LoRA"], _p, color=["#C44E52", "#55A868"],
              edgecolor="#1C2B33", linewidth=1.1, zorder=3)
@@ -222,7 +222,7 @@ def _(mo):
         [mo.ui.checkbox(value=_v, label=f"答案{_i+1}")
          for _i, _v in enumerate([True, False, False, True, False, False, False, True])],
     )
-    mo.hstack(list(grpo_checks), justify="start", gap=1.2)
+    mo.hstack(list(grpo_checks), justify="start", gap=1.2, wrap=True)
     return (grpo_checks,)
 
 
@@ -257,24 +257,33 @@ def _(mo):
 
     ## 4️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。挑戰在左頁「換你動手」，做完再開解答對照。
+    下面是你的實驗區。挑戰在左頁「換你動手」，做完再開解答對照。
     """
     )
     return
 
 
 @app.cell
-def _(full_mem_gb, lora, lora_mem_gb, np, total):
-    # ===== 你的實驗區 =====
-    # 上面滑桿的當前設定會直接反映在這裡（預設＝Llama-3-8B）
-    print(f"全參數: {total/1e9:.2f}B 參數 → 訓練記憶體約 {full_mem_gb:.0f} GB")
-    print(f"LoRA: {lora/1e6:.1f}M 可訓練參數（佔 {lora/total*100:.2f}%）→ 約 {lora_mem_gb:.0f} GB")
+def _(full_mem_gb, lora, lora_mem_gb, mo, np, temp_t, total):
+    # 上面每一根拉桿的當前值，收在同一張卡上
+    _logits = np.array([5.0, 2.6, 1.8, -2.0])
+    _e = np.exp(_logits / temp_t.value - (_logits / temp_t.value).max())
+    _p = _e / _e.sum()
+    mo.md(
+        f"""
+    **你的實驗區**——1️⃣ 與 2️⃣ 的拉桿現在算出來是這樣：
 
-    # LEVEL 2 起點：自己算一次蒸餾軟標籤
-    my_logits = np.array([5.0, 2.6, 1.8, -2.0])
-    my_T = 4.0
-    my_p = np.exp(my_logits / my_T) / np.exp(my_logits / my_T).sum()
-    print("軟標籤 T=4:", my_p.round(3), " 狗/汽車 =", round(my_p[1] / my_p[3], 1), "倍")
+    | | |
+    | --- | --- |
+    | 全參數微調 | {total / 1e9:.2f}B 參數 → 訓練記憶體約 **{full_mem_gb:.0f} GB** |
+    | LoRA | {lora / 1e6:.1f}M 可訓練參數（佔 {lora / total * 100:.2f}%）→ 約 **{lora_mem_gb:.0f} GB** |
+    | T = {temp_t.value:g} 的軟標籤 | 貓 {_p[0]:.3f}／狗 {_p[1]:.3f}／虎 {_p[2]:.3f}／車 {_p[3]:.3f} |
+    | 狗 ÷ 車 | **{_p[1] / _p[3]:.1f} 倍** |
+
+    最後一列就是暗知識的溫度計：T 越高它越接近 1（什麼都像什麼），
+    T=1 時它大到看不出關係。中間那段區間才是可以拿來教學生的。
+    """
+    )
     return
 
 
@@ -295,7 +304,7 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    實驗區印出 T=4 的軟標籤是 `[0.46, 0.253, 0.207, 0.08]`，狗/汽車 ≈ **3.2 倍**——
+    實驗區在 T=4 顯示的軟標籤是 0.460／0.253／0.207／0.080，狗 ÷ 車 ≈ **3.2 倍**——
     這個「狗比汽車像貓」的排序就是暗知識。T=1 時正解獨拿 0.883，
     學生只學得到「答案是貓」；T 拉到 4 之後，類別之間的**相對關係**才浮出來。
 

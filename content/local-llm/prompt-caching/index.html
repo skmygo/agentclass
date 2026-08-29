@@ -46,7 +46,7 @@
   .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
 </style>
 </head>
-<body data-ready-figures="3"><!-- notebook 全部跑完會渲染出的 img/canvas 數量；
+<body data-nb-mode="app" data-ready-figures="3"><!-- notebook 全部跑完會渲染出的 img/canvas 數量；
   無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設） -->
 
 <header>
@@ -289,12 +289,12 @@
   <p>挑戰在 notebook 的 6️⃣ 節，由淺到深：</p>
   <div class="ex">
     <span class="lv">LEVEL 1</span>
-    <p>把 <span class="kbd">my_write</span> 改成 <span class="kbd">WRITE_1H</span>（1 小時 TTL，$20/MTok），
+    <p>把實驗區的「寫入 TTL」換成 <span class="kbd">1 小時</span>（$20/MTok），
       看三輪總價變多少、還省不省。長 TTL 是免費的嗎？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
-    <p>把 <span class="kbd">my_sys</span> 從 10K 改成 2K，再改成 40K，各跑 3 輪與 20 輪。
+    <p>把實驗區的「系統提示長度」從 10K 拉到 2K，再拉到 40K，每次都看 3 輪與 20 輪。
       「省的比例」對哪個參數比較敏感——系統提示長度，還是輪數？</p>
   </div>
   <div class="ex">
@@ -385,7 +385,7 @@
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
-  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
 </div>
 </main>
 

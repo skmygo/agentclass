@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 AI Agent 與 MCP：模型長出手腳（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課把「模型怎麼呼叫工具」的水電工程整套拆開：你會親手執行一次 tool call、
     算一筆 agent loop 的上下文帳、再看懂 MCP 到底解掉了什麼地獄。
@@ -77,21 +77,25 @@ def _():
 
 
 @app.cell
-def _():
-    # ===== 你的工具資料庫（教學用模擬資料——改我！）=====
+def _(mo):
+    # ===== 你的工具資料庫（教學用模擬資料）=====
     WEATHER_DB = {
         "台北": {"temp_c": 24, "condition": "小雨", "rain_prob": 80},
         "台中": {"temp_c": 31, "condition": "晴", "rain_prob": 10},
     }
-    # 也可以改 city 試試資料庫裡沒有的城市，看管線怎麼處理錯誤
-    CALL = '{"tool": "get_weather", "args": {"city": "台北"}}'
-    return CALL, WEATHER_DB
+    city_pick = mo.ui.dropdown(
+        options=["台北", "台中", "花蓮"],
+        value="台北",
+        label="模型想查哪個城市（花蓮＝資料庫裡沒有，看管線怎麼處理）",
+    )
+    city_pick
+    return WEATHER_DB, city_pick
 
 
 @app.cell
-def _(CALL, FINAL, ORIG_TAIPEI, Q1, SYSTEM, WEATHER_DB, html_mod, json, mo):
+def _(FINAL, ORIG_TAIPEI, Q1, SYSTEM, WEATHER_DB, city_pick, html_mod, json, mo):
     # ── 管線：解析 → 執行 → 組訊息（真的在跑）──
-    _s = CALL
+    _s = '{"tool": "get_weather", "args": {"city": "%s"}}' % city_pick.value
     _call = json.loads(_s[_s.index("{"): _s.rindex("}") + 1])  # 防模型在 JSON 外多包字
     _city = _call["args"]["city"]
     if _city in WEATHER_DB:
@@ -222,7 +226,7 @@ def _(mo):
 @app.cell
 def _(np, plt):
     _m, _n = 4, 6  # 4 個應用、6 種工具
-    _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(7.6, 4.0))
+    _fig, (_ax1, _ax2) = plt.subplots(2, 1, figsize=(6.4, 7.2))
     _apps_y = np.linspace(0.15, 0.85, _m)
     _tools_y = np.linspace(0.05, 0.95, _n)
     for _ax, _title in ((_ax1, f"without MCP: {_m}x{_n} = {_m*_n} adapters"),
@@ -277,20 +281,55 @@ def _(mo):
 
     ## 4️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。挑戰在左頁「換你動手」，做完再開解答對照。
+    下面是你的實驗區。挑戰在左頁「換你動手」，做完再開解答對照。
     '''
     )
     return
 
 
 @app.cell
-def _(json):
-    # ===== 你的實驗區 =====
-    # LEVEL 3 起點：設計你自己的工具呼叫格式，用 json.loads 驗證它合法
-    my_call = '{"tool": "calc", "args": {"expr": "3*7"}}'
-    parsed = json.loads(my_call)
-    print("工具名：", parsed["tool"])
-    print("參數：", parsed["args"])
+def _(mo):
+    my_call = mo.ui.text_area(
+        value='{"tool": "calc", "args": {"expr": "3*7"}}',
+        label="你設計的工具呼叫（模型要吐出來的那一行）",
+        full_width=True,
+        rows=3,
+    )
+    mo.vstack(
+        [mo.md("**你的實驗區**——寫一個你自己的工具呼叫格式，看它合不合法。"), my_call]
+    )
+    return (my_call,)
+
+
+@app.cell
+def _(json, mo, my_call):
+    try:
+        _p = json.loads(my_call.value)
+        _tool = _p.get("tool", "（沒有 tool 欄位）")
+        _args = _p.get("args", "（沒有 args 欄位）")
+        _ok = isinstance(_p, dict) and "tool" in _p and isinstance(_p.get("args"), dict)
+        _out = mo.md(
+            f"""
+    ✅ **JSON 合法**——你的程式 `json.loads` 得到：
+
+    | | |
+    | --- | --- |
+    | 工具名 | `{_tool}` |
+    | 參數 | `{_args}` |
+
+    {"格式也對：有 `tool`、`args` 是一個物件——水電工可以照著這兩個欄位派工。" if _ok else "但**格式不完整**：至少要有 `tool`（叫哪個工具）與 `args`（一個參數物件），程式才知道要做什麼。"}
+    """
+        )
+    except json.JSONDecodeError as _e:
+        _out = mo.md(
+            f"""
+    ❌ **JSON 解析失敗**：`{_e.msg}`（第 {_e.lineno} 行第 {_e.colno} 個字）
+
+    真實系統裡這就是模型「講錯話」的時刻——常見對策是把錯誤訊息回給模型讓它重寫一次，
+    或改用供應商的 structured output／function calling 讓格式由解碼器保證。
+    """
+        )
+    _out
     return
 
 
@@ -300,14 +339,10 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    在 1️⃣ 的工具資料庫格把 `CALL` 改成：
+    在 1️⃣ 把城市下拉換成「台中」：管線重跑後，
+    第 3 則訊息的 JSON 跟著變、第 4 則訊息變成台中的資料（31 度、晴、降雨 10%）。
 
-    ```python
-    CALL = '{"tool": "get_weather", "args": {"city": "台中"}}'
-    ```
-
-    管線重跑後，第 4 則訊息變成台中的資料（31 度、晴、降雨 10%）。
-    再試資料庫裡沒有的城市（例如「花蓮」）：管線不會炸掉，
+    再選「花蓮」（資料庫裡沒有）：管線不會炸掉，
     而是把 `{"error": "查無城市「花蓮」"}` 回給模型——
     真實系統裡模型看到錯誤會自己修正（換城市名、或問使用者）。
     """
@@ -330,7 +365,7 @@ def _(mo):
     1. **寫說明書**（給模型看的）：`calc(expr)：計算數學算式，回傳數字。`
        加進 system prompt 的工具清單。
     2. **定格式**：`{"tool": "calc", "args": {"expr": "3*7"}}`——
-       在實驗區用 `json.loads` 驗證你寫的格式合法。
+       貼進 4️⃣ 的實驗區，它會當場用 `json.loads` 驗給你看（少一個引號就會紅字）。
     3. **想清楚觸發時機**：哪些問題該用 calc？（「347×892 是多少」該用；
        「畢氏定理是什麼」不該用。）說明書寫得越清楚，模型的判斷越準。
 

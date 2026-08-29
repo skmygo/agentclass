@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 取樣參數：模型怎麼挑下一個字（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這裡沒有真的語言模型：本課的重點是**取樣那一層**，
     它拿到的只是一排數字（logits）。所以我們直接給一排數字，
@@ -216,7 +216,7 @@ def _(mo):
         start=0.30, stop=1.0, step=0.01, value=0.9,
         label="top_p", show_value=True,
     )
-    mo.hstack([t_nuc, top_p], justify="start", gap=2)
+    mo.hstack([t_nuc, top_p], justify="start", gap=2, wrap=True)
     return t_nuc, top_p
 
 
@@ -237,7 +237,7 @@ def _(GREEN, LOGITS, RED, TOKENS, np, plt, softmax_t, t_nuc, top_p):
     _colors = [GREEN if _kept[i] else RED for i in range(len(_p))]
     _x = np.arange(len(_p))
 
-    _fig, (_a1, _a2) = plt.subplots(1, 2, figsize=(9.6, 4.0))
+    _fig, (_a1, _a2) = plt.subplots(2, 1, figsize=(6.4, 7.2))
     _a1.bar(_x, _sorted_p, color=_colors, width=0.55)
     _a1.plot(_x, _cum, color="#52646E", marker="o", linewidth=1.6,
              markersize=5, label="cumulative")
@@ -318,7 +318,7 @@ def _(mo):
         start=0.0, stop=2.0, step=0.1, value=0.5,
         label="presence_penalty", show_value=True,
     )
-    mo.hstack([freq_pen, pres_pen], justify="start", gap=2)
+    mo.hstack([freq_pen, pres_pen], justify="start", gap=2, wrap=True)
     return freq_pen, pres_pen
 
 
@@ -348,7 +348,7 @@ def _(
         for t, c in zip(GEN_TOKENS, HISTORY)
     ]
     _x = np.arange(len(GEN_TOKENS))
-    _fig, _ax = plt.subplots(figsize=(9.6, 4.2))
+    _fig, _ax = plt.subplots(figsize=(6.5, 4.2))
     _ax.bar(_x - 0.2, GEN_BASE, width=0.4, color=BLUE, label="before penalty")
     _ax.bar(_x + 0.2, _p_after, width=0.4, color=ORANGE, label="after penalty")
     for _i in _x:
@@ -357,11 +357,12 @@ def _(
         _ax.text(_i + 0.2, _p_after[_i] + 0.006, f"{_p_after[_i]:.0%}",
                  ha="center", fontsize=8, color=ORANGE)
     _ax.set_xticks(_x)
-    _ax.set_xticklabels(_labels, fontsize=8.5)
+    _ax.set_xticklabels(_labels, fontsize=8)
     _ax.set_ylabel("probability")
     _ax.set_title(
-        f"logit' = logit - {freq_pen.value:.1f}*count - {pres_pen.value:.1f}*seen"
-        f"   |   'very good': {GEN_BASE[0]:.1%} -> {_p_after[0]:.1%}"
+        f"logit' = logit - {freq_pen.value:.1f}*count - {pres_pen.value:.1f}*seen\n"
+        f"'very good': {GEN_BASE[0]:.1%} -> {_p_after[0]:.1%}",
+        fontsize=10,
     )
     _ax.legend(loc="upper right")
     _ax.grid(axis="y", alpha=0.3)
@@ -379,7 +380,7 @@ def _(mo):
     上一節只算了「下一步」。penalty 的威力要**連續寫下去**才看得出來——
     因為出現次數會一直累積，扣分也一直變重。
 
-    下面這格真的跑生成迴圈：每一步照 penalty 後的分佈抽一個詞、把次數加上去、
+    下面真的跑一次生成迴圈：每一步照 penalty 後的分佈抽一個詞、把次數加上去、
     再算下一步。同時跑 **200 條長度 20 的序列**取平均，看兩個指標：
 
     - **最常出現字佔比**：20 個詞裡，最愛用的那個詞佔幾成 → **越低越不跳針**
@@ -458,7 +459,7 @@ def _(BLUE, GREEN, ORANGE, RED, freq_pen, gen_stats, np, plt, pres_pen, run_gene
         _cols.append(_col)
 
     _x = np.arange(len(_setups))
-    _fig, (_a1, _a2) = plt.subplots(1, 2, figsize=(9.6, 4.0))
+    _fig, (_a1, _a2) = plt.subplots(2, 1, figsize=(6.4, 7.0))
     _a1.bar(_x, _shares, color=_cols, width=0.6)
     for _i in _x:
         _a1.text(_i, _shares[_i] + 0.008, f"{_shares[_i]:.3f}", ha="center", fontsize=9)
@@ -492,7 +493,7 @@ def _(mo):
     ### 掃一遍：兩種扣法的力道差多少
 
     上面是三個點，下面是把 penalty 從 0 掃到 1.5 的完整曲線。
-    左圖看得最清楚：**frequency 一路往下俯衝、presence 幾乎是條水平線**。
+    上圖看得最清楚：**frequency 一路往下俯衝、presence 幾乎是條水平線**。
     因為 presence 對「已經出現過的字」通通只扣一次，
     寫得越長、大家都出現過之後，它就等於沒扣——這也是為什麼它不是治跳針的藥。
     """
@@ -514,7 +515,7 @@ def _(GREEN, ORANGE, gen_stats, np, plt, run_generation):
         _p_share.append(_c)
         _p_dist.append(_d)
 
-    _fig, (_a1, _a2) = plt.subplots(1, 2, figsize=(9.6, 3.9))
+    _fig, (_a1, _a2) = plt.subplots(2, 1, figsize=(6.4, 6.8))
     _a1.plot(_pens, _f_share, color=ORANGE, marker="o", linewidth=2,
              label="frequency_penalty")
     _a1.plot(_pens, _p_share, color=GREEN, marker="s", linewidth=2,
@@ -561,32 +562,66 @@ def _(mo):
 
     ### 挑戰（由易到難）
 
-    **LEVEL 1**：把下面實驗區的 `my_T` 改成 `0.05` 和 `2.0`，
-    各記下 `quantum` 的機率。差幾個數量級？
+    **LEVEL 1**：把 2️⃣ 的 `temperature` 拉到 `0.05`，再拉到 `2.00`，
+    各記下 `good` 與 `quantum` 的百分比。同一組 logit，最冷門的字從「幾乎不可能」變成多少？
 
-    **LEVEL 2**：寫一個 `nucleus(probs, p)` 函式，回傳 top_p 截斷並重新歸一化後的分佈。
-    用 T=1 的分佈驗證：`top_p=0.9` 時 `quantum` 應該**恰好是 0**，其餘四個相加為 1。
+    **LEVEL 2**：把 3️⃣ 的 `temperature` 放回 `1.00`、`top_p` 拉到 `0.90`。
+    下圖的 `quantum` 應該**恰好是 0.0%**，其餘四個相加為 1。
+    再把 `top_p` 拉到 `0.88`——會多一個字被砍掉。是哪一個？上圖的累積數字說明了原因。
 
     **LEVEL 3**：驗證「presence penalty 寫越長越無效」。
-    把 `run_generation` 的 `n_step` 從 20 拉到 80，分別算**前 20 步**與**後 60 步**的
-    最常出現字佔比。先猜：哪一種 penalty 的兩個數字會幾乎一樣？
+    用下面的實驗區把生成步數拉到 80，比較**前 20 步**與**後 60 步**的最常出現字佔比。
+    先猜：哪一種 penalty 的兩個數字會幾乎一樣？
 
-    做完記得：**點右上角下載按鈕（或左側教學頁的「下載 .py」）把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**用課程頁上方的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _(LOGITS, TOKENS, softmax_t):
-    # ===== 你的實驗區 =====
-    # 這裡可以拿到整堂課的零件：TOKENS / LOGITS / softmax_t /
-    # GEN_TOKENS / GEN_LOGITS / run_generation / gen_stats
-    my_T = 0.7
+def _(mo):
+    my_fp = mo.ui.slider(
+        0.0, 1.0, 0.1, value=0.5, label="frequency_penalty", show_value=True
+    )
+    my_pp = mo.ui.slider(
+        0.0, 1.0, 0.1, value=0.0, label="presence_penalty", show_value=True
+    )
+    my_steps = mo.ui.slider(20, 120, 10, value=80, label="總共生成幾步", show_value=True)
+    my_cut = mo.ui.slider(10, 40, 5, value=20, label="前段算到第幾步", show_value=True)
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——同一組設定寫長一點，前段和後段的複讀程度一樣嗎？"),
+            mo.hstack([my_fp, my_pp], justify="start", gap=2, wrap=True),
+            mo.hstack([my_steps, my_cut], justify="start", gap=2, wrap=True),
+        ]
+    )
+    return my_cut, my_fp, my_pp, my_steps
 
-    for _tok, _prob in zip(TOKENS, softmax_t(LOGITS, my_T)):
-        print(f"{_tok:>9} : {_prob:.4f}")
+
+@app.cell
+def _(mo, my_cut, my_fp, my_pp, my_steps, np, run_generation):
+    _cut = min(my_cut.value, my_steps.value - 10)
+    _seqs, _ = run_generation(my_fp.value, my_pp.value, n_step=my_steps.value)
+    _early, _late = (
+        float(np.mean([np.bincount(_r, minlength=8).max() for _r in _part]) / _part.shape[1])
+        for _part in (_seqs[:, :_cut], _seqs[:, _cut:])
+    )
+    _drop = _late - _early
+    mo.md(
+        f"""
+    frequency **{my_fp.value:.1f}**、presence **{my_pp.value:.1f}**，寫 {my_steps.value} 步：
+
+    | | 最常出現字佔比 |
+    | --- | --- |
+    | 前 {_cut} 步 | **{_early:.3f}** |
+    | 後 {my_steps.value - _cut} 步 | **{_late:.3f}** |
+
+    後段比前段{"低" if _drop < 0 else "高"} **{abs(_drop):.3f}**——
+    {"寫越長壓得越重。" if _drop < -0.02 else "兩段幾乎一樣：這組設定對長文沒有額外效果。"}
+    """
+    )
     return
 
 
@@ -596,84 +631,44 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    ```python
-    my_T = 0.05   # 再跑一次改成 2.0
-    ```
-
-    你應該看到：
+    2️⃣ 圖上橘柱的百分比會這樣走：
 
     | T | good | quantum |
     |---|---|---|
-    | 0.05 | 1.0000 | 0.0000 |
-    | 0.70 | 0.5687 | 0.0009 |
-    | 2.00 | 0.3449 | 0.0364 |
+    | 0.05 | 100.0% | 0.0% |
+    | 1.00 | 47.1% | 0.5% |
+    | 2.00 | 34.5% | **3.6%** |
 
-    從 T=0.05 到 T=2.0，`quantum` 的機率跨了**四個數量級以上**
-    （0.05 時小到浮點數印不出來，2.0 時是 3.6%）。
-    同一組 logit、同一個模型，只是分母換了。
+    `quantum` 從「幾乎不可能」變成 3.6%（相對 T=1 漲了 7 倍），
+    而 `good` 讓出了三分之一的機率。同一組 logit、同一個模型，只是分母換了：
+    **T 小 → 壓尖**（幾乎只抽第一名），**T 大 → 壓平**（冷門字開始有機會）。
     """
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    ```python
-    import numpy as np
+    `top_p = 0.90`（T=1.00）時上圖標題是 **keep 4 of 5**，下圖的四根柱子是：
 
-    def nucleus(probs, p):
-        order = np.argsort(probs)[::-1]
-        cum = np.cumsum(probs[order])
-        k = min(int(np.searchsorted(cum, p) + 1), len(probs))   # 跨過門檻的那個也留
-        keep = order[:k]
-        out = np.zeros_like(probs)
-        out[keep] = probs[keep] / probs[keep].sum()
-        return out
+    | good | not bad | hot | cold | quantum |
+    |---|---|---|---|---|
+    | 47.4% | 26.3% | 15.8% | 10.5% | **0.0%** |
 
-    base = softmax_t(LOGITS, 1.0)
-    q = nucleus(base, 0.9)
-    for tok, v in zip(TOKENS, q):
-        print(f"{tok:>9} : {v:.4f}")
-    print("sum =", q.sum())
-    ```
+    重點是 `quantum` **恰好是 0.0%**、不是 0.1%——**top_p 是砍名單，不是壓機率**。
+    留下來的四個重新歸一化，加起來剛好 100%（所以每個都比原本的 47.1 / 26.2 / 15.7 / 10.5 大一點）。
 
-    預期輸出：
-
-    ```
-         good : 0.4737
-      not bad : 0.2632
-          hot : 0.1579
-         cold : 0.1053
-      quantum : 0.0000
-    sum = 1.0
-    ```
-
-    重點是 `quantum` **恰好是 0**、不是 0.0001——top_p 是砍名單不是壓機率。
-    順帶一試：把 `p` 改成 `0.88`，`cold` 也會變成 0（因為 `hot` 的累積 0.890 剛好跨過門檻）。
+    再拉到 `top_p = 0.88`：被砍掉的是 **cold**，變成 keep 3 of 5。
+    上圖的累積數字說明了原因——`hot` 那一點的累積是 **0.890**，已經跨過 0.88 這條線，
+    到 `hot` 為止就收工了。門檻只差 0.02，名單就短一個。
     """
             ),
             "💡 LEVEL 3 提示與解答": mo.md(
                 r"""
-    ```python
-    import numpy as np
+    實驗區保持 80 步、前段 20 步，把兩個 penalty 滑桿輪流拉成這三組：
 
-    def half_shares(fp, pp, n_step=80, cut=20):
-        seqs, _ = run_generation(fp, pp, n_step=n_step)
-        out = []
-        for part in (seqs[:, :cut], seqs[:, cut:]):
-            n = part.shape[1]
-            out.append(np.mean([np.bincount(r, minlength=8).max() for r in part]) / n)
-        return out
-
-    for name, fp, pp in (("none", 0, 0), ("freq 0.5", 0.5, 0), ("pres 0.5", 0, 0.5)):
-        early, late = half_shares(fp, pp)
-        print(f"{name:>9}: 前20步={early:.3f}  後60步={late:.3f}")
-    ```
-
-    跑出來：
-
-    ```
-         none: 前20步=0.429  後60步=0.423
-     freq 0.5: 前20步=0.257  後60步=0.160
-     pres 0.5: 前20步=0.399  後60步=0.420
-    ```
+    | 設定 | 前 20 步 | 後 60 步 |
+    |---|---|---|
+    | 都是 0 | 0.429 | 0.423 |
+    | frequency 0.5 | 0.257 | **0.160** |
+    | presence 0.5 | 0.399 | **0.420** |
 
     答案是 **presence**：它的後 60 步（0.420）幾乎回到完全沒開 penalty 的水準（0.423）。
     原因就是公式本身——八個詞都出現過之後，每個詞都被扣同樣的 `1 × pres_penalty`，

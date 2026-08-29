@@ -36,7 +36,8 @@
 </style>
 </head>
 <body data-ready-figures="1"><!-- 【必改】notebook 全部跑完會渲染出的 img/canvas 數量；
-  無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設） -->
+  無圖課改用 data-ready-selector="<css>"（全部跑完會出現的元素，smoke-test 的 READY_SELECTOR 同步設）
+  互動模式是 app 的課還要加 data-nb-mode="app"（scaffold --app 會自動加；判準見 SKILL.md） -->
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
@@ -141,7 +142,7 @@
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
-  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
 </div>
 </main>
 

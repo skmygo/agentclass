@@ -69,7 +69,7 @@ WRAP = r"""
   <p class="note">
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
     首次載入約需 30–60 秒，正好夠你讀完第 1 節。手冊 12 段的<b>真向量</b>已打包在裡面，
-    檢索是現場算的——改壞了重新整理就復原。
+    檢索是現場算的——玩壞了重新整理就復原。
   </p>
 </section>
 
@@ -203,7 +203,7 @@ graphrag query --root ./my-project \
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
-    <p>把實驗區改成 <span class="kbd">MY_Q = 3</span>（保固）、<span class="kbd">MY_K = 1</span>——只給一段答得了嗎？什麼樣的問題只靠 top-1 就夠、什麼樣的一定不夠？</p>
+    <p>在 1️⃣ 把問題換成<span class="kbd">保固期多久</span>、top-k 拉到 <span class="kbd">1</span>——只給一段答得了嗎？什麼樣的問題只靠 top-1 就夠、什麼樣的一定不夠？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 3</span>

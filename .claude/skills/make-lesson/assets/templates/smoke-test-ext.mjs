@@ -58,6 +58,35 @@ const quiz = await page.evaluate(() => {
 const quizOk = quiz.count >= 2 && quiz.count <= 5 && quiz.fbShown;
 
 await page.screenshot({ path: "smoke-screenshot.png", fullPage: false });
+
+// 5) 手機 viewport（390×844）：無橫向溢出、底部切換列、切到實作直接見 molab 面板＋手機 note
+const mctx = await browser.newContext({
+  viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+});
+const mp = await mctx.newPage();
+mp.on("pageerror", (err) => consoleErrors.push(`mobile pageerror: ${err.message}`));
+await mp.goto(url, { waitUntil: "domcontentloaded", timeout: 60_000 });
+await mp.waitForSelector("#view-tabs", { timeout: 15_000 });
+// gate 課有覆蓋層——用 DOM click() 繞過命中測試
+await mp.evaluate(() => document.querySelector('#view-tabs button[data-view="lab"]').click());
+await mp.waitForTimeout(300);
+const mStruct = await mp.evaluate(() => {
+  const lesson = document.querySelector("#lesson");
+  return {
+    pageOverflow: document.scrollingElement.scrollWidth - innerWidth,
+    lessonOverflow: lesson.scrollWidth - lesson.clientWidth,
+    tabsShown: getComputedStyle(document.querySelector("#view-tabs")).display !== "none",
+    panelShown: !!document.querySelector("#molab-panel"),
+    noteShown: document.body.innerText.includes("手機上體驗有限"),
+  };
+});
+const mProblems = [];
+if (mStruct.pageOverflow > 0) mProblems.push(`頁面橫向溢出 +${mStruct.pageOverflow}px`);
+if (mStruct.lessonOverflow > 1) mProblems.push(`教學區內橫向溢出 +${mStruct.lessonOverflow}px`);
+if (!mStruct.tabsShown) mProblems.push("底部切換列不可見");
+if (!mStruct.panelShown) mProblems.push("實作區沒看到 molab 面板");
+if (!mStruct.noteShown) mProblems.push("缺手機體驗 note");
+const mobileOk = mProblems.length === 0;
 await browser.close();
 
 console.log("---- smoke result ----");
@@ -65,10 +94,11 @@ console.log(`page ready in      : ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`molab link         : ${molabOk ? "ok" : `BAD (${molabHref})`}`);
 console.log(`${EXT_FILE} fetch  : ${dlStatus}`);
 console.log(`quiz               : ${quizOk ? `ok (${quiz.count} 題)` : `BAD (count=${quiz.count}, feedback=${quiz.fbShown})`}`);
+console.log(`mobile (390x844)   : ${mobileOk ? "ok" : `BAD（${mProblems.join("；")}）`}`);
 console.log(`console errors     : ${consoleErrors.length}`);
 consoleErrors.slice(0, 5).forEach((e) => console.log(`  · ${e}`));
 
-if (!molabOk || dlStatus !== 200 || !quizOk || consoleErrors.length > 0) {
+if (!molabOk || dlStatus !== 200 || !quizOk || !mobileOk || consoleErrors.length > 0) {
   console.log("RESULT: FAIL");
   process.exit(1);
 }

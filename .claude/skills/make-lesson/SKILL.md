@@ -17,6 +17,8 @@ description: 讀取參考資料（notebook、文章、教材、資料集、網�
    行為宣稱標環境（模型名＋日期）、測驗的錯誤輸出不杜撰、課程頁不寫平台系統說明。
 2. **工程與網站契約**：平台繞不過的牆（Pyodide／marimo／Pages 限制）、共用骨架的接點
    （emoji 錨點、`data-ready-*`、page-fill 骨架、build 防呆）、驗證流程、
+   **RWD 鐵律**（980 斷點、圖表 figsize 寬 ≤6.5／禁 1×2 並排、`mo.hstack` 加 `wrap=True`、
+   文案不含版面方位詞——見 site.md「RWD 與行動裝置」）、
    **quiz（照抄共用格式）＋ endnav 固定殿後**——全站統一的驗收與導覽是網站契約。
 3. **自學者保障**：挑戰必附解答或自我驗證方式、無 GPU／無 key 優雅降級、
    學員帶得走（.py 下載）。
@@ -46,10 +48,34 @@ build.sh 不會部署它，但它是之後「換模型／換資料重驗」的�
   讓它自成完整教材**；左頁照樣完整教學，右欄是常駐的 molab 導流面板。
   預設純 CPU；真的要 GPU 才加 `--gpu`。
 
+## 定軌之後的第二個決定：互動模式（純瀏覽器課才有）
+
+同一份 notebook 有兩種呈現方式，**scaffold 時就決定**
+（`content/<topic>/<id>/lesson-mode`，或整個主題共用 `content/<topic>/lesson-mode`；
+沒有這個檔＝`edit`。scaffold 加 `--app` 會建好，主題已是 app 時新課自動跟著）：
+
+- **`edit`（程式碼可見可改）**——程式碼本身就是教材：這一課在教某個 Python 套件怎麼用，
+  學員要改的就是那幾行（ml-basics 用 scikit-learn 訓練模型）。
+- **`app`（隱藏程式碼與編輯器，只留說明／互動元件／輸出）**——右欄是**教學模擬**：
+  程式是把概念做成可玩的模型，不是要學員讀的東西（local-llm 的十六維玩具注意力層、
+  genai-intro 的計費與取樣模擬）。build 走 `marimo export --mode run`。
+
+**判準一句話：學員要學的是「這段程式怎麼寫」，還是「這個概念怎麼動」？**
+模擬課把程式碼攤開，只會讓畫面變成一份看不懂的原始碼，還讓學員誤以為右邊在跑真的推論。
+
+app 模式的三個連帶要求（前兩項 build.sh 會擋，第三項只有你會擋）：
+
+1. 教學頁 `<body data-nb-mode="app">`（就緒文案才會講「拉滑桿」而不是「改格子」）。
+2. `lesson-mode` 檔存在且內容是 `app`。
+3. **文案與挑戰題不能叫學員做 app 模式下做不到的事**——「改這格、按 ▶ 重跑」
+   「把 `my_x` 改成 0.5」「貼進實驗區這段程式碼」一律改寫成互動元件做得到的操作；
+   自由編碼的「你的實驗區」改成**一組拉桿＋即時輸出**（挑戰題變成「拉到 X，看 Y 怎麼變」）。
+   想改程式碼的學員走教學頁的「下載 .py」——app 模式的 notebook 右上角只有下載 HTML/PNG。
+
 ## 起手：scaffold 一鍵建骨架（別手動複製模板）
 
 ```bash
-bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic-slug> "<主題名>" [--external [--gpu]]
+bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic-slug> "<主題名>" [--app] [--external [--gpu]]
 ```
 
 script 做完（不用再做）：`content/<topic>/<id>/` 三件套從 `assets/templates/` 複製並代換好
@@ -103,9 +129,11 @@ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
      （CPython 全 cell）→ `bash .claude/skills/make-lesson/scripts/smoke-all.sh --build`（WASM 冒煙）
    - 外部軌課：`bash .claude/skills/make-lesson/scripts/verify-ext.sh <topic> <id> [關鍵字...]`
      （sandbox 全 cell ＋ 渲染輸出掃描，關鍵字給了就印出左頁要引用的數字）→ `smoke-all.sh --build`
+   - **手機檢查已內建**：smoke-all 自動接 390×844 全課結構檢查＋抽樣全載；
+     單課 smoke-test 模板也含手機段——手機不過＝不上線（準則見 engineering.md「手機 viewport 驗證」）
    - wiring 自檢：`grep -o '/<id>/' dist/<topic-slug>/index.html` 有中、首頁課數已更新
 6. **給使用者預覽**：`node .claude/skills/make-lesson/scripts/preview-shots.mjs / /<topic-slug>/ "/<id>/@#hero-按鈕"`
-   （`@selector` 會先點再截，驗 hero 互動真的會動），等確認再部署。
+   （`@selector` 會先點再截，驗 hero 互動真的會動；加 `--vp 390x844` 補手機版樣張），等確認再部署。
 7. **部署**：`npx wrangler pages deploy dist --project-name=agentclass`（憑證見 homelab-infra skill），
    然後 `smoke-all.sh --base https://agentclass.pages.dev` 線上冒煙（CDN 冷資產會自動重試一次）。
    外部軌課記得 **git push**（molab 直讀 GitHub main，不 push 連結是死的），並請使用者在 molab 實跑一次。
@@ -127,6 +155,8 @@ agent 的「要不要用工具」判斷是否還成立——這些都是實測�
 1. **教學與程式一致**：左頁說的每個行為、每個數字，notebook 都要真的存在且為真。
    非決定性輸出寫範圍與方向，並讓學員知道「你跑出來的數字會不同」。
 2. **一課一版程式**：定軌後只寫一份 notebook；發現走錯軌就換軌重寫，不是加一版。
+   互動模式（edit／app）也是一課一種，且**文案要跟著模式走**——app 模式課裡不准出現
+   「改這格程式碼」這類做不到的指示。
 3. **驗證過才上線**：純瀏覽器課 WASM 冒煙沒過不部署；外部軌課 sandbox 全跑＋頁面冒煙沒過不部署。
 4. **課程頁不寫平台系統說明**（哪些算、哪些不算見 site.md）。
 5. **寫進 repo 的才算存在**：spike 腳本、page_content.py、NOTES——對話裡的東西會消失。

@@ -73,8 +73,8 @@ WRAP = r'''
 
   <p class="note">
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
-    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每一格程式碼都能改、能重跑，
-    改壞了重新整理就復原——這是你的沙盒，盡量玩。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每個實驗都有滑桿與選項可以拉，
+    拉完立刻重算——這是你的沙盒，盡量玩。
   </p>
 </section>
 
@@ -260,7 +260,7 @@ graph.add_edge("research", "write")</div>
   <h2>換你動手</h2>
   <div class="ex">
     <span class="lv">LEVEL 1</span>
-    <p>在右邊 1️⃣ 把 <span class="kbd">CALL</span> 的城市改成「台中」，看管線查到不同資料；再改成資料庫沒有的城市——管線怎麼處理？為什麼錯誤也要回給模型？</p>
+    <p>在右邊 1️⃣ 把城市下拉換成「台中」，看管線查到不同資料；再選「花蓮」（資料庫裡沒有的城市）——管線怎麼處理？為什麼錯誤也要回給模型？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
@@ -268,7 +268,7 @@ graph.add_edge("research", "write")</div>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 3</span>
-    <p>設計一個計算機工具 <span class="kbd">calc(expr)</span>：寫出它的說明書（給模型看的）、呼叫 JSON 格式（在實驗區用 json.loads 驗證），並想清楚哪些問題「該」與「不該」觸發它。</p>
+    <p>設計一個計算機工具 <span class="kbd">calc(expr)</span>：寫出它的說明書（給模型看的）、呼叫 JSON 格式（貼進實驗區當場驗證），並想清楚哪些問題「該」與「不該」觸發它。</p>
   </div>
   <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？三題在 notebook 最後一格都有折疊解答——先自己做，再打開對照。</p>
   <button class="golab" data-nb="4️⃣">到右邊 4️⃣ 的實驗區開工</button>

@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 新開發範式：Vibe Coding 到 Spec-Driven（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課的兩個實驗：**範式光譜**（你的專案該站在哪一格）、
     **context 組裝計算機**（context engineering 到底省下什麼——用真實 token 帳算給你看）。
@@ -229,26 +229,58 @@ def _(mo):
         r"""
     ## 3️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。挑戰在左頁「換你動手」，做完再開解答對照。
+    下面是你的實驗區。挑戰在左頁「換你動手」，做完再開解答對照。
     """
     )
     return
 
 
 @app.cell
-def _():
-    # ===== 你的實驗區 =====
-    # 用零件帳試算你自己的應用：改成你的 prompt 結構
-    my_parts = {
-        "system": 31,          # 你的 system prompt
-        "knowledge": 420,      # 你塞的文件／FAQ／規格
-        "history": 280,        # 對話歷史
-        "question": 26,        # 這一輪的問題
+def _(mo):
+    my_system = mo.ui.slider(0, 500, 10, value=30, label="system prompt", show_value=True)
+    my_knowledge = mo.ui.slider(
+        0, 5000, 100, value=400, label="知識（文件／FAQ／規格）", show_value=True
+    )
+    my_history = mo.ui.slider(0, 3000, 100, value=300, label="對話歷史", show_value=True)
+    my_question = mo.ui.slider(0, 500, 10, value=30, label="這一輪的問題", show_value=True)
+    my_rounds = mo.ui.slider(1_000, 100_000, 1_000, value=10_000, label="一天幾輪", show_value=True)
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——把四個零件換成你自己應用的規模，看一天的帳。"),
+            mo.hstack([my_system, my_knowledge], justify="start", gap=2, wrap=True),
+            mo.hstack([my_history, my_question], justify="start", gap=2, wrap=True),
+            my_rounds,
+        ]
+    )
+    return my_history, my_knowledge, my_question, my_rounds, my_system
+
+
+@app.cell
+def _(mo, my_history, my_knowledge, my_question, my_rounds, my_system):
+    _parts = {
+        "system": my_system.value,
+        "知識": my_knowledge.value,
+        "歷史": my_history.value,
+        "問題": my_question.value,
     }
-    total = sum(my_parts.values())
-    print(f"單輪 prompt：{total} tokens")
-    print(f"1 天 1 萬輪：{total * 10_000:,} tokens/天")
-    print("提示：中文粗估 1 字 ≈ 1.1 token（o200k_base 實測）")
+    _one = sum(_parts.values())
+    _day = _one * my_rounds.value
+    _rows = "\n    ".join(
+        f"| {_k} | {_v:,} | {_v / _one:.0%} |" for _k, _v in _parts.items()
+    )
+    _big = max(_parts, key=_parts.get)
+    mo.md(
+        f"""
+    | 零件 | tokens | 佔比 |
+    | --- | --- | --- |
+    {_rows}
+    | **單輪合計** | **{_one:,}** | 100% |
+
+    一天 {my_rounds.value:,} 輪 → **{_day:,} tokens/天**（一個月約 {_day * 30 / 1e6:,.0f}M）。
+
+    佔最大的是**{_big}**——要省，先從它下手。
+    """
+    )
     return
 
 
@@ -266,13 +298,10 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    在實驗區把 `knowledge` 改成 3000（塞一份大文件）、`history` 改成 1200（長對話）：
+    在實驗區把「知識」拉到 3000（塞一份大文件）、「歷史」拉到 1200（長對話），
+    另外兩根留在預設（30／30）：
 
-    ```python
-    my_parts = {"system": 31, "knowledge": 3000, "history": 1200, "question": 26}
-    ```
-
-    單輪 4,257 tokens，一天一萬輪就是 **4,257 萬 tokens/天**——
+    單輪 4,260 tokens、知識一項就佔 70%，一天一萬輪就是 **4,260 萬 tokens/天**——
     這時候「省 69%」不再是百分比遊戲，是每天幾千萬 token 的帳。
     規模越大，context engineering 的投資報酬越高；
     反過來說，一天十輪的小工具，全塞也沒人會怪你。

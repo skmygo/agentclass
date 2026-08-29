@@ -12,7 +12,7 @@ def _(mo):
 
     左邊讀到哪，就回到這裡動手。這裡沒有真的大模型——只有一個**十六維的玩具注意力層**，
     但它的算法和真模型一模一樣：Q 查 K、加權取 V、K/V 存起來重複用。
-    每一格都能改、能重跑（點格子右上的 ▶ 或按 `Ctrl+Enter`），改壞了重新整理就復原。
+    每個實驗都有滑桿或選單可以拉，拉完立刻重算——數字都是當場算出來的。
     """
     )
     return
@@ -308,7 +308,7 @@ def _(mo):
     ## 4️⃣ 有快取：存起來，而且答案一模一樣
 
     快取不是近似、不是壓縮、不會掉品質——**它算出來的東西和重算完全相同**。
-    下面這格真的跑兩遍：一遍每步重算整串，一遍只算新字、其餘查快取，然後比對兩邊的輸出。
+    下面真的跑兩遍：一遍每步重算整串，一遍只算新字、其餘查快取，然後比對兩邊的輸出。
     """
     )
     return
@@ -422,8 +422,8 @@ def _(mo):
     範圍從「單次請求內」擴大到「跨請求」。但它有個硬條件：
     只有**從第一個 token 起完全相同**的前綴才能重用。
 
-    下面用兩段話驗證：左圖比較「你好，天氣如何」和「你好，明天天氣如何」逐格的 K
-    差多少；右圖是三種情況的總結。
+    下面用兩段話驗證：上圖比較「你好，天氣如何」和「你好，明天天氣如何」逐格的 K
+    差多少；下圖是三種情況的總結。
     """
     )
     return
@@ -447,7 +447,7 @@ def _(C_CACHE, C_RECOMP, attn_parts, np, plt, rel_err):
     err_other = rel_err(attn_parts(TXT_C)["k_deep"][_ic], _pa["k_deep"][_ia])
 
     _shared = sum(1 for _e in per_index_err if _e < 1e-6)
-    _fig, (_ax1, _ax2) = plt.subplots(1, 2, figsize=(9.2, 3.6))
+    _fig, (_ax1, _ax2) = plt.subplots(2, 1, figsize=(6.4, 6.4))
     _ax1.axvspan(-0.5, _shared - 0.5, color=C_CACHE, alpha=0.14)
     _ax1.bar(np.arange(_n), per_index_err, color=C_RECOMP)
     _ax1.text((_shared - 1) / 2, max(per_index_err) * 0.5, "reusable\n(0.0%)",
@@ -616,8 +616,8 @@ def _(mo):
         r"""
     ## 7️⃣ 換你動手
 
-    三個挑戰，由易到難。做完記得**點右上角下載按鈕把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    三個挑戰，由易到難。做完記得**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
 
     1. **LEVEL 1**：回到 6️⃣ 把「KV 頭數」從 8 拉到 32（等於不共用 KV 頭），
        看 `1M x1` 那根柱子變成幾 GB。
@@ -631,23 +631,42 @@ def _(mo):
 
 
 @app.cell
-def _(attn_parts, rel_err):
-    # ===== 你的實驗區 =====
-    # 改這兩句話，看逐格的 K 差多少（0.0 = 完全一樣 = 這一格可以直接重用）
-    my_a = "你好，天氣如何"
-    my_b = "你好，明天天氣如何"
+def _(mo):
+    my_a = mo.ui.text(value="你好，天氣如何", label="句子 A", full_width=True)
+    my_b = mo.ui.text(value="你好，明天天氣如何", label="句子 B", full_width=True)
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——換兩句自己的話，看逐格的 K 差多少（0.0 ＝ 完全一樣 ＝ 這個 token 可以直接重用）"),
+            my_a,
+            my_b,
+        ]
+    )
+    return my_a, my_b
 
-    _ka = attn_parts(my_a)["k_deep"]
-    _kb = attn_parts(my_b)["k_deep"]
-    _n = min(len(my_a), len(my_b))
-    _errs = [rel_err(_kb[_i], _ka[_i]) for _i in range(_n)]
-    _shared = 0
-    for _e in _errs:
-        if _e >= 1e-6:
-            break
-        _shared += 1
-    print("逐格 K 相對誤差 (%)：", [round(_e, 1) for _e in _errs])
-    print(f"共用前綴長度：{_shared} 個 token（「{my_a[:_shared]}」）")
+
+@app.cell
+def _(attn_parts, mo, my_a, my_b, rel_err):
+    _a, _b = my_a.value, my_b.value
+    _n = min(len(_a), len(_b))
+    if _n == 0:
+        _out = mo.md("兩句話都填點字，這裡就會逐格比對。")
+    else:
+        _ka = attn_parts(_a)["k_deep"]
+        _kb = attn_parts(_b)["k_deep"]
+        _errs = [rel_err(_kb[_i], _ka[_i]) for _i in range(_n)]
+        _shared = 0
+        for _e in _errs:
+            if _e >= 1e-6:
+                break
+            _shared += 1
+        _out = mo.md(
+            f"""
+    逐格 K 相對誤差（%）：`{[round(_e, 1) for _e in _errs]}`
+
+    共用前綴長度：**{_shared} 個 token**（「{_a[:_shared]}」）
+    """
+        )
+    _out
     return
 
 
@@ -666,12 +685,12 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    ```python
-    kv_computed(2000, 100, cached=False), kv_computed(2000, 100, cached=True)
-    # → 207,050 vs 2,100 = 98.6 倍
-    kv_computed(100, 2000, cached=False), kv_computed(100, 2000, cached=True)
-    # → 2,201,100 vs 2,100 = 1048.1 倍
-    ```
+    用 3️⃣ 的兩根滑桿各拉一次，看下面那句「多做了幾倍的工」：
+
+    | 3️⃣ 的設定 | 沒有快取 | 有快取 | 多做的工 |
+    | --- | --- | --- | --- |
+    | 提示 2000 ＋ 生成 100 | 207,050 | 2,100 | **99 倍** |
+    | 提示 100 ＋ 生成 2000 | 2,201,100 | 2,100 | **1048 倍** |
 
     **生成越長，快取越划算。**因為平方項長在「生成長度」上：
     每多生一個字，就多一整輪重算。提示再長也只是被重算的那個基數，
@@ -683,7 +702,7 @@ def _(mo):
             ),
             "💡 LEVEL 3 提示": mo.md(
                 r"""
-    怎麼驗證自己做對了：實驗區印出的「逐格 K 相對誤差」，
+    怎麼驗證自己做對了：實驗區顯示的「逐格 K 相對誤差」，
     共用前綴的部分應該是一整排 `0.0`，而且**第一個非 0 的位置，
     就是兩句話第一個不同的字**。試試看把不同的字往後挪，那排 0 會跟著變長。
 

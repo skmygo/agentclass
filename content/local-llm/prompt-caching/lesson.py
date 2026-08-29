@@ -11,11 +11,11 @@ def _(mo):
     # 🧪 Prompt Caching：連續對話的錢怎麼算（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
-    這裡沒有任何網路呼叫：**帳單是照公開費率一筆一筆真算出來的**，
-    所以你可以把費率改成自己方案的數字，整份 notebook 立刻跟著變。
+    這裡沒有任何網路呼叫：**帳單是照公開費率一筆一筆真算出來的**——
+    每一個金額都是這幾格當場乘出來的，拉桿一動就重算。
     """
     )
     return
@@ -41,8 +41,8 @@ def _(mo):
         r"""
     ## 1️⃣ 五種價錢：先把費率表放進程式裡
 
-    連續對話會用到的價目只有五種。下面這格是本課**唯一的費率來源**——
-    想換成自己方案的數字，改這一格就好，後面所有金額與圖表都會跟著重算。
+    連續對話會用到的價目只有五種。這張表是本課**唯一的費率來源**，
+    後面每一筆金額都是拿它乘出來的。
 
     （示範用的是官方公開定價的其中一組；價格會調整，實際以官方定價頁為準。）
     """
@@ -216,7 +216,7 @@ def _(np, out_slider, plt, rounds_slider, run_chat, sys_slider):
     _x = np.arange(1, sim_n + 1)
     _cc = np.cumsum([r["cost"] for r in sim_cached])
     _pc = np.cumsum([r["cost"] for r in sim_plain])
-    _fig, _axes = plt.subplots(1, 2, figsize=(9.6, 4.0))
+    _fig, _axes = plt.subplots(2, 1, figsize=(6.4, 7.0))
     _axes[0].plot(_x, _pc, "o-", c="#C44E52", label="no cache")
     _axes[0].plot(_x, _cc, "o-", c="#55A868", label="with prompt caching")
     _axes[0].fill_between(_x, _cc, _pc, color="#55A868", alpha=0.15)
@@ -270,10 +270,10 @@ def _(mo):
         r"""
     ## 4️⃣ 錢到底花在哪：token 很多，錢很少
 
-    上面看的是總額，這裡把它拆開。左圖是每輪的 **input token 數量**，
-    右圖是每輪的**花費**——同一段對話，兩張圖的形狀完全不一樣：
+    上面看的是總額，這裡把它拆開。上圖是每輪的 **input token 數量**，
+    下圖是每輪的**花費**——同一段對話，兩張圖的形狀完全不一樣：
 
-    左邊的綠色（已快取的歷史）越疊越高，右邊卻幾乎貼在地上。
+    上面的綠色（已快取的歷史）越疊越高，下面那張卻幾乎貼在地上。
     這就是本課的核心：**舊歷史佔掉絕大多數 token，卻只佔一點點錢**。
     聊到後面，帳單的主角會變成藍色的輸出。
     """
@@ -289,7 +289,7 @@ def _(CACHE_HIT, MTOK, OUTPUT, WRITE_5M, np, plt, sim_a, sim_cached):
     _hit_c = np.array([r["hit"] for r in sim_cached]) / MTOK * CACHE_HIT
     _wr_c = np.array([r["write"] for r in sim_cached]) / MTOK * WRITE_5M
     _out_c = np.full(len(sim_cached), sim_a / MTOK * OUTPUT)
-    _fig, _axes = plt.subplots(1, 2, figsize=(9.6, 4.0))
+    _fig, _axes = plt.subplots(2, 1, figsize=(6.4, 7.0))
     _axes[0].bar(_x, _hit_t, color="#55A868", label="cached history (hit)")
     _axes[0].bar(_x, _wr_t, bottom=_hit_t, color="#DD8452", label="new content (write)")
     _axes[0].set_xlabel("conversation round")
@@ -413,37 +413,76 @@ def _(mo):
         r"""
     ## 6️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。建議挑戰（由易到難）：
+    下面四根拉桿就是你的實驗區。建議挑戰（由易到難）：
 
-    1. **LEVEL 1**：把 `my_write` 改成 `WRITE_1H`（1 小時 TTL，\$20/MTok），
+    1. **LEVEL 1**：把「寫入 TTL」換成 **1 小時（\$20/MTok）**，
        看三輪總價變多少、還省不省。長 TTL 是免費的嗎？
-    2. **LEVEL 2**：把 `my_sys` 從 10K 改成 2K，再改成 40K，各跑 3 輪與 20 輪。
-       「省的比例」對哪個參數比較敏感——系統提示長度，還是輪數？
+    2. **LEVEL 2**：把「系統提示長度」從 10K 拉到 2K，再拉到 40K，
+       每次都用 3 輪與 20 輪各看一遍。「省的比例」對哪個參數比較敏感——
+       系統提示長度，還是輪數？
     3. **LEVEL 3**：估一次你自己的用量——你平常一個工作階段大概聊幾輪、
-       系統提示（含工具說明）多長？用 `breaks=` 算出「乖乖聊完」與
-       「中間換兩次模型」的差額，並且說得出那筆差額是怎麼來的。
+       系統提示（含工具說明）多長？把拉桿設成你的數字，再把「中途換模型」
+       拉到 2 次，看那筆差額有多大，並且說得出它是怎麼來的。
 
-    做完記得：**點左側教學頁的「下載 .py」把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _(WRITE_1H, WRITE_5M, run_chat, total):
-    # ===== 你的實驗區 =====
-    my_sys = 10_000       # 系統提示長度
-    my_rounds = 3         # 聊幾輪
-    my_write = WRITE_5M   # 想試 1 小時 TTL 就改成 WRITE_1H
+def _(WRITE_1H, WRITE_5M, mo):
+    my_sys = mo.ui.slider(
+        1_000, 50_000, 1_000, value=10_000, label="系統提示長度（token）", show_value=True
+    )
+    my_rounds = mo.ui.slider(1, 20, 1, value=3, label="聊幾輪", show_value=True)
+    my_write = mo.ui.dropdown(
+        options={"5 分鐘（$12.50/MTok）": WRITE_5M, "1 小時（$20.00/MTok）": WRITE_1H},
+        value="5 分鐘（$12.50/MTok）",
+        label="寫入 TTL",
+    )
+    my_breaks = mo.ui.slider(0, 3, 1, value=0, label="中途換幾次模型", show_value=True)
+    mo.vstack(
+        [
+            mo.md("**你的實驗區**——每輪問題 1,000 token、回答 2,000 token，其餘由你決定。"),
+            mo.hstack([my_sys, my_rounds], justify="start", gap=2, wrap=True),
+            mo.hstack([my_write, my_breaks], justify="start", gap=2, wrap=True),
+        ]
+    )
+    return my_breaks, my_rounds, my_sys, my_write
 
-    my_cached = run_chat(my_rounds, my_sys, 1_000, 2_000, write_rate=my_write)
-    my_plain = run_chat(my_rounds, my_sys, 1_000, 2_000, cached=False)
-    for _r in my_cached:
-        print(f"第 {_r['round']} 輪：命中 {_r['hit']:>6} / 寫入 {_r['write']:>6} → ${_r['cost']:.4f}")
-    print(f"\n{my_rounds} 輪總計：用快取 ${total(my_cached):.4f}、"
-          f"不用快取 ${total(my_plain):.4f} → 省 {1 - total(my_cached) / total(my_plain):.1%}")
-    print(f"（目前寫入價 ${my_write:.2f}/MTok；1 小時 TTL 是 ${WRITE_1H:.2f}/MTok）")
+
+@app.cell
+def _(mo, my_breaks, my_rounds, my_sys, my_write, run_chat, total):
+    _n, _b = my_rounds.value, my_breaks.value
+    # 換模型的輪次：在對話中平均分佈（第 1 輪換沒有意義，本來就要整段寫入）
+    _at = sorted({_r for _i in range(_b) if (_r := round(_n * (_i + 1) / (_b + 1))) >= 2})
+    _kw = dict(sys_tok=my_sys.value, q_tok=1_000, a_tok=2_000)
+    _cached = total(run_chat(_n, write_rate=my_write.value, **_kw))
+    _plain = total(run_chat(_n, cached=False, **_kw))
+    _broken = total(
+        run_chat(_n, write_rate=my_write.value, breaks={_r: 0 for _r in _at}, **_kw)
+    )
+
+    _extra = (
+        f"\n\n在第 {'、'.join(str(_r) for _r in _at)} 輪換模型：總計 **\\${_broken:.4f}**，"
+        f"比乖乖聊完多付 **\\${_broken - _cached:.4f}**"
+        if _at
+        else "\n\n（把「中途換模型」拉大，看看前綴作廢要付多少。）"
+    )
+    mo.md(
+        f"""
+    系統提示 {my_sys.value:,} token、聊 {_n} 輪、寫入 TTL {my_write.selected_key}：
+
+    | | {_n} 輪總計 |
+    | --- | --- |
+    | 用快取 | **\\${_cached:.4f}** |
+    | 完全不用快取 | \\${_plain:.4f} |
+    | 省下 | **{1 - _cached / _plain:.1%}** |
+    {_extra}
+    """
+    )
     return
 
 
@@ -453,29 +492,19 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    ```python
-    my_write = WRITE_1H   # 20.0
-    ```
-
-    三輪總計從 **\$0.4915 變成 \$0.5890**，省的比例從 32% 掉到 **18%**。
+    把「寫入 TTL」換成 1 小時：三輪總計從 **\$0.4915 變成 \$0.5890**，
+    省的比例從 32% 掉到 **18%**。
 
     長 TTL 不是免費的：寫入單價變成一般輸入的 2 倍，等於預付一筆「保留費」。
     什麼時候划算？當你**離開超過 5 分鐘還會回來**——不然下一輪就是整段重寫，
-    那筆重寫比多付的保留費貴得多。把 `my_rounds` 拉到 10 再比一次，差距會縮小很多，
-    因為命中的次數變多了。
+    那筆重寫比多付的保留費貴得多。把「聊幾輪」拉到 10 再比一次：
+    省的比例是 **57% 對 53%**，差距縮小很多——因為寫入只付一次，命中的次數卻變多了。
     """
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    ```python
-    for my_sys in (2_000, 10_000, 40_000):
-        for my_rounds in (3, 20):
-            c = total(run_chat(my_rounds, my_sys, 1_000, 2_000))
-            p = total(run_chat(my_rounds, my_sys, 1_000, 2_000, cached=False))
-            print(f"sys={my_sys // 1000}K n={my_rounds}: 省 {1 - c / p:.0%}")
-    ```
-
-    跑出來會是這樣：
+    六種組合各拉一次（系統提示 2K／10K／40K × 聊 3 輪／20 輪），
+    「省下」那一列會是這樣：
 
     | 系統提示 | 聊 3 輪 | 聊 20 輪 |
     |---|---:|---:|
@@ -491,17 +520,19 @@ def _(mo):
             ),
             "💡 LEVEL 3 提示": mo.md(
                 r"""
-    做法：先用 `run_chat(n, sys, 1_000, 2_000)` 算「乖乖聊完」，
-    再用 `breaks={a: 0, b: 0}` 算「在第 a、b 輪換模型」，兩者相減。
+    做法：把「中途換模型」從 0 拉到 1、再拉到 2，看多付了多少。
+    （換模型的輪次會平均分佈在對話中間。）
 
     **怎麼驗證自己做對了**：差額應該等於
     「換模型當下的歷史長度 ×（寫入價 − 命中價）」。
 
-    以第 5️⃣ 節的 12 輪情境驗算：在第 4 輪換一次模型多付 \$0.218，
-    而第 4 輪開始前的歷史正好是 19K，
-    `19_000 / 1e6 * (12.5 - 1) = 0.2185`——對上了。
-    每多換一次模型，就多付一筆「當下歷史 × \$11.5/MTok」，
-    而歷史只會越來越長，所以越晚換越貴。
+    拿系統提示 10K、聊 12 輪來驗算：換 1 次會落在第 6 輪，多付 **\$0.2875**。
+    而第 6 輪開始前的歷史正好是 25K（11K ＋ 4 輪 ×3K），
+    `25_000 / 1e6 * (12.5 - 1) = 0.2875`——對上了。
+    換 2 次（第 4、8 輪）就是 **\$0.5750**，剛好兩倍。
+
+    每換一次模型，就多付一筆「當下歷史 × \$11.5/MTok」，
+    而歷史只會越來越長，所以**越晚換越貴**。
 
     做完之後值得想一件事：這筆錢跟「選錯模型」比起來是大是小？
     快取省的是零頭，**選對模型省的是大頭**——但零頭是你不用動腦就能省下的。

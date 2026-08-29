@@ -147,4 +147,29 @@
     save();
     e.preventDefault();
   });
+
+  /* ── 窄螢幕（≤980px）視圖管理：底部「教學｜實作」切換列 ──
+     樣式在 /shared/lesson.css（桌機隱藏）。切到實作時發
+     agentclass:lab-shown 事件，lesson.js 據此決定何時載 notebook。 */
+  if (!document.body.dataset.view) document.body.dataset.view = "lesson";
+  const tabs = document.createElement("nav");
+  tabs.id = "view-tabs";
+  tabs.setAttribute("aria-label", "切換教學與實作");
+  tabs.innerHTML =
+    '<button type="button" data-view="lesson" aria-selected="true">教學</button>' +
+    '<button type="button" data-view="lab" aria-selected="false">實作</button>';
+  document.body.appendChild(tabs);
+  const setView = (name) => {
+    if (name !== "lesson" && name !== "lab") return;
+    document.body.dataset.view = name;
+    tabs.querySelectorAll("button").forEach((b) =>
+      b.setAttribute("aria-selected", String(b.dataset.view === name)));
+    if (name === "lab")
+      document.dispatchEvent(new CustomEvent("agentclass:lab-shown"));
+  };
+  tabs.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-view]");
+    if (btn) setView(btn.dataset.view);
+  });
+  window.setLessonView = setView;
 })();

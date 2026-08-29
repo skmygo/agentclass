@@ -61,7 +61,7 @@ WRAP = r"""
   <p class="note">
     右邊的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
     首次載入約需 30–60 秒，正好夠你讀完第 1 節。這一課右邊只有兩個實驗，
-    但其中一個的 token 帳是真的用 tiktoken 量出來的——改壞了重新整理就復原。
+    但其中一個的 token 帳是真的用 tiktoken 量出來的——玩壞了重新整理就復原。
   </p>
 </section>
 
@@ -217,7 +217,7 @@ AI：（修正 CSS 選擇器）
   </div>
   <div class="ex">
     <span class="lv">LEVEL 2</span>
-    <p>在實驗區把 <span class="kbd">knowledge</span> 改成 3000、<span class="kbd">history</span> 改成 1200（模擬塞大文件＋長對話），算一天一萬輪的量。什麼規模下 context engineering 從「可有可無」變成「非做不可」？</p>
+    <p>在實驗區把「知識」拉到 <span class="kbd">3000</span>、「歷史」拉到 <span class="kbd">1200</span>（模擬塞大文件＋長對話），看一天一萬輪的量。什麼規模下 context engineering 從「可有可無」變成「非做不可」？</p>
   </div>
   <div class="ex">
     <span class="lv">LEVEL 3</span>

@@ -10,8 +10,7 @@ def _(mo):
         r"""
     # 🧪 引擎選型：Ollama vs vLLM（實驗場）
 
-    左邊讀到哪，就回到這裡動手。每一格程式碼都可以**直接改、立即重跑**
-    （點格子右上的 ▶，或按 `Ctrl+Enter`）。改壞了重新整理頁面就回到原版。
+    左邊讀到哪，就回到這裡動手——每個實驗都有**滑桿與選項**可以拉。
 
     這裡不會真的起一個 LLM 服務——我們把兩個引擎**管記憶體的規則**寫成程式，
     真的算給你看。所有百分比、倍數都是這幾格當場算出來的，拉桿一動就重算。
@@ -127,7 +126,7 @@ def _(
     # 灰色＝配出去的空間，彩色＝真正用到的。灰色露出來的部分就是浪費
     _idx = np.arange(len(req_lens))
     _paged = (np.ceil(req_lens / BLOCK) * BLOCK).astype(int)
-    _fig, _axes = plt.subplots(1, 2, figsize=(9.2, 3.9), sharey=True)
+    _fig, _axes = plt.subplots(2, 1, figsize=(6.4, 6.8), sharey=True)
 
     _axes[0].bar(_idx, ctx_slot.value, color=C_WASTE)
     _axes[0].bar(_idx, req_lens, color=C_SLOT)
@@ -221,7 +220,7 @@ def _(BLOCK, budget, ctx_slot, np, seed, spread):
 
 @app.cell
 def _(C_PAGE, C_SLOT, budget, ctx_slot, means, paged_fit, plt, slot_fit):
-    _fig2, _ax2 = plt.subplots(figsize=(9.2, 3.9))
+    _fig2, _ax2 = plt.subplots(figsize=(6.5, 3.9))
     _ax2.plot(means, slot_fit, color=C_SLOT, lw=3, label="fixed slots (Ollama)")
     _ax2.plot(means, paged_fit, color=C_PAGE, lw=3, label="PagedAttention (vLLM)")
     _ax2.fill_between(means, slot_fit, paged_fit, where=(paged_fit >= slot_fit),
@@ -331,7 +330,7 @@ def _(
     ollama_on,
     plt,
 ):
-    _fig3, _ax3 = plt.subplots(figsize=(9.2, 3.9))
+    _fig3, _ax3 = plt.subplots(figsize=(6.5, 3.9))
     _ax3.fill_between(
         grid_t, 0, ollama_on * OLLAMA_VRAM, step="post",
         color=C_SLOT, alpha=0.35, label=f"Ollama held ({OLLAMA_VRAM} GB when loaded)",
@@ -404,7 +403,7 @@ def _(mo):
     第三根柱子是 **32 個人同時打**時整台機器的總吞吐 1606.78 tokens/s，
     標題數字 34.2×、第 1 對第 2 根是 4.6×）。
 
-    下面這格把「總吞吐」除以人數，換算成**一個使用者實際感受到的速度**。
+    下面把「總吞吐」除以人數，換算成**一個使用者實際感受到的速度**。
     """
     )
     return
@@ -448,7 +447,7 @@ def _(
 ):
     _labels = ["Ollama\nQ4_K_M\n1 request", "vLLM\nBF16\n1 request", f"vLLM\nBF16\n{BATCH_N} requests"]
     _colors = [C_SLOT, C_PAGE, C_PAGE]
-    _fig4, _ax4 = plt.subplots(1, 2, figsize=(9.2, 4.1))
+    _fig4, _ax4 = plt.subplots(2, 1, figsize=(6.4, 7.2))
 
     _tot = [ollama_single, vllm_single, BATCH_TOTAL]
     _ax4[0].bar(_labels, _tot, color=_colors)
@@ -485,7 +484,7 @@ def _(
 ):
     mo.md(
         f"""
-    右邊那張圖就是全課最該記住的一句話：**{HEADLINE_X}× 是機器的，不是你的。**
+    下面那張圖（per user）就是全課最該記住的一句話：**{HEADLINE_X}× 是機器的，不是你的。**
 
     - 第三根柱子除以 {BATCH_N} 個人 → 每人 **{per_user_batch:.0f} tokens/s**，
       對上 Ollama 的 {ollama_single:.0f} tokens/s，只有 **{per_user_gain:.2f}×**。
@@ -510,37 +509,74 @@ def _(mo):
         r"""
     ## 4️⃣ 換你動手
 
-    下面是你的實驗區，改完按 ▶ 重跑。建議挑戰（由易到難）：
+    三個挑戰，由易到難。前兩個用 1️⃣ 的拉桿就做得完，第三個用下面的實驗區。
 
     1. **LEVEL 1**：把上面 1️⃣ 的「請求平均長度」拉到 3800、「長度離散度」拉到 0，
        看兩制的利用率變成幾 %。想一句話解釋為什麼差距不見了。
-    2. **LEVEL 2**：掃描平均長度 200 → 4000，畫出「slot 制要多花幾倍記憶體」的曲線，
-       找出這個倍數掉到 2× 以下的平均長度。
-    3. **LEVEL 3**：加進 **prefix caching**——假設每個請求前面都掛著同一段 800 token 的
-       system prompt，PagedAttention 可以讓所有請求**共用**那幾塊 block，slot 制不行。
-       重算兩制的配置量，看差距變多大。
+    2. **LEVEL 2**：其他拉桿不動，把 1️⃣ 的「請求平均長度」從最左邊一路往右拉，
+       盯著表格下面那句「slot 制要 X 倍的記憶體」——找出這個倍數掉到 **2× 以下**的平均長度。
+    3. **LEVEL 3**：加進 **prefix caching**——每個請求前面都掛著同一段 system prompt，
+       PagedAttention 可以讓所有請求**共用**那幾塊 block，slot 制的每一格都得自己存一份。
+       用下面的實驗區把前綴拉長、把人數拉多，看兩制的「服務倍率」往哪邊跑。
 
-    做完記得：**點右上角下載按鈕（或左側教學頁的「下載 .py」）把你的版本帶走**，
-    在自己電腦用 `uvx marimo edit lesson.py` 就能繼續玩。
+    做完記得：**點左側教學頁的「下載 .py」把這份 notebook 帶走**，
+    在自己電腦用 `uvx marimo edit lesson.py` 打開，每一格程式碼都能改。
     """
     )
     return
 
 
 @app.cell
-def _(np):
-    # ===== 你的實驗區 =====
-    # 手邊的積木：np 已經 import 好了。把上面的公式抄下來改就對了。
-    my_ctx = 4096        # slot context
-    my_block = 16        # PagedAttention block
-    my_lens = np.array([120, 340, 90, 1500, 260])   # 換成你想試的請求長度
+def _(mo):
+    my_prefix = mo.ui.slider(
+        0, 2000, 100, value=800, label="共用 system prompt 長度（token）", show_value=True
+    )
+    my_n = mo.ui.slider(1, 24, 1, value=5, label="同時在跑幾個請求", show_value=True)
+    my_body = mo.ui.slider(
+        50, 2000, 50, value=460, label="每個請求自己的部分（平均 token）", show_value=True
+    )
+    mo.vstack(
+        [
+            mo.md(
+                "**你的實驗區**——每個請求都掛著同一段 system prompt。"
+                "slot context 沿用 1️⃣ 的設定。"
+            ),
+            my_prefix,
+            my_n,
+            my_body,
+        ]
+    )
+    return my_body, my_n, my_prefix
 
-    my_slot = len(my_lens) * my_ctx
-    my_paged = int((np.ceil(my_lens / my_block) * my_block).sum())
-    print(f"實際需要 {my_lens.sum()} tokens")
-    print(f"slot  制配置 {my_slot:6d} → 利用率 {my_lens.sum() / my_slot:.1%}")
-    print(f"paged 制配置 {my_paged:6d} → 利用率 {my_lens.sum() / my_paged:.1%}")
-    print(f"slot 制要多花 {my_slot / my_paged:.1f} 倍記憶體")
+
+@app.cell
+def _(BLOCK, ctx_slot, mo, my_body, my_n, my_prefix, np):
+    _pf, _n = my_prefix.value, my_n.value
+    _rng = np.random.default_rng(3)
+    _body = np.clip(
+        np.rint(_rng.normal(my_body.value, my_body.value * 0.6, _n)),
+        16,
+        ctx_slot.value - _pf,
+    ).astype(int)
+
+    _logical = int(_body.sum()) + _pf * _n                       # 邏輯上每個請求都看得到整段前綴
+    _slot = _n * ctx_slot.value                                  # 一請求一整格，前綴各存一份
+    _paged = int(np.ceil(_pf / BLOCK) * BLOCK) + int(
+        (np.ceil(_body / BLOCK) * BLOCK).sum()
+    )                                                            # 前綴整批只存一份
+
+    mo.md(
+        f"""
+    {_n} 個請求、每人掛 **{_pf:,}** token 的共用前綴，邏輯上要服務 **{_logical:,} tokens** 的 KV。
+
+    | | 真的配出去 | 每配置 1 token 服務到 |
+    | --- | --- | --- |
+    | slot 固定分配 | {_slot:,} tokens | **{_logical / _slot:.2f}** |
+    | PagedAttention（前綴共用） | {_paged:,} tokens | **{_logical / _paged:.2f}** |
+
+    前綴每拉長 100，paged 制只多存 100（**整批一份**），slot 制的每一格都得自己存一份。
+    """
+    )
     return
 
 
@@ -561,30 +597,16 @@ def _(mo):
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    貼進你的實驗區：
+    其他拉桿保持預設（8 個請求、離散度 60%、context 4096、種子 7），
+    只拉「請求平均長度」，那句「slot 制要 X 倍的記憶體」會這樣走：
 
-    ```python
-    import matplotlib.pyplot as _plt
+    | 平均長度 | 200 | 400 | 600 | 1000 | 1500 | 2000 | **2200** | 3000 | 3800 |
+    | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+    | slot / paged | 21.1× | 10.8× | 7.2× | 4.4× | 2.9× | 2.2× | **1.99×** | 1.6× | 1.3× |
 
-    rng2 = np.random.default_rng(0)
-    ms, ratios = [], []
-    for m in range(200, 4001, 200):
-        lens = np.clip(np.rint(rng2.normal(m, m * 0.6, 500)), 16, 4096)
-        ratio = (len(lens) * 4096) / (np.ceil(lens / 16) * 16).sum()
-        ms.append(m); ratios.append(ratio)
-
-    fig, ax = _plt.subplots(figsize=(7, 3.6))
-    ax.plot(ms, ratios, lw=3, color="#4C72B0")
-    ax.axhline(2, ls="--", color="#C44E52")
-    ax.set_xlabel("mean request length (tokens)")
-    ax.set_ylabel("slot / paged memory ratio")
-    ax.grid(alpha=0.3)
-    fig
-    ```
-
-    你應該看到一條從左上往右下滑的曲線：平均 200 tokens 時 slot 制要多花約 **20 倍**
-    記憶體，600 時約 **7 倍**，**平均長度大約 2000 出頭時掉到 2× 以下**，
-    到 4000（接近 context 上限）就只剩 1.3 倍左右。
+    一路往右下滑：短請求時 slot 制要多花 **20 倍**記憶體，**平均長度 2200 左右跨過 2× 這條線**
+    （大約是 context 的一半），到 3800（接近 context 上限）只剩 1.3 倍。
+    （換個種子數字會略有出入，方向不變。）
 
     這條線就是選型的分水嶺：**短而多的請求（聊天、agent 的小步驟）差最多；
     長而滿的請求（整份文件塞進去）差最少**。
@@ -592,26 +614,17 @@ def _(mo):
             ),
             "💡 LEVEL 3 提示": mo.md(
                 r"""
-    方向：把「共用前綴」從每個請求的帳上拿掉，只算一次。
+    關鍵在「每配置 1 token 服務到幾個 token」這一欄：**超過 1 就代表同一塊記憶體被多個請求共用**。
 
-    ```python
-    PREFIX = 800
-    body = np.array([120, 340, 90, 1500, 260])      # 每個請求自己的部分
-    n = len(body)
+    怎麼驗證自己做對了（預設 5 個請求、每人自己的部分平均 460）：
 
-    slot_alloc3  = n * 4096                          # slot 制：前綴在每一格各存一份
-    prefix_blocks = int(np.ceil(PREFIX / 16) * 16)   # paged 制：整批只存一份
-    paged_alloc3 = prefix_blocks + int((np.ceil(body / 16) * 16).sum())
-    ```
-
-    怎麼驗證自己做對了：
-
-    1. `paged_alloc3` 應該只比「沒有前綴」的版本多 `prefix_blocks`（800 → 800，剛好整除 16），
-       **不會隨請求數變多**——這就是「跨請求重用相同前綴 block」。
-    2. 把 `n` 從 5 加到 20，slot 制的配置量會線性長大，paged 制只多了 body 的部分。
-       請求越多，兩者的比值越誇張。
-    3. 反過來想一個 slot 制也贏得了的情況：只有**一個**請求、而且它用滿整格——
-       這時共用前綴無事可做，兩制的配置量幾乎相同。
+    1. 把前綴從 0 拉到 800：paged 制的配置量只多了 **800**（2,256 → 3,056），
+       **不管幾個請求都只多這一份**——這就是「跨請求重用相同前綴 block」。
+       slot 制的數字**一動也不動**，因為前綴本來就吃在每一格自己的 4096 裡。
+    2. 前綴 800 不動，把人數從 5 拉到 20：paged 制的服務倍率從 **2.05 爬到 2.55**
+       （多出來的前綴需求幾乎不花錢），slot 制反而從 0.31 掉到 **0.30**。人越多差越大。
+    3. 反過來想一個 slot 制也不吃虧的情況：把人數拉到 1、前綴拉到 0——
+       共用前綴無事可做，兩制只剩「格子有沒有用滿」的差別。
 
     做完你就懂了 vLLM 那句「長 system prompt 重複使用 → 自動 Prefix Caching 大降 TTFT」
     背後在講什麼：**能共享，是因為記憶體是一塊一塊發的**。

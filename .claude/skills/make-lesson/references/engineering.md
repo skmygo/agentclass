@@ -46,12 +46,14 @@ bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic> "<
 | `page-fill.py` | 把 `page_content.py` 的常數填進 index.html 的內容區，骨架自檢 | 六頁一次產時 Edit 太碎；模板註解含 `<style>` 字樣、re.sub 的 `\u` escape 都踩過 |
 | `nb-outputs.py` | 印出 export 後的渲染輸出／錯誤（讀 `__marimo__/session/*.json`） | export 的 HTML 只嵌程式碼，看不到輸出 |
 | `verify-ext.sh` | 從 repo 根跑 sandbox export ＋ nb-outputs 掃描，有錯 exit 1 | 背景工作 cwd 跑掉會 `Failed to spawn: marimo` 默默失敗 |
-| `smoke-all.sh` | 起 dist server → 自動發現每課 smoke-test.mjs 用正確 URL 跑 → 收 server；`--base` 打線上 | 手動起 server／殺 server／逐課跑 URL 每輪都重做 |
-| `preview-shots.mjs` | 截圖；`path@selector` 先點再截 | hero 互動要看「按下去之後」 |
+| `smoke-all.sh` | 起 dist server → 自動發現每課 smoke-test.mjs 用正確 URL 跑 → 接手機冒煙 → 收 server；`--base` 打線上 | 手動起 server／殺 server／逐課跑 URL 每輪都重做 |
+| `mobile-smoke.mjs` | 390×844 逐課結構檢查＋app/edit 抽樣全載（smoke-all 自動呼叫，也可單獨跑） | 桌機冒煙測不到窄螢幕版面與 lazy load |
+| `preview-shots.mjs` | 截圖；`path@selector` 先點再截；`--vp WxH` 換 viewport（手機 390x844） | hero 互動要看「按下去之後」；手機版面要能目視 |
 | `pyodide-spike.mjs` | 套件裝不裝得進 Pyodide | 定軌依據 |
 
 build.sh **自動發現**：`content/*/*/lesson.py`（純瀏覽器課：WASM 匯出、
-`auto_instantiate` 後處理、698 個 assets 抽共用）與 `content/*/*/<id>_ext.py`
+`auto_instantiate` 後處理、698 個 assets 抽共用；互動模式讀 `lesson-mode`——
+課程層 > 主題層 > 預設 `edit`，`app` 走 `--mode run`）與 `content/*/*/<id>_ext.py`
 （外部軌課：只複製教學頁與 .py 原檔），並處理首頁／主題頁／shared/ 併入、404.html、
 course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py` 是舊雙軌課的遺留尾綴
 （僅隨附複製，新課不再產生）。純瀏覽器課的 Python 依賴是 **repo 根一個 uv 專案**
@@ -61,6 +63,17 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 
 - **`export html-wasm` 會把 `auto_instantiate: false` 烙進產物**（0.23.16；export 不吃專案
   pyproject 設定）→ build.sh 已用 sed 修。**升版 marimo 必須重驗這行為**。
+  `--mode run` 也一樣要修（兩種模式的產物只差 `"mode": "edit"` / `"read"` 這一個字）。
+- **`--mode run`＝app 模式的全部機制**（0.23.16 實測，2026-08）：程式碼與編輯器 UI 完全
+  不渲染（`.cm-editor` 數為 0），`mo.ui` 元件、圖表、`mo.md`／`mo.accordion` 照常；
+  頁面只剩右上角一個 `⋯`，選單裡**只有 Download as HTML／PNG，沒有顯示程式碼、也沒有下載 .py**
+  ——所以 app 模式課的「帶得走」只能靠教學頁的「下載 .py」，notebook 內文案別叫學員點右上角。
+  `--show-code` 旗標在 export 產物裡不留痕跡，別靠它。
+- **「全 cell `hide_code=True` ＋ edit 模式」不能取代 run 模式**（實測）：程式碼只是摺疊成
+  一行灰色預覽（`prompt_tokens = mo.ui.slider(` 這種還是看得見），編輯器外框、左側工具列、
+  右下執行鈕、底部狀態列全都在——畫面比 run 模式髒得多。要乾淨就用 `--mode run`。
+- **run 模式下 `print()` 的輸出仍會顯示**，但沒有程式碼當上下文，讀起來像天外飛來一行字：
+  app 模式課的輸出一律改用 `mo.md` 排版（表格、粗體、單位），不要留 `print` 當主要輸出。
 - **marimo 版本必須全站釘同一版（`marimo==0.23.16`，repo 根 pyproject 已釘、全站共用
   一個 venv，結構上不會飄）**：當年每課一個 pyproject 寫 `>=` 時，新課解到 0.24.0，
   export 出的 assets hash 與共用基準不一致 → build.sh 退回該課獨立 assets，dist 從
@@ -256,7 +269,8 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 
 - **純瀏覽器課（雙層，缺一不可）**：
   1. `uv run marimo export html content/<topic>/<id>/lesson.py -o check.html`（CPython 全 cell）
-  2. build 後 headless Playwright 冒煙（`smoke-test.mjs`：等圖表數、驗錯誤文字、console）
+  2. build 後 headless Playwright 冒煙（`smoke-test.mjs`：等圖表數、驗錯誤文字、console，
+     **含手機段**——390×844 結構＋該課在手機上載到就緒）
 - **外部軌課**：
   1. `bash .claude/skills/make-lesson/scripts/verify-ext.sh <topic> <id> [關鍵字...]`
      ——從 repo 根跑 `marimo export html --sandbox`（自動建 PEP 723 環境、全 cell 執行）
@@ -267,6 +281,26 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
      molab 連結指對檔、.py fetch 200、console 乾淨）。
   3. 部署後 `smoke-all.sh --base https://agentclass.pages.dev`、git push，請使用者在 molab
      實跑一次（molab 環境本機碰不到）。
+
+### 手機 viewport 驗證（390×844，發布前必過）
+
+RWD 行為規範見 site.md「RWD 與行動裝置」節；驗證面三件事：
+
+1. **全站**：`smoke-all.sh` 已內建——跑每課 smoke 之後自動接
+   `scripts/mobile-smoke.mjs`（390×844 逐課結構檢查＋app/edit 各抽一堂全載）。
+   結構檢查＝無橫向溢出（**量兩層**：`document.scrollingElement` 與 `#lesson` 自身——
+   教學 pane 是捲動容器，rogue 寬元素只撐大它、不撐大 document）、底部切換列存在、
+   教學區不預載 notebook、切到實作後內容符合課程型態（app＝開載／edit＝提示卡／
+   ext＝molab 面板＋note）。
+2. **單課**：課程目錄的 `smoke-test.mjs`（新模板）自帶手機段，單獨跑即含手機檢查。
+3. **人工目視**：`node .claude/skills/make-lesson/scripts/preview-shots.mjs --vp 390x844 /<id>/`
+   截教學視圖；要截實作視圖加 `@`：`"/<id>/@#view-tabs button[data-view=lab]"`（會等就緒）。
+   notebook 本體直接看 `--vp 390x844 /<id>/nb/index.html` 不適用（無狀態列），
+   自寫腳本時注意 marimo 的捲動容器是 `#App` 不是 window。
+
+手動跑 mobile-smoke（偵錯單課用）：
+`node .claude/skills/make-lesson/scripts/mobile-smoke.mjs http://127.0.0.1:8787 <id>:app|edit|ext`
+（gate 上鎖課的覆蓋層：檢查一律用 DOM `click()` 繞過命中測試，斷言照常有效。）
 
 ### Playwright 通則
 

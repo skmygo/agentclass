@@ -64,7 +64,7 @@
   @media (max-width: 620px) { #pick .chips { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
-<body data-ready-figures="4">
+<body data-nb-mode="app" data-ready-figures="4">
 
 <header>
   <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
@@ -520,7 +520,7 @@ bar 3  vLLM    BF16    32 個請求同時    1606.78 tokens/s  ← 標題寫 34.
 <!-- ══════════════ 右：實驗場 ══════════════ -->
 <div id="lab">
   <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
-  <iframe id="nb-frame" src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
 </div>
 </main>
 

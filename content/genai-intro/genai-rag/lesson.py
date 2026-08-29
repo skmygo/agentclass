@@ -11,8 +11,8 @@ def _(mo):
     # 🧪 RAG 與向量資料庫：先查再答（實驗場）
 
     這是本課的**實驗場**。左側教學讀到哪，就回到這裡動手做——
-    每一格程式碼都可以**直接修改、立即重跑**（點格子右上的 ▶，或按 `Ctrl+Enter`）。
-    改壞了也沒關係：重新整理頁面就會回到原版。
+    每個實驗都有**滑桿與選項**可以拉，拉完右邊立刻重算——
+    所有數字都是當場算出來的，不是預錄的畫面。
 
     這一課的素材全是**真的**：一份虛構咖啡機手冊的 12 段文字、
     它們的真向量（embedding 模型 jina-embed 算的 1024 維，打包進課程）、
@@ -268,25 +268,39 @@ def _(mo):
 
     ## 4️⃣ 你的實驗區
 
-    下面這格是你的，改完按 ▶ 重跑。挑戰在左頁「換你動手」，做完再開解答對照。
+    下面是你的實驗區。挑戰在左頁「換你動手」，做完再開解答對照。
     """
     )
     return
 
 
 @app.cell
-def _(DOC_N, Q_N, RAG_CHUNKS, RAG_QUERIES, np):
-    # ===== 你的實驗區 =====
-    # LEVEL 1 起點：改 MY_K，看塞給模型的內容多了多少（token 粗估：中文 1 字 ≈ 1.14 token）
-    MY_Q = 3      # 0..3，選哪個問題
-    MY_K = 3      # top-k
-    _sims = DOC_N @ Q_N[MY_Q]
-    _idx = np.argsort(-_sims)[:MY_K]
-    _ctx = "\n".join(f"【段落{_i+1}】{RAG_CHUNKS[_i]}" for _i in (int(_x) for _x in _idx))
-    print(f"問題：{RAG_QUERIES[MY_Q]}")
-    for _rank, _i in enumerate(int(_x) for _x in _idx):
-        print(f"  top-{_rank+1}: chunk {_i+1}（cosine {_sims[_i]:.3f}）")
-    print(f"塞進 prompt 的段落共 {len(_ctx)} 字 ≈ {len(_ctx) * 1.14:.0f} tokens")
+def _(DOC_N, Q_N, RAG_CHUNKS, RAG_QUERIES, mo, np, q_pick, top_k):
+    # 1️⃣ 選的問題與 top-k，換算成「塞進 prompt 要多少錢」
+    _qi = RAG_QUERIES.index(q_pick.value)
+    _sims = DOC_N @ Q_N[_qi]
+    _order = [int(_x) for _x in np.argsort(-_sims)]
+    _rows = []
+    for _k in range(1, 6):
+        _chars = sum(len(RAG_CHUNKS[_i]) for _i in _order[:_k])
+        _mark = " ←你現在的設定" if _k == top_k.value else ""
+        _rows.append(
+            f"| top-{_k} | chunk {_order[_k - 1] + 1}（{_sims[_order[_k - 1]]:.3f}） "
+            f"| {_chars} 字 | {_chars * 1.14:.0f} tokens{_mark} |"
+        )
+    _table = "\n    ".join(_rows)
+    mo.md(
+        f"""
+    **你的實驗區**——1️⃣ 選的是「{q_pick.value}」。多塞一段，prompt 就多這麼多：
+
+    | 取到第幾名 | 第 k 名（cosine） | 段落總字數 | 估算 token |
+    | --- | --- | --- | --- |
+    {_table}
+
+    往下走，cosine 一路掉、token 一路漲。**多塞的段落＝多花的 token ＋ 多給模型的干擾**——
+    夠用就好，不是越多越好。（token 粗估：中文 1 字 ≈ 1.14 token。）
+    """
+    )
     return
 
 
@@ -296,24 +310,24 @@ def _(mo):
         {
             "💡 LEVEL 1 參考解答": mo.md(
                 r"""
-    在 1️⃣ 把 top-k 從 3 拉到 5：Q1 的第 4、5 名相似度掉到 0.3 附近
-    （咖啡豆保存、沖煮溫度之類），跟「第一次使用」根本無關。
-    實驗區把 `MY_K` 改成 5 也看得到：塞進 prompt 的字數多了快一倍，
+    在 1️⃣ 把 top-k 從 3 拉到 5：第一個問題的第 4、5 名相似度掉到 **0.44 / 0.40**
+    （前三名是 0.67 / 0.53 / 0.51），內容跟「第一次使用」也搭不上邊。
+    右邊 4️⃣ 的表格把這件事換算成錢：從 top-3 走到 top-5，字數與 token 一路往上漲，
     新增的內容卻答不了問題——**top-k 不是越大越好，是「夠用就好」**。
     多塞的段落＝多花的 token ＋ 多給模型的干擾。
     """
             ),
             "💡 LEVEL 2 參考解答": mo.md(
                 r"""
-    把實驗區改成 `MY_Q = 3`（保固）、`MY_K = 1`：top-1 是 chunk 5（保固），
-    cosine 0.644——這題只靠一段就答得全對，因為答案集中在一段裡。
+    把 1️⃣ 的問題換成「保固期多久？哪些情況不保固？」、top-k 拉到 1：
+    top-1 是 chunk 5（保固），cosine 0.644——這題只靠一段就答得全對，因為答案集中在一段裡。
 
-    再試 `MY_Q = 0`（首次使用）、`MY_K = 1`：top-1 是 chunk 1，也夠。
+    再換回「咖啡機第一次使用前要做什麼？」、top-k 一樣是 1：top-1 是 chunk 1，也夠。
     但想像問題是「除垢完成後要不要再洗一次？」——答案橫跨「除垢」與
     「日常清潔」兩段，top-1 就可能漏。**k 的選擇取決於答案散佈在幾段裡**；
     工程上常見起點是 3–5，再依實際問題分布調。
 
-    （誠實提醒：這一格只能離線分析「檢索會選哪幾段」；模型的回答是預錄的
+    （誠實提醒：右邊只能離線分析「檢索會選哪幾段」；模型的回答是預錄的
     實測紀錄，改 k 不會重新生成回答——要看新組合的回答，得拿左頁的程式
     範例接上你自己的模型跑。）
     """

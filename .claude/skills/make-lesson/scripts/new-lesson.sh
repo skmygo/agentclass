@@ -2,7 +2,7 @@
 # 建課 scaffold：把模板複製與機械代換一次做完，讓創作只剩「notebook 內容」與「頁面內容區」。
 #
 # 用法（repo 根目錄執行）：
-#   bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic-slug> "<主題名>" [--external [--gpu]]
+#   bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic-slug> "<主題名>" [--app] [--external [--gpu]]
 # 例：
 #   bash .claude/skills/make-lesson/scripts/new-lesson.sh clustering "分群：沒有答案也能找出結構" ml-basics "學基礎機器學習"
 #
@@ -16,6 +16,11 @@
 #                 課程只做一版程式——不做「瀏覽器迷你版＋外部真實版」雙版本。
 #                 預設是純 CPU 課（面板寫「免費 CPU 環境即可」、不留 GPU 檢查 cell）；
 #   --gpu         真的需要 GPU 的外部軌課才加：保留面板的「選 GPU Server」步驟與 GPU 檢查 cell。
+#   --app         純瀏覽器課的互動模式＝app：右欄隱藏程式碼與編輯器，只留說明／互動元件／輸出
+#                 （build 走 marimo --mode run）。**右欄是教學模擬**的課用它——程式是把概念
+#                 做成可玩的模型，不是要學員讀的教材。程式碼本身就是教材的課（教某個套件怎麼用）
+#                 不要加，維持預設的 edit。判準與連帶要求見 SKILL.md「互動模式」。
+#                 主題目錄已有 lesson-mode=app 時，新課會自動跟著（不必再加這個旗標）。
 #
 # 做完的事：三件套複製＋代換、生成自檢、root uv sync（純瀏覽器課）。
 # 不用做的事：build.sh（自動發現兩種課）、pyproject（全站共用 repo 根的一份）。
@@ -26,7 +31,16 @@ if [ $# -lt 4 ]; then
   grep '^#' "$0" | head -21; exit 1
 fi
 
-ID="$1"; TITLE="$2"; TOPIC="$3"; TOPIC_NAME="$4"; MODE="${5:-}"; GPU="${6:-}"
+ID="$1"; TITLE="$2"; TOPIC="$3"; TOPIC_NAME="$4"; shift 4
+MODE=""; GPU=""; APP=""
+for _flag in "$@"; do
+  case "$_flag" in
+    --external) MODE="--external" ;;
+    --gpu)      GPU="--gpu" ;;
+    --app)      APP="--app" ;;
+    *) echo "✗ 不認識的參數：$_flag（只有 --external / --gpu / --app）" >&2; exit 1 ;;
+  esac
+done
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TPL="$SKILL_DIR/assets/templates"
 ROOT="$(git -C "$SKILL_DIR" rev-parse --show-toplevel)"
@@ -35,8 +49,8 @@ DEST="$ROOT/content/$TOPIC/$ID"
 [ -d "$DEST" ] && { echo "✗ content/$TOPIC/$ID 已存在，先處理掉再跑" >&2; exit 1; }
 [[ "$ID" =~ ^[a-z0-9-]+$ ]] || { echo "✗ id 只能小寫英數與連字號：$ID" >&2; exit 1; }
 [[ "$TOPIC" =~ ^[a-z0-9-]+$ ]] || { echo "✗ topic slug 只能小寫英數與連字號：$TOPIC" >&2; exit 1; }
-[ -z "$MODE" ] || [ "$MODE" = "--external" ] || { echo "✗ 不認識的參數：$MODE（只有 --external）" >&2; exit 1; }
-[ -z "$GPU" ] || { [ "$GPU" = "--gpu" ] && [ "$MODE" = "--external" ]; } || { echo "✗ --gpu 只能接在 --external 後面" >&2; exit 1; }
+[ -z "$GPU" ] || [ -n "$MODE" ] || { echo "✗ --gpu 只能配 --external" >&2; exit 1; }
+[ -z "$APP" ] || [ -z "$MODE" ] || { echo "✗ --app 是純瀏覽器課的互動模式，外部軌課沒有內嵌 notebook" >&2; exit 1; }
 # 課程網址在根層（/<id>/），id 必須全站唯一（兩種課都算）
 if compgen -G "$ROOT/content/*/$ID" > /dev/null; then
   echo "✗ 課程 id 已被其他主題使用：$ID" >&2; exit 1
@@ -88,6 +102,18 @@ else
   sed "s/課程標題/$TITLE/g" "$TPL/smoke-test.mjs" > "$DEST/smoke-test.mjs"
   subst_page "$TPL/page.html" > "$DEST/index.html"
 
+  # 互動模式：--app，或這個主題整包就是 app（content/<topic>/lesson-mode）
+  TOPIC_MODE=""
+  [ -f "$ROOT/content/$TOPIC/lesson-mode" ] && TOPIC_MODE="$(tr -d '[:space:]' < "$ROOT/content/$TOPIC/lesson-mode")"
+  if [ "$APP" = "--app" ] || [ "$TOPIC_MODE" = "app" ]; then
+    # 課程層宣告只在主題不是 app 時才需要（避免同一件事寫兩處）
+    [ "$TOPIC_MODE" = "app" ] || printf 'app\n' > "$DEST/lesson-mode"
+    sed -i 's/^<body /<body data-nb-mode="app" /' "$DEST/index.html"
+    grep -q 'data-nb-mode="app"' "$DEST/index.html" || {
+      echo "✗ data-nb-mode 注入失敗（模板的 <body> 開頭變了？）" >&2; exit 1; }
+    echo "   互動模式：app（右欄隱藏程式碼；文案與挑戰題不要叫學員改程式碼）"
+  fi
+
   # data-ready- 前綴：figures（預設）或 selector（無圖課）擇一即可
   for must in "</head>" "lesson.css" "lesson.js" "splitter.js" "nb-status" "data-ready-"; do
     grep -qF "$must" "$DEST/index.html" || {
@@ -116,7 +142,8 @@ EOF
 else
   cat <<EOF
 接下來輪到你（頁面用 Edit 改內容區，別整檔重寫）：
-  1. content/$TOPIC/$ID/lesson.py    — 課程內容（emoji 章節錨點、圖當 cell 最後運算式、圖內文字英文）
+  1. content/$TOPIC/$ID/lesson.py    — 課程內容（emoji 章節錨點、圖當 cell 最後運算式、圖內文字英文；
+     app 模式：所有「動手」都要用 mo.ui 元件做得到，別寫「改這格、按 ▶ 重跑」）
   2. content/$TOPIC/$ID/index.html   — hero／各 section／練習卡／endnav／data-ready-figures／語義色
   3. content/$TOPIC/$ID/smoke-test.mjs — MIN_FIGURES 改成實際圖數
   4. wiring — 主題頁課卡、首頁主題卡課數、前一課的「下一課」連結
