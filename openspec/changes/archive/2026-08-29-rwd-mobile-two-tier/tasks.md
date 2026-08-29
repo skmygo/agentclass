@@ -38,6 +38,6 @@
 
 ## 7. 上線與收尾
 
-- [ ] 7.1 `npx wrangler pages deploy dist --project-name=agentclass` 部署，跑 `smoke-all.sh --base https://agentclass.pages.dev` 線上冒煙全綠
-- [ ] 7.2 `git add -A && git commit && git push`（外部軌 molab 直讀 GitHub main，push 為上線的一部分）。驗證：remote main 含本次 commit
-- [ ] 7.3 openspec 收尾：`openspec validate` 通過後 sync specs、archive 本 change（連同待歸檔的 app-mode-lessons 一併確認是否 archive）。驗證：`openspec list` 無殘留未歸檔完成項
+- [x] 7.1 `npx wrangler pages deploy dist --project-name=agentclass` 部署，跑 `smoke-all.sh --base https://agentclass.pages.dev` 線上冒煙全綠
+- [x] 7.2 `git add -A && git commit && git push`（外部軌 molab 直讀 GitHub main，push 為上線的一部分）。驗證：remote main 含本次 commit
+- [x] 7.3 openspec 收尾：`openspec validate` 通過後 sync specs、archive 本 change（連同待歸檔的 app-mode-lessons 一併確認是否 archive）。驗證：`openspec list` 無殘留未歸檔完成項
