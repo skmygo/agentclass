@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "FastMCP 4 狀態：無狀態協定上的三種記憶"
 DESCRIPTION = "FastMCP 4 的三種記憶：請求內狀態、伺服器端 session、客戶端攜帶的 requestState。把 requestState 從線路上截下來拆開：AES-256-GCM 密文，竄改、換伺服器、換參數、過期全部被拒；多副本要共用 store 與金鑰。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-state/fastmcp4-state_ext.py"
+VIDEO = "https://youtu.be/bTbVs9vTc80"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝請求內狀態、橘＝伺服器端 session／store、綠＝密文通過驗證、紅＝被拒 */

@@ -328,8 +328,8 @@ RWD 行為規範見 site.md「RWD 與行動裝置」節；驗證面三件事：
 - 檔案數 sanity check：純瀏覽器課每課約 +15 檔、外部軌課每課約 +2 檔；
   build 輸出出現「assets 與共用版本不一致」警告＝marimo 版本飄了，
   回頭查根 pyproject 的釘版，別帶著獨立 assets 上線。
-- **影片不放 .mp4**：用 YouTube 非公開＋ `youtube-nocookie.com` iframe 嵌入
-  （`loading="lazy"`、16:9 wrapper），版型在 page 模板的 `.video-box` 區塊。
+- **影片不放 .mp4**：用 `video/upload.py` 傳上 YouTube，`page_content.py` 寫 `VIDEO = "https://youtu.be/<id>"`，
+  page-fill 自動以 `youtube-nocookie.com` iframe（`loading="lazy"`、16:9 `.video-box`）嵌在 hero 標題之後。
 - 部署後 CDN 有冷資產/傳播延遲：**等 30–60 秒再打線上冒煙，或失敗先重試一次**；
   要立即驗證就用該次 deployment 專屬網址（`https://<hash>.agentclass.pages.dev`）。
 - 根目錄有 `404.html` 關掉 SPA fallback（缺檔回真 404），build.sh 會生。

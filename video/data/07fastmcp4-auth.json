@@ -1,0 +1,16 @@
+{
+  "title": "FastMCP 4 認證：從一把 token 到完整 OAuth 2.1｜AI 互動教室",
+  "description": "FastMCP 4 的認證與授權：StaticTokenVerifier、get_access_token、require_scopes 讓工具隱形、UserSession、本機簽發 JWT，並在 notebook 裡起一台真的 OAuth 2.1 授權伺服器，用裸 HTTP 走完 discovery → 動態註冊 → PKCE → 換 token 六步。\n\n▶ 互動課程（瀏覽器內直接實作）：https://class.itsmygo.uk/fastmcp4-auth/\n▶ 主題「學 LLM 應用開發」：https://class.itsmygo.uk/llm-apps/\n▶ AI 互動教室首頁：https://class.itsmygo.uk/",
+  "tags": [
+    "FastMCP",
+    "MCP",
+    "OAuth",
+    "認證",
+    "Python",
+    "AI 互動教室",
+    "LLM 應用開發"
+  ],
+  "category": "27",
+  "privacy": "private",
+  "language": "zh-Hant"
+}

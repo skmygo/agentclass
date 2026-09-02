@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "FastMCP 4：把函式變成 AI 工具，一發請求不用握手"
 DESCRIPTION = "用 FastMCP 4.0 beta 蓋 MCP 工具伺服器：一個裝飾器自動生成說明書；在 notebook 裡起真的 HTTP 伺服器側錄新舊協定，親眼看見無狀態（sessionless）與 SessionId 的有狀態應用。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4/fastmcp4_ext.py"
+VIDEO = "https://youtu.be/5COzYLpeyrQ"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝新協定（無狀態）、橘＝舊協定（握手＋session）、綠＝伺服器副本、紅＝session 綁定 */

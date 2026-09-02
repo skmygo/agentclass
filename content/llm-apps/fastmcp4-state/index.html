@@ -9,8 +9,8 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="FastMCP 4 狀態：無狀態協定上的三種記憶 · AI 互動教室">
 <meta property="og:description" content="FastMCP 4 的三種記憶：請求內狀態、伺服器端 session、客戶端攜帶的 requestState。把 requestState 從線路上截下來拆開：AES-256-GCM 密文，竄改、換伺服器、換參數、過期全部被拒；多副本要共用 store 與金鑰。">
-<meta property="og:url" content="https://agentclass.pages.dev/fastmcp4-state/">
-<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta property="og:url" content="https://class.itsmygo.uk/fastmcp4-state/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <style>
@@ -63,6 +63,15 @@
 <section id="hero">
   <span class="eyebrow">FASTMCP 4 · 補充 B · STATE ON A STATELESS PROTOCOL</span>
   <h1>FastMCP 4 狀態：<br>無狀態協定上的三種記憶</h1>
+  <div class="video-box" id="video">
+    <div class="video-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/bTbVs9vTc80"
+        title="課程影片：FastMCP 4 狀態：無狀態協定上的三種記憶" loading="lazy" allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
+
   <p style="margin-top:18px">
     第 3 課你用 <span class="kbd">SessionId</span> 在無狀態協定上做了購物車。這堂課把「無狀態傳輸怎麼有狀態」講完整，
     並回答一個所有人都會問的問題：<b>狀態在客戶端與伺服器之間傳來傳去，它是加密的嗎？客戶端能不能偷看、能不能改？</b>

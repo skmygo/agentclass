@@ -12,6 +12,9 @@
     SCRIPT       hero 互動 JS（不含 <script> 標籤）；可省略
     PANEL_STEPS  外部軌課右欄 molab 面板的 <li> 列表；可省略（沿用模板）
     NB           （慣例）molab notebook 網址——WRAP 裡用 __NB__ 佔位，這裡會代換
+    VIDEO        課程影片：YouTube 網址（youtu.be/<id>、watch?v=<id>）或 11 字 id；可省略。
+                 有就自動把 .video-box（youtube-nocookie 嵌入、lazy、16:9）插在 hero 的 </h1> 之後
+                 （標題先、影片接著）；WRAP 已含 video-box（手動放別處）則不再插。
 
 為什麼不直接整檔重寫 index.html：骨架（header 連結、面板按鈕、共用 css/js 引用、
 data-ready-figures）是全站一致的契約，只換內容區才不會不小心弄掉。
@@ -23,10 +26,37 @@ data-ready-figures）是全站一致的契約，只換內容區才不會不小�
 - re.sub 的替換字串會解讀 \\u、\\n 等 escape → 一律用 lambda 回傳
 - 內容含 Python 三引號（docstring 範例）→ page_content.py 用 r''' 或 r\"\"\" 擇一避開
 """
+import html
 import importlib.util
 import re
 import sys
 from pathlib import Path
+
+YT_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def youtube_id(value: str) -> str:
+    """接受 youtu.be/<id>、youtube.com/watch?v=<id>、/embed/<id>、/shorts/<id> 或裸 id。"""
+    v = value.strip()
+    m = re.search(r"(?:youtu\.be/|[?&]v=|/embed/|/shorts/|/live/)([A-Za-z0-9_-]{11})", v)
+    vid = m.group(1) if m else v
+    if not YT_ID.match(vid):
+        sys.exit(f"✗ VIDEO 不是 YouTube 網址或 11 字影片 id：{value!r}")
+    return vid
+
+
+def video_block(vid: str, title: str) -> str:
+    """與 page.html 模板的 .video-box 同版型（樣式在 /shared/lesson.css）。"""
+    t = html.escape(f"課程影片：{title}", quote=True)
+    return f'''  <div class="video-box" id="video">
+    <div class="video-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/{vid}"
+        title="{t}" loading="lazy" allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
+'''
 
 
 def load_content(lesson_dir: Path):
@@ -53,6 +83,10 @@ def fill(lesson_dir: Path) -> None:
     t = re.sub(r"<!DOCTYPE html>\n<!--.*?-->\n", "<!DOCTYPE html>\n", t, count=1, flags=re.DOTALL)
 
     wrap = c.WRAP.replace("__NB__", getattr(c, "NB", "__NB__"))
+    if getattr(c, "VIDEO", None) and "video-box" not in wrap:
+        if "</h1>" not in wrap:
+            sys.exit("✗ 有 VIDEO 但 WRAP 裡沒有 </h1>（影片要插在 hero 標題之後）")
+        wrap = wrap.replace("</h1>", "</h1>\n" + video_block(youtube_id(c.VIDEO), c.TITLE), 1)
     subs = [
         (r"<title>.*?</title>", f"<title>{c.TITLE} · AI 互動教室</title>"),
         (r'<meta name="description" content=".*?">', f'<meta name="description" content="{c.DESCRIPTION}">'),
@@ -67,7 +101,7 @@ def fill(lesson_dir: Path) -> None:
             (r'<meta property="og:description" content=".*?">',
              f'<meta property="og:description" content="{c.DESCRIPTION}">'),
             (r'<meta property="og:url" content=".*?">',
-             f'<meta property="og:url" content="https://agentclass.pages.dev/{lesson_dir.name}/">'),
+             f'<meta property="og:url" content="https://class.itsmygo.uk/{lesson_dir.name}/">'),
         ]
     if getattr(c, "PANEL_STEPS", None):
         subs.append((r"<ol>.*?</ol>", "<ol>\n" + c.PANEL_STEPS.strip("\n") + "\n      </ol>"))

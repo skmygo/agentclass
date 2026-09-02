@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 這個 repo 是什麼
 
-「AI 互動教室」——純靜態的互動課程網站，部署在 Cloudflare Pages（<https://agentclass.pages.dev>）。
+「AI 互動教室」——純靜態的互動課程網站，部署在 Cloudflare Pages（正式網域 <https://class.itsmygo.uk>，Pages 原始網址 agentclass.pages.dev 仍可達）。
 每一課是「左教學頁 ＋ 右實作區」：右邊要嘛是內嵌的 marimo WASM notebook（Pyodide，瀏覽器內執行），
 要嘛是導向 molab（marimo 官方雲）的面板。**沒有後端、沒有帳號、沒有資料庫**——只有 `content/` 的原始碼
 與 `scripts/build.sh` 組出來的 `dist/`。

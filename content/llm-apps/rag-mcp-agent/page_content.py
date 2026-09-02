@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "壓軸：RAG 變成 AI 的工具"
 DESCRIPTION = "LiteLLM × FastMCP × Qdrant 壓軸：把 RAG 檢索包成 MCP 工具，讓模型自己決定何時查手冊、查什麼、查幾段；agent 迴圈透過 MCP Client 呼叫工具，trace 畫成時間軸。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/rag-mcp-agent/rag-mcp-agent_ext.py"
+VIDEO = "https://youtu.be/wBKR8OJgARY"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝LLM／agent 迴圈、橘＝MCP 工具呼叫、綠＝Qdrant 與檢索結果、紅＝錯誤 */

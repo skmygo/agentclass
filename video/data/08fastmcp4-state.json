@@ -1,0 +1,16 @@
+{
+  "title": "FastMCP 4 狀態：無狀態協定上的三種記憶｜AI 互動教室",
+  "description": "FastMCP 4 的三種記憶：請求內狀態、伺服器端 session、客戶端攜帶的 requestState。把 requestState 從線路上截下來拆開：AES-256-GCM 密文，竄改、換伺服器、換參數、過期全部被拒；多副本要共用 store 與金鑰。\n\n▶ 互動課程（瀏覽器內直接實作）：https://class.itsmygo.uk/fastmcp4-state/\n▶ 主題「學 LLM 應用開發」：https://class.itsmygo.uk/llm-apps/\n▶ AI 互動教室首頁：https://class.itsmygo.uk/",
+  "tags": [
+    "FastMCP",
+    "MCP",
+    "State",
+    "Session",
+    "Python",
+    "AI 互動教室",
+    "LLM 應用開發"
+  ],
+  "category": "27",
+  "privacy": "private",
+  "language": "zh-Hant"
+}

@@ -1,0 +1,16 @@
+{
+  "title": "壓軸：RAG 變成 AI 的工具｜AI 互動教室",
+  "description": "LiteLLM × FastMCP × Qdrant 壓軸：把 RAG 檢索包成 MCP 工具，讓模型自己決定何時查手冊、查什麼、查幾段；agent 迴圈透過 MCP Client 呼叫工具，trace 畫成時間軸。\n\n▶ 互動課程（瀏覽器內直接實作）：https://class.itsmygo.uk/rag-mcp-agent/\n▶ 主題「學 LLM 應用開發」：https://class.itsmygo.uk/llm-apps/\n▶ AI 互動教室首頁：https://class.itsmygo.uk/",
+  "tags": [
+    "RAG",
+    "MCP",
+    "Agent",
+    "FastMCP",
+    "Python",
+    "AI 互動教室",
+    "LLM 應用開發"
+  ],
+  "category": "27",
+  "privacy": "private",
+  "language": "zh-Hant"
+}

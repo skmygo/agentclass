@@ -9,8 +9,8 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="讓模型做事：Tool calling、結構化輸出與看圖 · AI 互動教室">
 <meta property="og:description" content="經 LiteLLM gateway 實測三種「讓模型做事」的能力：tool calling 兩回合與迴圈、json_schema 結構化輸出（含 drop_params 陷阱）、圖片輸入，並掃遍模型產出誰能用的結論表。">
-<meta property="og:url" content="https://agentclass.pages.dev/litellm-tools/">
-<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta property="og:url" content="https://class.itsmygo.uk/litellm-tools/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <script src="/shared/gate.js" data-gate="llm-apps" data-hash="61c65913b395f577b7b88053fbb804c43153e49961dcf6d5e5f9293cb8e50960"></script>
@@ -60,6 +60,15 @@
 <section id="hero">
   <span class="eyebrow">TOOL CALLING · STRUCTURED OUTPUT · VISION</span>
   <h1>讓模型做事：<br>Tool calling、結構化輸出與看圖</h1>
+  <div class="video-box" id="video">
+    <div class="video-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/Yipiu5PCu2Y"
+        title="課程影片：讓模型做事：Tool calling、結構化輸出與看圖" loading="lazy" allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
+
   <p style="margin-top:18px">
     上一課模型只是回話。要把它放進程式裡<b>做事</b>，關鍵是這個動作：模型不直接回答，
     而是回一個「請幫我呼叫 <span class="kbd">get_weather(city="台北")</span>」的結構化請求，

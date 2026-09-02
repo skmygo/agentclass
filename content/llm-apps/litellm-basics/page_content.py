@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "LiteLLM：一個網址、一把 key，打遍八家模型"
 DESCRIPTION = "用官方 openai SDK 兩行設定連上 LiteLLM gateway：列模型、對話、推理型模型的 max_tokens 坑、串流、embeddings，再同時發 12 個請求親眼看見同名兩來源在輪替。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-basics/litellm-basics_ext.py"
+VIDEO = "https://youtu.be/cM-FgqL8hRE"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝gateway／你的程式、橘＝上游供應商、綠＝成功回應、紅＝失敗 */

@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "RAG：讓模型先翻手冊再回答"
 DESCRIPTION = "用一份繁體中文店務手冊走完 RAG 每一步：切段、qwen3-embedding 向量化、Qdrant 檢索、提示詞生成，7 題評測量化「沒 RAG 瞎掰 vs 有 RAG 全對」，並學會讓模型說「手冊裡沒有寫」。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/rag-zh/rag-zh_ext.py"
+VIDEO = "https://youtu.be/2DDSvqyZmG0"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：紅＝沒有 RAG（幻覺）、綠＝有 RAG、藍＝檢索到的段落、橘＝提示詞 */

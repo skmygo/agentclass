@@ -27,3 +27,11 @@ __marimo__/
 
 # node（冒煙測試 devDependencies）
 node_modules/
+
+# video/：YouTube 上傳工具。影片與 OAuth 憑證不進公開 repo（sidecar .json 與 uploaded.jsonl 可以）
+video/data/*.mp4
+video/data/*.mov
+video/data/*.mkv
+video/data/*.webm
+video/client_secret*.json
+video/token*.json

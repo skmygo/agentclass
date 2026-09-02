@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "讓模型做事：Tool calling、結構化輸出與看圖"
 DESCRIPTION = "經 LiteLLM gateway 實測三種「讓模型做事」的能力：tool calling 兩回合與迴圈、json_schema 結構化輸出（含 drop_params 陷阱）、圖片輸入，並掃遍模型產出誰能用的結論表。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/litellm-tools/litellm-tools_ext.py"
+VIDEO = "https://youtu.be/Yipiu5PCu2Y"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝使用者／你的程式、橘＝模型的 tool call、綠＝工具結果與最終答案、紅＝失敗 */

@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "常見 MCP 服務：接上別人的伺服器，再合成一台"
 DESCRIPTION = "MCP 生態系導覽（2026-08 查證）：用 uvx／npx 把官方參考伺服器當子行程跑、連公開的遠端伺服器（DeepWiki、Context7）、把它們跟自己的工具 mount 成一台 HTTP hub，再接給 Claude Code／Claude Desktop／Cursor。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/mcp-servers/mcp-servers_ext.py"
+VIDEO = "https://youtu.be/fhY3nfPQWKk"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：紫＝stdio（子行程）、青＝遠端 HTTP、綠＝你的 hub、紅＝封存/警示 */

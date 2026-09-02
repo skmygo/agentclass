@@ -1,0 +1,16 @@
+{
+  "title": "RAG：讓模型先翻手冊再回答｜AI 互動教室",
+  "description": "用一份繁體中文店務手冊走完 RAG 每一步：切段、qwen3-embedding 向量化、Qdrant 檢索、提示詞生成，7 題評測量化「沒 RAG 瞎掰 vs 有 RAG 全對」，並學會讓模型說「手冊裡沒有寫」。\n\n▶ 互動課程（瀏覽器內直接實作）：https://class.itsmygo.uk/rag-zh/\n▶ 主題「學 LLM 應用開發」：https://class.itsmygo.uk/llm-apps/\n▶ AI 互動教室首頁：https://class.itsmygo.uk/",
+  "tags": [
+    "RAG",
+    "中文 RAG",
+    "Embeddings",
+    "Qdrant",
+    "Python",
+    "AI 互動教室",
+    "LLM 應用開發"
+  ],
+  "category": "27",
+  "privacy": "private",
+  "language": "zh-Hant"
+}

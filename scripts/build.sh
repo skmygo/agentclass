@@ -21,7 +21,7 @@ DIST="$ROOT/dist"
 PAGES_FILE_LIMIT=20000     # Pages 免費版單次 deployment 檔案數上限
 PAGES_MAX_FILE_MIB=25      # Pages 單檔大小上限
 
-BASE_URL="https://agentclass.pages.dev"   # sitemap / og:url 的正準網址（custom domain class.itsmygo.uk 亦可達）
+BASE_URL="https://class.itsmygo.uk"   # sitemap / og:url 的正準網址（custom domain；agentclass.pages.dev 為 Pages 原始網址、仍可達）
 ANALYTICS_TOKEN="11cad570f5524f4eae0e02816497b0f9"   # Cloudflare Web Analytics beacon token；留空＝不注入
                            # （dashboard → Analytics & Logs → Web Analytics → Add a site 取得；
                            #   token 本來就會公開出現在頁面 HTML，不是秘密）

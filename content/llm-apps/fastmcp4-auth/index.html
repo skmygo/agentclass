@@ -9,8 +9,8 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="FastMCP 4 認證：從一把 token 到完整 OAuth 2.1 · AI 互動教室">
 <meta property="og:description" content="FastMCP 4 的認證與授權：StaticTokenVerifier、get_access_token、require_scopes 讓工具隱形、UserSession、本機簽發 JWT，並在 notebook 裡起一台真的 OAuth 2.1 授權伺服器，用裸 HTTP 走完 discovery → 動態註冊 → PKCE → 換 token 六步。">
-<meta property="og:url" content="https://agentclass.pages.dev/fastmcp4-auth/">
-<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta property="og:url" content="https://class.itsmygo.uk/fastmcp4-auth/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <style>
@@ -60,6 +60,15 @@
 <section id="hero">
   <span class="eyebrow">FASTMCP 4 · 補充 A · AUTHENTICATION &amp; AUTHORIZATION</span>
   <h1>FastMCP 4 認證：從一把 token 到完整 OAuth 2.1</h1>
+  <div class="video-box" id="video">
+    <div class="video-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/xuMzBhTJmzk"
+        title="課程影片：FastMCP 4 認證：從一把 token 到完整 OAuth 2.1" loading="lazy" allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
+
   <p style="margin-top:18px">
     第 3 課的茶飲店誰都能連。放到公網、或者工具會動到真的資料，你需要三件事：<b>知道是誰在呼叫</b>、<b>決定他能做什麼</b>、
     讓 Claude Desktop／Cursor 這類客戶端<b>自己完成登入</b>。FastMCP 4 把三層都做成 <span class="kbd">auth=</span> 一行。

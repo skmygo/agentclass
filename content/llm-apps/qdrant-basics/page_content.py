@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "Qdrant：向量資料庫，記憶體裡就能跑"
 DESCRIPTION = "用 QdrantClient(':memory:') 一行起一個向量資料庫：collection／point／payload、最近鄰查詢、過濾、三種距離度量，最後換成 LiteLLM 的真 embedding 用自然語言查菜單。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/qdrant-basics/qdrant-basics_ext.py"
+VIDEO = "https://youtu.be/G0Nm5rbhAbY"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝查詢向量、橘＝命中（最近鄰）、綠＝過濾條件、紅＝辣度 */

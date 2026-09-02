@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "FastMCP 4 專屬功能：背景任務、快取、路由 header、擴充"
 DESCRIPTION = "FastMCP 4.0 建在無狀態協定上的新功能逐一實測：背景任務的投遞→輪詢、回應快取提示、把參數升成 gateway 路由 header、參數自動完成、自訂 extension、資源模板路徑安全、工具搜尋 transform——每一個都用側錄器看線路上真的發生什麼。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-features/fastmcp4-features_ext.py"
+VIDEO = "https://youtu.be/y3z2_6lhLwg"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝新協定／任務單、橘＝舊協定（同步等到底）、綠＝完成／快取命中、紅＝被擋下 */

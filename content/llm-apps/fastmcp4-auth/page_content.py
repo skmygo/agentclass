@@ -4,6 +4,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 TITLE = "FastMCP 4 認證：從一把 token 到完整 OAuth 2.1"
 DESCRIPTION = "FastMCP 4 的認證與授權：StaticTokenVerifier、get_access_token、require_scopes 讓工具隱形、UserSession、本機簽發 JWT，並在 notebook 裡起一台真的 OAuth 2.1 授權伺服器，用裸 HTTP 走完 discovery → 動態註冊 → PKCE → 換 token 六步。"
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/llm-apps/fastmcp4-auth/fastmcp4-auth_ext.py"
+VIDEO = "https://youtu.be/xuMzBhTJmzk"  # 課程影片（YouTube；video/upload.py 上傳）
 
 STYLE = r"""
   /* 語義色：綠＝通過（200／有權限）、紅＝拒絕（401／隱形）、藍＝授權伺服器端點、橘＝客戶端動作 */

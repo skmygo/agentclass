@@ -23,8 +23,8 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="課程標題 · AI 互動教室">
 <meta property="og:description" content="一句話課程簡介（搜尋結果與分享預覽會用到）">
-<meta property="og:url" content="https://agentclass.pages.dev/LESSON_ID/">
-<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta property="og:url" content="https://class.itsmygo.uk/LESSON_ID/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <style>
@@ -72,7 +72,9 @@
   </p>
 </section>
 
-<!-- 課程影片（選配）：沒有影片就整段刪
+<!-- 課程影片（選配）：正規做法是在 page_content.py 定義 VIDEO = "https://youtu.be/<id>"，
+     page-fill 會自動把 .video-box 插在 hero 的 </h1> 之後（標題先、影片接著），不用手寫。
+     只有想放在別的位置（例如獨立一節）才手動放下面這段——WRAP 已有 video-box 時 page-fill 不會再插：
 <section id="video">
   <span class="eyebrow">VIDEO · 課程影片</span>
   <h2>先看影片，抓個整體感</h2>

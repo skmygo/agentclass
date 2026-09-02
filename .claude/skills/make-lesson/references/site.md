@@ -114,7 +114,10 @@ note（`page_ext.html` 模板已內建，別刪）。
 - favicon ＋ og/twitter meta（模板已內建；og 的 title/description/url 三欄由 page-fill
   依 page_content.py 自動同步，og:image 全站共用 `/shared/og-cover.png`）
 - header「留言回報」連結（→ blog 留言板；brand 文字統一「AI 互動教室」，不掛主題名）
-- 影片（選配）：YouTube 非公開 + `youtube-nocookie.com` 嵌入，版型在 page 模板的 `.video-box` 區塊
+- 影片（選配）：`page_content.py` 定義 `VIDEO = "https://youtu.be/<id>"`，page-fill 自動把 `.video-box`
+  （`youtube-nocookie.com` 嵌入、lazy、16:9，樣式在共用 lesson.css）插在 hero 的 `</h1>` 之後——標題先、影片接著；
+  想放別處才手寫模板的 `<section id="video">`。影片用 `video/upload.py` 傳上 YouTube（見 `video/README.md`），
+  未公開前嵌入處只會顯示 YouTube 的「無法播放」，頁面其餘不受影響。
 - 課末測驗區 `#quiz`（`/shared/quiz.js` 引用模板已內建；**題目要自己出**——規則見下方「課末測驗」節）
 
 純瀏覽器課（`assets/templates/page.html`）另有：

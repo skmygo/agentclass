@@ -9,8 +9,8 @@
 <meta property="og:type" content="article">
 <meta property="og:title" content="Qdrant：向量資料庫，記憶體裡就能跑 · AI 互動教室">
 <meta property="og:description" content="用 QdrantClient(':memory:') 一行起一個向量資料庫：collection／point／payload、最近鄰查詢、過濾、三種距離度量，最後換成 LiteLLM 的真 embedding 用自然語言查菜單。">
-<meta property="og:url" content="https://agentclass.pages.dev/qdrant-basics/">
-<meta property="og:image" content="https://agentclass.pages.dev/shared/og-cover.png">
+<meta property="og:url" content="https://class.itsmygo.uk/qdrant-basics/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/shared/lesson.css">
 <script src="/shared/gate.js" data-gate="llm-apps" data-hash="61c65913b395f577b7b88053fbb804c43153e49961dcf6d5e5f9293cb8e50960"></script>
@@ -61,6 +61,15 @@
 <section id="hero">
   <span class="eyebrow">QDRANT · VECTOR DATABASE · IN-MEMORY</span>
   <h1>Qdrant：向量資料庫，<br>記憶體裡就能跑</h1>
+  <div class="video-box" id="video">
+    <div class="video-frame">
+      <iframe src="https://www.youtube-nocookie.com/embed/G0Nm5rbhAbY"
+        title="課程影片：Qdrant：向量資料庫，記憶體裡就能跑" loading="lazy" allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+    </div>
+  </div>
+
   <p style="margin-top:18px">
     一般資料庫回答「<b>等於</b>什麼」：<span class="kbd">WHERE name = '紅茶'</span>。
     向量資料庫回答「<b>最像</b>什麼」：給一個向量，找出最近的幾筆。RAG、推薦、語意搜尋的核心都是這個問題。

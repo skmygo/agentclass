@@ -1,0 +1,10 @@
+{"file": "01litellm-basics.mp4", "video_id": "cM-FgqL8hRE", "url": "https://youtu.be/cM-FgqL8hRE", "title": "LiteLLM：一個網址、一把 key，打遍八家模型｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:03:03+00:00"}
+{"file": "02litellm-tools.mp4", "video_id": "Yipiu5PCu2Y", "url": "https://youtu.be/Yipiu5PCu2Y", "title": "讓模型做事：Tool calling、結構化輸出與看圖｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:46:46+00:00"}
+{"file": "03fastmcp4.mp4", "video_id": "5COzYLpeyrQ", "url": "https://youtu.be/5COzYLpeyrQ", "title": "FastMCP 4：把函式變成 AI 工具，一發請求不用握手｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:46:50+00:00"}
+{"file": "04qdrant-basics.mp4", "video_id": "G0Nm5rbhAbY", "url": "https://youtu.be/G0Nm5rbhAbY", "title": "Qdrant：向量資料庫，記憶體裡就能跑｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:46:54+00:00"}
+{"file": "05rag-zh.mp4", "video_id": "2DDSvqyZmG0", "url": "https://youtu.be/2DDSvqyZmG0", "title": "RAG：讓模型先翻手冊再回答｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:46:58+00:00"}
+{"file": "06rag-mcp-agent.mp4", "video_id": "wBKR8OJgARY", "url": "https://youtu.be/wBKR8OJgARY", "title": "壓軸：RAG 變成 AI 的工具｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:02+00:00"}
+{"file": "07fastmcp4-auth.mp4", "video_id": "xuMzBhTJmzk", "url": "https://youtu.be/xuMzBhTJmzk", "title": "FastMCP 4 認證：從一把 token 到完整 OAuth 2.1｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:07+00:00"}
+{"file": "08fastmcp4-state.mp4", "video_id": "bTbVs9vTc80", "url": "https://youtu.be/bTbVs9vTc80", "title": "FastMCP 4 狀態：無狀態協定上的三種記憶｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:11+00:00"}
+{"file": "09fastmcp4-features.mp4", "video_id": "y3z2_6lhLwg", "url": "https://youtu.be/y3z2_6lhLwg", "title": "FastMCP 4 專屬功能：背景任務、快取、路由 header、擴充｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:14+00:00"}
+{"file": "10mcp-servers.mp4", "video_id": "fhY3nfPQWKk", "url": "https://youtu.be/fhY3nfPQWKk", "title": "常見 MCP 服務：接上別人的伺服器，再合成一台｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:18+00:00"}
