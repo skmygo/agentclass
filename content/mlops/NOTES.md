@@ -14,10 +14,12 @@
 | 04 | dagster-automation | 上線 | resources/Config、partitions、schedules、sensors（cursor）、AutomationCondition、RetryPolicy |
 | 05 | mlops-pipeline | 上線 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
 | 00 | mlops-why | 上線 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
-| 06 | model-serving | 完成待部署 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
-| 07 | model-monitoring | 寫作中 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
-| 08 | optuna-hpo | 寫作中 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
-| 09+ | data-validation(pandera) / mlflow-tracing / mlflow-prompts / feast / dvc | 候選（spike 已跑通） | 時間允許再加 |
+| 06 | model-serving | 上線 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
+| 07 | model-monitoring | 完成待部署 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
+| 08 | optuna-hpo | 完成待部署 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
+| 09 | data-validation | 寫作中 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
+| 10 | mlflow-tracing | 寫作中 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
+| 11+ | feast（feature-store）/ dvc | 候選（spike 已跑通） | 時間允許再加 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -158,6 +160,38 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
   未 fit 的 estimator 進 helper 會變成整串 `An ancestor raised an exception`。
 - hero 用百分比寬長條＋`white-space:nowrap` 標籤在 390px 會撐破 `#lesson`：長條上限 ~58%、`.track` 加 `overflow:hidden`。
 - 錯誤原文在 `_spikes/spike_model_serving_errors.py`（含 port 占用 `OSError(98, 'Address already in use')`）。
+
+### 監控課（07）subagent 實測補充（2026-09-04 04:00）
+
+- **page-fill 的 `PANEL_STEPS` 用 `re.sub(r"<ol>.*?</ol>")`**：WRAP 裡的裸 `<ol>` 會被 molab 面板步驟覆蓋；STYLE／WRAP 只要出現字面
+  `<ol>`（連 CSS 註解）就會從那裡吃到面板的 `</ol>`、把 `</head>` 骨架吃掉（自檢 exit 1 擋下）。→ 主代理已把 regex 改成只認
+  `#molab-panel` 內的 `<ol>`；課程內仍建議 `<ol class="…">`。
+- **session JSON 不是原子的**：被 timeout 殺掉的 export，其 kernel（`spawn_main`）可能還活著並在之後補寫 → 新舊混寫。改內容重驗前
+  `rm __marimo__/session/*.json`；殺殘留要連 kernel 子程序一起。
+- **兩個 Dagster 課的 sandbox export 同時跑會互相拖垮**（30 秒的 notebook 卡 10 分鐘、WORK 目錄都沒建）→ Dagster／MLflow 課的 verify 排隊跑。
+- Evidently 0.7.21：`get_html_str(as_iframe)` 位置參數必填；報告 4.3 MB 不嵌 notebook（存檔）；`Report.run()` 直接吃 DataFrame 也行；
+  預設 `DataDriftPreset`（Wasserstein normed／0.1）對**沒漂移**的 test 也判 3/12 欄 → `DriftedColumnsCount` 不能當警報；
+  `method="psi"` 算法與自寫「參考分位數分箱」不同（0.973 vs 0.558，且自寫版不對稱）。錯誤原文：缺欄 `ValueError: Column (f11) is
+  partially present in data`、字串欄 `TypeError: ufunc 'isinf' not supported…`、`Cannot use ClassificationPreset without a
+  classification configration`（官方 typo）。
+- KS／PSI 的樣本數陷阱（實測）：沒漂移 n=50 p=0.919 → n=10000 p=9.7e-06；小漂移 +0.2 的 PSI n=50 0.243 → n=10000 0.010。
+  in-sample 陷阱：拿訓練集預測當參考，預測 PSI 0.183 比真漂移 0.166 還高。
+- Dagster sensor 在 notebook 內讀帳本：共用一個 `DagsterInstance.ephemeral()`，`context.instance.get_latest_materialization_event(key)
+  .asset_materialization.metadata["max_psi"].value`；`@dg.sensor(target=…)` 的 tick 會留下 `dagster api grpc --heartbeat` 孤兒行程（會自己過期）。
+
+### Optuna 課（08）subagent 實測補充（2026-09-04 04:05，Optuna 4.9）
+
+- **`mo.stop` 的下游 cell 在 export 會被判 error**（`ancestor-stopped`）→ `nb-outputs.py` 記成 error、verify exit 1。
+  `mo.stop` 只能放在沒有下游的 cell；「按鈕 → 計算格 → 圖表格」的計算格改用 `if`（未點擊設 `None`＋提示 md），圖表格自己 `mo.stop`。
+- `TPESampler(seed=k)` 前 `n_startup_trials=10` 個 trial 與 `RandomSampler(seed=k)` 完全相同。重要度預設評估器不可重現（同 study 連跑差幾個百分點），
+  `FanovaImportanceEvaluator(seed=0)` 才穩；`PedAnovaImportanceEvaluator` 排序完全不同——課程數字要釘評估器。
+- objective 回傳 None／NaN 不拋錯：trial 標 `FAIL`、`optimize()` 照跑，`study.best_value` 才炸 `ValueError: No trials are completed yet.`
+  其他原文：`` `low <= high` must hold, but got (low=16, high=2). ``／`Cannot set different distribution kind to the same parameter name.`／
+  `DuplicatedStudyError: Another study with name 'rf-hpo' already exists…`／多目標 `best_trial` → `RuntimeError: A single best trial cannot be
+  retrieved from a multi-objective study…`／`load_study` 找不到 → `KeyError: 'Record does not exist.'`（`_spikes/spike_optuna_errors.py`）。
+- 離散小空間（8×5 格）別拿來證明 TPE 較強：25 次只造訪 15 個相異格，跑滿時格點掃描反而贏（0.9710 vs 0.9687）——課程正面教「Optuna 的價值在掃不完的空間」。
+  數字：25 trial 17–20 s best 0.9683；縮小空間第二輪 10 trial 7 s → 0.9716、測試集 0.9691；MedianPruner 15 trial 砍 8 個省 33–36%。
+- hero 熱區色階：資料集中在高分區時用 `t^2` 才拉得開；`.cell.top` 標記用 `outline`（`box-shadow` 會被更高特異度的規則蓋掉）。
 
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 

@@ -104,13 +104,15 @@ def fill(lesson_dir: Path) -> None:
              f'<meta property="og:url" content="https://class.itsmygo.uk/{lesson_dir.name}/">'),
         ]
     if getattr(c, "PANEL_STEPS", None):
-        subs.append((r"<ol>.*?</ol>", "<ol>\n" + c.PANEL_STEPS.strip("\n") + "\n      </ol>"))
+        # 只認 molab 面板（#molab-panel）內的第一個 <ol>：WRAP／STYLE 裡若有裸 <ol>（甚至 CSS 註解）不能被誤吃
+        _steps = "<ol>\n" + c.PANEL_STEPS.strip("\n") + "\n      </ol>"
+        subs.append((r'(<div id="molab-panel">.*?)<ol>.*?</ol>', lambda m, _s=_steps: m.group(1) + _s))
     if getattr(c, "SCRIPT", None):
         # 第一個 inline <script>（<script src=…> 不會被 "<script>" 字面匹配到）＝模板的 hero 互動區
         subs.append((r"<script>.*?</script>", "<script>\n" + c.SCRIPT.strip("\n") + "\n</script>"))
 
     for pattern, repl in subs:
-        new, n = re.subn(pattern, lambda m, r=repl: r, t, count=1, flags=re.DOTALL)
+        new, n = re.subn(pattern, lambda m, r=repl: r(m) if callable(r) else r, t, count=1, flags=re.DOTALL)
         if n == 0:
             sys.exit(f"✗ 在 {page} 找不到要替換的區塊：{pattern[:40]}")
         t = new

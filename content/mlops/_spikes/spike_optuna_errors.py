@@ -2,7 +2,7 @@
 # 跑法：uv run --script content/mlops/_spikes/spike_optuna_errors.py
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["optuna>=4.0"]
+# dependencies = ["optuna>=4.0", "scikit-learn", "numpy"]
 # ///
 import logging
 import tempfile
@@ -13,7 +13,7 @@ import optuna
 
 warnings.filterwarnings("ignore")
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-logging.getLogger("optuna").setLevel(logging.ERROR)
+logging.getLogger("optuna").setLevel(logging.WARNING)
 print("optuna", optuna.__version__)
 W = Path(tempfile.mkdtemp())
 
@@ -60,16 +60,26 @@ def _same_trial_change():
         b = t.suggest_int("n", 1, 100)
         return a + b
 
-    return s.optimize(obj, n_trials=1)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        s.optimize(obj, n_trials=1)
+    return (f"params={s.trials[0].params}; warnings="
+            f"{[str(w.message)[:120] for w in caught]}")
 
 
 show("same trial, same name different range", _same_trial_change)
 
 
-# 3) objective 回傳 None
+# 3) objective 回傳 None（不會拋錯——trial 靜靜變 FAIL）
 def _return_none():
     s = optuna.create_study()
-    return s.optimize(lambda t: None, n_trials=1)
+    s.optimize(lambda t: None, n_trials=2)
+    states = [t.state.name for t in s.trials]
+    try:
+        best = s.best_value
+    except Exception as e:  # noqa: BLE001
+        best = f"{type(e).__name__}: {e}"
+    return f"states={states}; best_value -> {best}"
 
 
 show("objective returns None", _return_none)
@@ -152,7 +162,8 @@ show("best_trials on multi-objective study", _multi_ok)
 
 def _multi_single_return():
     s = optuna.create_study(directions=["maximize", "minimize"])
-    return s.optimize(lambda t: t.suggest_float("a", 0, 1), n_trials=1)
+    s.optimize(lambda t: t.suggest_float("a", 0, 1), n_trials=1)
+    return f"states={[t.state.name for t in s.trials]}"
 
 
 show("multi-objective study but objective returns one value", _multi_single_return)
@@ -161,7 +172,8 @@ show("multi-objective study but objective returns one value", _multi_single_retu
 # 7) 單目標 study 回傳 tuple
 def _single_tuple():
     s = optuna.create_study(direction="maximize")
-    return s.optimize(lambda t: (t.suggest_float("a", 0, 1), 1.0), n_trials=1)
+    s.optimize(lambda t: (t.suggest_float("a", 0, 1), 1.0), n_trials=1)
+    return f"states={[t.state.name for t in s.trials]}"
 
 
 show("single-objective study but objective returns tuple", _single_tuple)
