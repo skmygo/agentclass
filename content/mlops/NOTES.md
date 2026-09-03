@@ -12,11 +12,12 @@
 | 02 | mlflow-registry | 上線 | log_model 資料夾、signature 合約、Registry 版本與 alias、evaluate、自訂 pyfunc、log_input |
 | 03 | dagster-assets | 上線 | @asset、依賴成圖、metadata、deps、IO manager、asset check（blocking）、Definitions |
 | 04 | dagster-automation | 上線 | resources/Config、partitions、schedules、sensors（cursor）、AutomationCondition、RetryPolicy |
-| 05 | mlops-pipeline | 完成待部署 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
+| 05 | mlops-pipeline | 上線 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
 | 00 | mlops-why | 上線 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
-| 06 | model-serving | 寫作中 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
+| 06 | model-serving | 完成待部署 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
 | 07 | model-monitoring | 寫作中 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
-| 08+ | optuna-hpo / data-validation(pandera) / mlflow-tracing / dvc | 候選（spike 已跑通） | 時間允許再加 |
+| 08 | optuna-hpo | 寫作中 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
+| 09+ | data-validation(pandera) / mlflow-tracing / mlflow-prompts / feast / dvc | 候選（spike 已跑通） | 時間允許再加 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -143,6 +144,21 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
 - 100 棵樹 RF 的 depth→AUC：2/4/6/8/12/16 → 0.9297/0.9551/0.9656/0.9684/0.9725/0.9698（16 以上持平）；drift 0.25/0.5/0.75/1.0/1.5/2.0 →
   0.9739/0.9581/0.9366/0.9209/0.8641/0.8092；recall depth 8 = 0.9129、logreg 0.860。
 
+### 模型上線課（06）subagent 實測補充（2026-09-04 03:45，MLflow 3.15.2）
+
+- `/invocations`：`dataframe_split` **帶 index 也回 200**、`inputs`（欄名→值清單）可用、`instances`（無欄名）被 signature 擋；
+  少一欄 400 含 `"error_class": "SCHEMA_ENFORCEMENT_FAILED"` ＋ `Model is missing inputs ['f11'].`；型別錯是 `BAD_REQUEST` /
+  `Failed to convert column f0 to type 'float64'`；無信封的錯誤訊息列四個信封名但**順序每次不同**（set），別當規格引用。
+- `mlflow models serve` 子行程**必須自帶 `MLFLOW_TRACKING_URI`**（不繼承 `set_tracking_uri`），否則 `Registered model alias champion not found.`；
+  起來 7–15 秒；`/ping` 200 body `'\n'`。
+- 延遲實測：批次 500 列 9–12 ms（每列 0.02 ms）vs 單列 7–11 ms → 差 300–500 倍；API 載一次 14–36 ms vs 每次 load_model 120–310 ms（8–10 倍）；
+  `load_model` 本身 100–130 ms。alias 移到新版後**服務不會自動換**，要 `/reload` 或輪詢 `get_model_version_by_alias(...).version`（回 **int**；
+  `register_model(...).version` 是 str——跨型別比較會靜默失敗）。`mlflow.models.validate_serving_input` 可用（回 (2,2)）。
+- marimo：f-string 的 `mo.md` 內放含 `{}` 的程式範例會 `Invalid format specifier`——程式碼段拆成獨立 `mo.md(r"…")` 用 `mo.vstack` 併。
+  未 fit 的 estimator 進 helper 會變成整串 `An ancestor raised an exception`。
+- hero 用百分比寬長條＋`white-space:nowrap` 標籤在 390px 會撐破 `#lesson`：長條上限 ~58%、`.track` 加 `overflow:hidden`。
+- 錯誤原文在 `_spikes/spike_model_serving_errors.py`（含 port 占用 `OSError(98, 'Address already in use')`）。
+
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 
 24 個月、每月 300 筆、6 維；概念漂移＝決定邊界的權重向量以 `theta = drift_rate * month` 旋轉。
@@ -196,3 +212,17 @@ k=1/3/6 → 0.916/0.900/0.867；thr 0.8/0.9/0.95 → 3/7/23 次重訓。全部�
   → `dvc.yaml` stage（cmd／deps／params／metrics）→ `dvc repro`（沒改就 skip）→ 改 params.yaml 再 repro →
   `dvc params diff`（max_depth 4→12）／`dvc metrics diff`（auc 0.95459→0.97174）／`dvc dag`。全程約 13 s。
   molab 上需要 git 指令；notebook 用 `subprocess` 跑 CLI 並把輸出印成 code block。
+
+## 更多候選課 spike（2026-09-04 03:35）
+
+- **mlflow-prompts**（`_spikes/spike_mlflow_prompts.py`，LLMOps）：`mlflow.genai.register_prompt(name, template="…{{var}}…", commit_message, tags)`
+  → version 1/2；`set_prompt_alias(name, alias="production", version=)`；`load_prompt("prompts:/name@production")`／`"prompts:/name/1"`，
+  `.variables`＝`{'question','context'}`、`.format(**kw)`；`search_prompts(filter_string="name = '…'")`；在 `@mlflow.trace` 內 `load_prompt`
+  會把 `mlflow.linkedPrompts` tag 掛到 trace（`[{"name": "support-answer", "version": "2"}]`）；chat 格式 template（list of role/content）也可。
+  全部離線、不需要 LLM。
+- **feast**（`_spikes/spike_feast.py`，Feast 0.66）：`feature_store.yaml`（provider local、registry `data/registry.db`、online sqlite、
+  `entity_key_serialization_version: 3`）＋ `features.py`（`Entity`、`FileSource(parquet, timestamp_field)`、`FeatureView(ttl=3d, schema=[Field…])`）；
+  **`python -m feast` 不能跑**（沒有 `__main__`），notebook 用 Python API `FeatureStore(repo_path=".").apply([entity, fv])`；
+  `get_historical_features(entity_df, features=[...]).to_df()` 做 point-in-time join（每列拿到「當時」最新的特徵）；
+  `materialize_incremental(end_date=now)` 推進 online store；`get_online_features(features, entity_rows).to_dict()`。全程 0.5 秒。
+  parquet 的 `event_timestamp` 要 tz-aware（UTC）。

@@ -438,6 +438,10 @@ Dagster success = True                        # 沒有任何錯誤
 </section>
 
 <div class="endnav">
+  <a href="/model-serving/">
+    <span class="tag">補充系列</span>
+    <b>補充 A · 模型上線：從 pyfunc 到 REST API →</b>
+  </a>
   <a href="/mlops/">
     <span class="tag">主題</span>
     <b>‹ 回「MLOps 自動化技術」課程列表</b>
