@@ -1,0 +1,413 @@
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/mlops/onnx-export
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
+
+TITLE = "ONNX 匯出上線：同一個模型，推論快幾百倍"
+DESCRIPTION = "把訓練好的 scikit-learn 模型匯出成 ONNX：to_onnx 的範例輸入與 zipmap=False、InferenceSession 怎麼跑、換格式不換答案要怎麼驗（實測誤差 1.9e-07）、單筆延遲從 6 ms 掉到 0.008 ms、型別與欄數合約的真實錯誤原文——molab 免費 CPU 環境全程實作。"
+NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/onnx-export/onnx-export_ext.py"
+
+STYLE = r"""
+  /* 語義色：紅＝scikit-learn（慢）、綠＝onnxruntime（快）、藍＝合約與說明 */
+  :root { --c1: #4C72B0; --fast: #55A868; --slow: #C44E52; --warn: #DD8452; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：延遲計時器 */
+  #ox-demo .ctl { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin-bottom: 9px; }
+  #ox-demo .lbl { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; color: var(--ink-soft); min-width: 62px; }
+  #ox-demo .ctl button { font-family: var(--mono); font-size: 12.5px; padding: 5px 11px; border-radius: 8px;
+    border: 1.5px solid var(--grid); background: #fff; color: var(--ink); cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s; }
+  #ox-demo .ctl button:hover { background: var(--chip-bg); color: var(--ink); }
+  #ox-demo .ctl button.on { border-color: var(--ink); background: var(--ink); color: #fff; }
+  #ox-demo .bars { margin: 14px 0 6px; display: grid; gap: 8px; }
+  #ox-demo .bar { display: grid; grid-template-columns: 108px 1fr; gap: 9px; align-items: center; }
+  #ox-demo .bar > span { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+  #ox-demo .track { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+  #ox-demo .bar i { height: 16px; border-radius: 4px; display: block; flex: none; transition: width .35s ease; }
+  #ox-demo .bar em { font-style: normal; font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+    color: var(--ink); white-space: nowrap; }
+  #ox-demo .bar.sk i { background: var(--slow); }
+  #ox-demo .bar.ox i { background: var(--fast); }
+  #ox-demo .verdict { border-top: 1px solid var(--grid); padding-top: 10px; margin-top: 4px;
+    font-size: 13.5px; line-height: 1.65; }
+  #ox-demo .verdict b { font-family: var(--mono); font-size: 16px; color: var(--fast); }
+  #ox-demo .axis { font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); letter-spacing: .03em; }
+  @media (max-width: 620px) { #ox-demo .bar { grid-template-columns: 82px 1fr; } }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.f { color: var(--fast); font-weight: 700; font-family: var(--mono); }
+  table.cmp td.s { color: var(--slow); font-weight: 700; font-family: var(--mono); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+"""
+
+WRAP = r'''
+<section id="hero">
+  <span class="eyebrow">ONNX · 補充 J · 15</span>
+  <h1>ONNX 匯出上線：<br>同一個模型，推論快幾百倍</h1>
+  <p style="margin-top:18px">
+    模型上線之後，那台伺服器裡跑的其實是一個 <span class="kbd">pickle</span> 出來的 Python 物件——
+    它綁 Python、綁 scikit-learn 版本，而且每一筆預測都要穿過一整層 Python 呼叫。
+    把同一個模型匯出成 <b>ONNX</b>（模型的通用交換格式）之後，用 <span class="kbd">onnxruntime</span> 執行，
+    答案一模一樣，時間差幾個數量級。差多少要看你一次送幾列——自己選選看：
+  </p>
+
+  <div class="hero-demo" id="ox-demo">
+    <div class="ctl">
+      <span class="lbl">一次送</span>
+      <button type="button" data-k="1" class="on">1 列</button>
+      <button type="button" data-k="10">10 列</button>
+      <button type="button" data-k="100">100 列</button>
+      <button type="button" data-k="500">500 列</button>
+    </div>
+    <div class="ctl">
+      <span class="lbl">模型</span>
+      <button type="button" data-m="rf" class="on">RandomForest（100 棵樹）</button>
+      <button type="button" data-m="lr">LogisticRegression</button>
+    </div>
+    <div class="bars">
+      <div class="bar sk"><span>scikit-learn</span><div class="track"><i></i><em id="ox-sk"></em></div></div>
+      <div class="bar ox"><span>onnxruntime</span><div class="track"><i></i><em id="ox-ox"></em></div></div>
+    </div>
+    <p class="axis">長條為 log 刻度（不用 log，快的那根短到看不見）</p>
+    <div class="verdict" id="ox-verdict"></div>
+  </div>
+
+  <p class="note">
+    毫秒數是同一台 CPU 機器上的實測（onnxruntime 1.29、onnx 1.22、100 棵樹深度 8 的 RandomForest），
+    多次量測會在一個範圍內浮動——看倍數，不要看絕對值。GPU 或深度模型的比例完全不同（常見是 1–3 倍）。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 為什麼換格式</span>
+  <h2>pickle 的三個代價，上線後才會痛</h2>
+  <p>
+    訓練完 <span class="kbd">pickle.dumps(rf)</span> 存檔，是最順手的做法，也是大多數服務上線時的樣子。
+    它有三個代價，在筆記本裡完全感覺不到，一上線就全部浮出來：
+  </p>
+  <table class="cmp">
+    <tr><th>代價</th><th>症狀</th><th>ONNX 怎麼解</th></tr>
+    <tr><td>綁 Python</td><td>只有 Python 讀得回來。前端、行動裝置、Java 服務要用，只能再包一層 API</td><td>存的是<b>運算圖</b>不是 Python 物件；C++／Java／C#／JavaScript 都有 onnxruntime</td></tr>
+    <tr><td>綁版本</td><td>scikit-learn 1.7 存的檔在 1.4 的機器上可能載不起來，或更糟——不報錯但算錯</td><td>圖裡只有算子與 opset 版本，執行端不需要 scikit-learn</td></tr>
+    <tr><td>慢</td><td>每筆預測穿過一長串 Python 函式；單筆延遲以毫秒計</td><td>算子是編譯好的 C++，實測單筆 <b>約 6–7 ms → 0.008 ms</b></td></tr>
+  </table>
+  <p>
+    第三點最容易被低估：批次算 500 列的時候均攤下來很便宜，
+    但線上 API 是<b>一次來一筆</b>——那時候你付的是「單筆」的價錢，不是「每列」的價錢。
+    實測同一個 RandomForest，500 列一次要 8.7–10.4 ms，<b>一列也要 5.9–7.1 ms</b>：
+    幾乎一樣貴，因為時間幾乎全花在跟資料量無關的固定成本上。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 1️⃣ 節：pickle 的三個代價</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 轉換</span>
+  <h2><span class="kbd">to_onnx</span> 只有一行，但那一行裡有三個要點</h2>
+  <div class="codeblock">from skl2onnx import to_onnx
+
+onx = to_onnx(
+    rf,                                    # ① 必須是已經 fit 過的模型
+    X_train[:1],                           # ② 範例輸入：決定型別（float32）與欄數（12）
+    options={id(rf): {"zipmap": False}},   # ③ 機率回 ndarray，不要 list of dict
+)
+(WORK / "rf.onnx").write_bytes(onx.SerializeToString())</div>
+  <p>
+    <b>① 已經 fit 過。</b>拿沒訓練的 estimator 去轉，會得到
+    <span class="kbd">RuntimeError: No known ways to retrieve the number of classes…</span>。
+  </p>
+  <p>
+    <b>② 範例輸入就是對外合約。</b>轉換器不猜你的資料，它從這一筆讀出「12 個欄位、<span class="kbd">float32</span>」，
+    把形狀<b>寫死進圖裡</b>。所以範例的 dtype 就是上線時<b>必須</b>用的 dtype。
+    忘了給範例會直接說：<span class="kbd">NotImplementedError: Initial types must be specified.</span>
+  </p>
+  <p>
+    <b>③ <span class="kbd">zipmap=False</span> 幾乎每次都要加。</b>sklearn 分類器的預設會把機率包成
+    「每列一個 <span class="kbd">{類別: 機率}</span> 字典」（那個算子叫 ZipMap），拿到手是 Python 的 list of dict，
+    不能切欄、也不好給別的語言用。關掉之後 <span class="kbd">probabilities</span> 就是乾淨的 <span class="kbd">(n, 2)</span> 陣列。
+  </p>
+  <p>轉出來以後先看圖的合約與檔案大小（實測輸出）：</p>
+  <div class="codeblock">轉換耗時: 0.2–0.3 s
+
+--- graph 合約 ---
+  input  X                shape=['?', 12]  (elem_type 1 = float32)
+  output label            shape=['?']
+  output probabilities    shape=['?', 2]
+  opset: [('ai.onnx.ml', 1), ('ai.onnx', 22)]
+  節點: {'TreeEnsembleClassifier': 1}
+
+--- 檔案大小 ---
+  rf.onnx      548 KB
+  rf.pkl      1215 KB   → ONNX 是 pickle 的 0.45 倍</div>
+  <p>
+    輸入第一維是動態的（幾列都行），第二維 12 寫死。輸出兩個：<span class="kbd">label</span> 與
+    <span class="kbd">probabilities</span>。
+    最值得注意的是<b>整座 100 棵樹的森林在圖裡只有一個節點</b>——
+    樹的分支條件與葉值全放在那個 <span class="kbd">TreeEnsembleClassifier</span> 算子的屬性裡，
+    所以檔案比 pickle 小一半，執行時也不必在 Python 層走訪 100 次。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 2️⃣ 節：三個要點與 graph 合約</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 對答案</span>
+  <h2>換格式，不可以換答案</h2>
+  <p>
+    轉換是「翻譯」，翻譯可能翻錯：不支援的參數被靜靜忽略、機率欄序顛倒、float32 捨入。
+    這種故障<b>沒有任何錯誤訊息</b>，只是答案悄悄不一樣了。所以每轉一次就要對一次答案，而且要寫成函式進 CI：
+  </p>
+  <div class="codeblock">sess = ort.InferenceSession(str(ONNX_PATH), providers=["CPUExecutionProvider"])
+IN = sess.get_inputs()[0].name          # 這個模型是 "X"
+label, proba = sess.run(None, {IN: X_test})   # None ＝ 所有輸出都要，回來是 list
+
+def assert_same(sk_model, session, in_name, X, atol=1e-5):
+    lab, pr = session.run(None, {in_name: X})
+    max_diff = float(np.abs(np.asarray(pr) - sk_model.predict_proba(X)).max())
+    agree = float((np.asarray(lab) == sk_model.predict(X)).mean())
+    return max_diff &lt; atol and agree == 1.0</div>
+  <p>500 列 test set 的實測結果：</p>
+  <div class="codeblock">機率最大差異 1.91e-07（門檻 1e-05）｜類別一致率 100.0%  → ✅ 通過
+第 0 筆：ONNX [0.254004 0.745996]  ｜  sklearn [0.254004 0.745996]</div>
+  <p>
+    <span class="kbd">1e-07</span> 這個量級的差不是 bug，是 <b>float32 的捨入</b>——ONNX 圖用 32 位元算，
+    sklearn 內部用 64 位元。對「機率大於 0.5 就判正」完全無關痛癢，但你要知道它存在：
+    閾值卡在 0.500000 附近、或下游要拿機率做精算的話，容許值要自己定。
+    真正該警覺的是<b>類別不一致</b>，或誤差跳到 <span class="kbd">1e-2</span> 等級——那就是翻譯出錯了，別上線。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 3️⃣ 節：InferenceSession 與 assert_same()</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 速度</span>
+  <h2>批次快 10 倍上下，單筆快好幾百倍</h2>
+  <table class="cmp">
+    <tr><th>情境</th><th>scikit-learn</th><th>onnxruntime</th><th>倍數</th></tr>
+    <tr><td>RandomForest · 500 列一次</td><td class="s">8.7–10.4 ms</td><td class="f">0.6–1.2 ms</td><td>9–14×</td></tr>
+    <tr><td>RandomForest · 單筆</td><td class="s">5.9–7.1 ms</td><td class="f">0.008–0.012 ms</td><td><b>500–840×</b></td></tr>
+    <tr><td>LogisticRegression · 單筆</td><td class="s">0.10–0.25 ms</td><td class="f">0.006–0.012 ms</td><td>16–20×</td></tr>
+  </table>
+  <p>
+    <b>為什麼差這麼多？</b>兩件事加起來。
+    第一，<b>Python 物件的開銷</b>：<span class="kbd">rf.predict_proba(一筆)</span> 要建 numpy 陣列、跑輸入檢查、
+    在 Python 層迴圈走訪 100 棵樹再平均——這些成本跟資料量幾乎無關，所以一列和五百列花的時間差不多，
+    單筆時它們就是<b>全部</b>的成本。
+    第二，<b>編譯好的算子</b>：onnxruntime 那邊整座森林是一個 C++ 實作的算子，
+    圖在建立 session 時就規劃好了記憶體與執行順序，呼叫一次只是把資料丟進去。
+  </p>
+  <p>
+    所以請記住這個區別：<b>加速主要來自「每次呼叫的固定成本」，批次越大越被均攤掉。</b>
+    LogisticRegression 的倍數小很多，也是同一個道理——它在 sklearn 裡本來就只是一次矩陣乘法，
+    Python 開銷占比沒那麼誇張。
+    <b>永遠在付單筆價錢的線上 API，才是換 ONNX 收益最大的地方。</b>
+  </p>
+  <p class="note">
+    notebook 的 6️⃣ 節有一個拉桿：自己選 1–500 列與模型，按一下當場量、當場畫圖。
+    把列數從 1 拉到 500，看那個倍數怎麼一路縮小——這是本課最值得自己跑一次的東西。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 4️⃣ 與 6️⃣ 節：延遲對照與互動量測</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 上線</span>
+  <h2>存進 MLflow、包成函式、守住合約</h2>
+  <p>
+    <span class="kbd">.onnx</span> 是一個檔案，但別讓它變成「某台機器上的孤兒檔案」——
+    跟訓練它的那個 run 綁在一起，三個月後才有人說得出線上跑的是誰：
+  </p>
+  <div class="codeblock">with mlflow.start_run(run_name="rf-onnx") as run:
+    mlflow.log_params({"n_estimators": 100, "max_depth": 8, "runtime": "onnxruntime"})
+    info = mlflow.onnx.log_model(onx, name="model_onnx")   # → models:/m-0abcaa0c…
+
+def predict_proba_onnx(session, in_name, rows):
+    X = np.asarray(rows, dtype=np.float32)      # 型別合約：一律轉 float32
+    if X.ndim == 1:
+        X = X.reshape(1, -1)                    # 形狀合約：單筆也要是二維
+    return np.asarray(session.run(None, {in_name: X})[1])[:, 1]</div>
+  <p>
+    這個函式短得有點可疑，但那兩行防呆正是把三種最常見的上線錯誤擋在門外。
+    ONNX 的合約很硬，違反了會<b>當場報錯</b>——這是好消息，因為 pickle 的 sklearn 模型在同樣情況下常常照算不誤，
+    算出一個沒有意義的機率，沒有人會發現。三種實測錯誤原文：
+  </p>
+  <div class="codeblock">[餵 float64]  InvalidArgument: [ONNXRuntimeError] : 2 : INVALID_ARGUMENT :
+  Unexpected input data type. Actual: (tensor(double)) , expected: (tensor(float))
+
+[少一欄]      InvalidArgument: [ONNXRuntimeError] : 2 : INVALID_ARGUMENT :
+  Got invalid dimensions for input: X for the following indices
+   index: 1 Got: 11 Expected: 12
+
+[忘了 reshape] InvalidArgument: [ONNXRuntimeError] : 2 : INVALID_ARGUMENT :
+  Invalid rank for input: X Got: 1 Expected: 2</div>
+  <p>
+    <b>接上線的三條路，都用同一個檔：</b>
+    把上一課 FastAPI 的 <span class="kbd">model.predict</span> 換成 <span class="kbd">predict_proba_onnx</span>
+    （<span class="kbd">InferenceSession</span> 在服務啟動時建立一次，跟「模型載一次」同一個原則）；
+    或把檔案交給 C++／Java／C# 的 onnxruntime，模型不再需要一台 Python 伺服器才能存在；
+    或用 <span class="kbd">onnxruntime-web</span> 直接在使用者的瀏覽器裡跑這張圖，資料完全不離開裝置。
+  </p>
+  <a class="golab" href="__NB__" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：MLflow、推論函式與合約錯誤</a>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 練習</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>把 <span class="kbd">logreg</span> 也轉成 ONNX，建 session 後呼叫本課的 <span class="kbd">assert_same()</span>。它的 <span class="kbd">.onnx</span> 只有幾百 bytes，RandomForest 是 548 KB——想清楚為什麼，順便解釋它的加速倍數為何小這麼多。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>拿到一個陌生的 <span class="kbd">.onnx</span>：用 <span class="kbd">onnx.load()</span> 讀進來、<span class="kbd">onnx.checker.check_model()</span> 驗一次，再列出 graph 裡每種節點型別各有幾個、以及 opset 版本。100 棵樹的森林有幾個節點？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p><span class="kbd">ort.SessionOptions()</span> 的 <span class="kbd">intra_op_num_threads</span> 控制單一算子用幾條執行緒。建 1／2／預設三個 session，量單筆與 500 列的延遲。先猜：單筆時執行緒開多會變快還是變慢？</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">07 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>兩個服務都吃同一個 RandomForest：A 是即時反詐 API，每次一筆、延遲要求 20 ms；B 是每天半夜把 200 萬列跑完的批次評分，跑 40 分鐘。團隊只有時間改一個。先改哪個、為什麼？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 先改 B，因為 200 萬列的總時間最長，省下來的機器成本最多</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 兩個都改，反正是同一個 <code>.onnx</code> 檔，一次做完</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 先改 A：單筆場景的加速實測 500–840 倍，批次 500 列只有 9–14 倍</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 先改 A，因為批次任務不能用 ONNX，只有線上 API 可以</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>ONNX 省下的主要是「每次呼叫的固定成本」——建陣列、輸入檢查、Python 層走訪 100 棵樹。這些成本跟資料量幾乎無關，所以批次時被均攤到幾乎看不見（實測 500 列只快 9–14 倍），單筆時卻是全部的成本（實測約 6–7 ms → 0.008 ms，500–840 倍）。A 的直覺不對：批次 40 分鐘裡真正花在 <code>predict</code> 的往往只是一小段，讀寫資料才是大頭，而且就算全部是推論，倍數也小一個數量級；B 在時間有限的前提下不是「選一個」的答案，而且 A 每快一毫秒都直接影響使用者；D 是錯的，批次一樣可以用 ONNX，只是收益小得多。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>模型轉換與本機測試都過了。接上線上服務後，每一筆請求都回 500，日誌裡是這一段。最直接的修法是？</h3>
+      <div class="codeblock">rows = df[FEATURES].values          # df 從 JSON 建出來的 DataFrame
+sess.run(None, {"X": rows})
+
+onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument:
+[ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Unexpected input data type.
+Actual: (tensor(double)) , expected: (tensor(float))</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 模型轉壞了，重跑一次 <code>to_onnx</code> 並加上 <code>target_opset</code></button>
+        <button type="button" class="quiz-opt" data-k="B">B. pandas 預設是 float64：推論函式裡固定寫 <code>np.asarray(rows, dtype=np.float32)</code></button>
+        <button type="button" class="quiz-opt" data-k="C">C. 輸入名稱寫死成 <code>"X"</code> 不對，改用 <code>sess.get_inputs()[0].name</code></button>
+        <button type="button" class="quiz-opt" data-k="D">D. onnxruntime 版本比轉換時舊，升級 onnxruntime 就好</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>錯誤把兩邊都講明了：收到的是 <code>double</code>（float64），圖要的是 <code>float</code>（float32）。而圖之所以要 float32，是因為當初 <code>to_onnx</code> 的範例輸入就是 float32——那一筆範例把型別寫死成合約了。pandas 的 <code>.values</code> 預設給 float64，本機測試沒炸多半是因為當時直接餵訓練用的 float32 陣列。修法就是在推論函式的入口統一轉型。A 沒有根據，opset 跟 dtype 是兩回事；C 是好習慣但症狀不符——名稱錯會得到 <code>Required inputs (['X']) are missing from input feed</code>；D 版本不合會在 <code>InferenceSession</code> 建立時就失敗，不會等到 <code>run</code>。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事照著文件轉了模型，要取正類機率時炸了。他堅持「形狀我印過，就是 (n, 2)」。最可能的原因是？</h3>
+      <div class="codeblock">onx = to_onnx(rf, X_train[:1])                # 轉換這一行
+proba = np.asarray(sess.run(None, {IN: X_test})[1])[:, 1]
+
+IndexError: too many indices for array: array is 1-dimensional, but 2 were indexed
+# 印出來看：sess.get_outputs() → ['output_label', 'output_probability']
+#           probabilities[0]  → {0: 0.2540045380592346, 1: 0.7459954619407654}</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>sess.run</code> 的輸出順序不固定，<code>[1]</code> 這次拿到的是 label</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>X_test</code> 只有一列，要先 <code>reshape(1, -1)</code> 才會是二維</button>
+        <button type="button" class="quiz-opt" data-k="C">C. RandomForest 是多分類器，機率要用 <code>sess.run</code> 的第三個輸出</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 轉換時少了 <code>options={id(rf): {"zipmap": False}}</code>，機率回的是 list of dict 不是 ndarray</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>兩個線索直接指向 ZipMap：輸出名稱是 <code>output_label</code>／<code>output_probability</code>（關掉 zipmap 之後會是 <code>label</code>／<code>probabilities</code>），而 <code>probabilities[0]</code> 印出來是一個 <code>{類別: 機率}</code> 字典。sklearn 分類器轉 ONNX 的預設行為就是加上 ZipMap 算子，把每列的機率包成字典；<code>np.asarray</code> 一個 list of dict 得到的是一維的 object 陣列，所以切第二維才會炸。他印過的 (n, 2) 是 sklearn 那邊的形狀，不是 ONNX 這邊的。A 是誤解，輸出順序就是 graph outputs 的順序、固定不變；B 症狀不符，錯的是機率陣列不是輸入；C 這是二分類，而且輸出只有兩個。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>重訓的模型要換到線上。CI 只跑得動一件事，你要讓它抓住「ONNX 轉換出錯」這種故障。加哪一步最有效？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 拿同一批資料同時跑 sklearn 與 onnxruntime，比對機率最大差異與類別一致率（<code>assert_same()</code>）</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 跑 <code>onnx.checker.check_model()</code>，通過就代表轉換正確</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 確認 <code>.onnx</code> 的檔案大小跟上一版差不多，差太多就擋下來</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 用 onnxruntime 重算一次 AUC，跟訓練時記錄的指標比對</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>轉換出錯最可怕的形態是<b>安靜的</b>：不支援的參數被忽略、機率欄序顛倒、某個算子行為有細微差異——全都不會拋例外，只是答案變了。唯一抓得到的方法就是拿同一批輸入跑兩邊、逐筆比對輸出。實測的通過長相是機率最大差異 1.9e-07（float32 捨入）、類別一致率 100%；一旦類別不一致、或誤差跳到 1e-2 等級，就是翻譯真的出錯了。B 只驗「這張圖結構合法」，一張結構完全合法的圖照樣可以算出錯的答案；C 檔案大小跟正確性沒有因果關係，重訓後樹的深度不同大小本來就會變；D 方向對但太鈍——AUC 是排序指標，機率整體偏移或少數幾筆算錯，AUC 可能完全看不出來，而且它混淆了「模型品質」與「轉換正確性」這兩件事。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/mlflow-tracking/">
+    <span class="tag">回主線</span>
+    <b>第 1 課：MLflow Tracking——把每次實驗記下來 →</b>
+  </a>
+  <a href="/mlops/">
+    <span class="tag">主題</span>
+    <b>‹ 回「MLOps 自動化技術」課程列表</b>
+  </a>
+</div>
+'''
+
+SCRIPT = r"""
+/* ═══ hero 互動：延遲計時器 ═══
+   毫秒數全部來自實測（onnxruntime 1.29.0 / onnx 1.22.0 / scikit-learn，單機 CPU，
+   RandomForest n_estimators=100 max_depth=8、LogisticRegression max_iter=1000，
+   量測腳本與 notebook 第 4／6 節同一套 bench()）。 */
+(function () {
+  const D = {
+    rf: { 1: [6.364, 0.0106], 10: [6.463, 0.0527], 100: [8.667, 0.2532], 500: [9.464, 0.8626] },
+    lr: { 1: [0.130, 0.0072], 10: [0.118, 0.0063], 100: [0.105, 0.0072], 500: [0.108, 0.0117] },
+  };
+  const NAME = { rf: "RandomForest（100 棵樹）", lr: "LogisticRegression" };
+  const demo = document.getElementById("ox-demo");
+  if (!demo) return;
+  const skEm = document.getElementById("ox-sk");
+  const oxEm = document.getElementById("ox-ox");
+  const verdict = document.getElementById("ox-verdict");
+  const skBar = demo.querySelector(".bar.sk i");
+  const oxBar = demo.querySelector(".bar.ox i");
+  let k = "1", m = "rf";
+
+  const LO = Math.log10(0.004), HI = Math.log10(14), MAXW = 56;
+  const width = (ms) => Math.max(2, ((Math.log10(ms) - LO) / (HI - LO)) * MAXW).toFixed(1) + "%";
+  const fmt = (ms) => (ms >= 1 ? ms.toFixed(2) : ms >= 0.1 ? ms.toFixed(3) : ms.toFixed(4)) + " ms";
+
+  function render() {
+    const [sk, ox] = D[m][k];
+    skBar.style.width = width(sk);
+    oxBar.style.width = width(ox);
+    skEm.textContent = fmt(sk);
+    oxEm.textContent = fmt(ox);
+    const x = sk / ox;
+    const perRow = (ox / Number(k)) * 1000;
+    verdict.innerHTML =
+      "一次送 " + k + " 列的 " + NAME[m] + "：onnxruntime 快 <b>" + x.toFixed(x >= 100 ? 0 : 1) +
+      "×</b>（每列約 " + perRow.toFixed(perRow >= 10 ? 0 : perRow >= 1 ? 1 : 2) + " µs）。" +
+      (Number(k) === 1
+        ? "單筆是線上 API 的日常——這裡收益最大。"
+        : Number(k) >= 100
+        ? "批次越大，固定成本越被均攤，倍數就一路縮小。"
+        : "列數一往上加，倍數立刻掉下來。");
+  }
+  demo.querySelectorAll("[data-k]").forEach((b) =>
+    b.addEventListener("click", () => {
+      k = b.dataset.k;
+      demo.querySelectorAll("[data-k]").forEach((x) => x.classList.toggle("on", x === b));
+      render();
+    })
+  );
+  demo.querySelectorAll("[data-m]").forEach((b) =>
+    b.addEventListener("click", () => {
+      m = b.dataset.m;
+      demo.querySelectorAll("[data-m]").forEach((x) => x.classList.toggle("on", x === b));
+      render();
+    })
+  );
+  render();
+})();
+"""
+
+PANEL_STEPS = """
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU，也不連任何外部服務</li>
+"""

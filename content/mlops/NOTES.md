@@ -23,7 +23,7 @@
 | 12 | dvc-basics | 上線 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
 | 13 | ml-testing | 完成待部署 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
 | 14 | model-explainability | 完成待部署 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
-| 15 | onnx-export | 寫作中 | skl2onnx 轉換、onnxruntime 推論對答案、延遲比較（單筆快約 500×）、型別／形狀合約 |
+| 15 | onnx-export | 完成待部署 | skl2onnx 轉換、onnxruntime 推論對答案、延遲比較（單筆快約 500×）、型別／形狀合約 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -274,6 +274,18 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
 - 教學實測：三法前三名 f2→f3→f9 一致、第 4 名分家；純亂數欄位內建重要度排第 11 高於真特徵（perm/SHAP 都接近 0）；洩漏欄位
   `days_since_cancel` → AUC 0.9996、SHAP 佔比 65.7%；同模型吃漂移資料 SHAP 排名 spearman 1.00（SHAP 解釋模型不解釋資料）；上游把 f2
   灌成常數重訓 → AUC 0.8884、9/12 欄換位置；KernelExplainer 20 列 5 秒（比 TreeSHAP 慢 200×）；LinearExplainer 等於 coef×(x−平均)。
+
+### ONNX 課（15）subagent 實測補充（2026-09-04 06:33，onnxruntime 1.29）
+
+- `to_onnx` 的範例輸入 dtype 就是硬合約（float64 訓練 → 圖要 double）：訓練期就 `astype(np.float32)`。
+- `zipmap` 沒關：輸出名變 `output_label`／`output_probability`，`probabilities` 是 list of dict，`np.asarray(...)[:, 1]` 炸
+  `IndexError: too many indices for array: array is 1-dimensional`（不是 shape 問題）。
+- `mlflow.onnx.log_model(onx, name=...)` 在 3.15 可直接用（回 `models:/m-…`）。onnx 檔比 pickle 小（548 KB vs 1215 KB：100 棵樹壓成單一
+  `TreeEnsembleClassifier` 節點）。錯誤原文（`_spikes/spike_onnx_errors.py`）：`Initial types must be specified.`（沒給範例輸入）、
+  `No known ways to retrieve the number of classes…`（未 fit）、`Required inputs (['X']) are missing from input feed (['input']).`、
+  `Invalid rank for input: X Got: 1 Expected: 2`。
+- 數字：500 列 sklearn 8.7–10.4 ms vs ORT 0.6–1.2 ms（11–14×）；單筆 RF 5.9–7.1 ms vs 0.008 ms（500–840×）；logreg 單筆 16–20×。
+- `preview-shots.mjs` 的 base 是位置參數（`--base` 會被當網址）。
 
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 
