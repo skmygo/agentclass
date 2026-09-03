@@ -36,6 +36,7 @@ pass=0; fail=0; failed=()
 mobile_specs=()
 for smoke in "$ROOT"/content/*/*/smoke-test.mjs; do
   dir="$(dirname "$smoke")"; id="$(basename "$dir")"
+  [ -f "$dir/.wip" ] && continue   # 寫作中的課（build.sh 也跳過）
   if [ -n "$ONLY" ]; then case ",$ONLY," in *",$id,"*) ;; *) continue;; esac; fi
   if [ -f "$dir/lesson.py" ]; then
     url="$BASE/$id/nb/index.html"

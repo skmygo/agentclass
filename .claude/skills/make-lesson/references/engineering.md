@@ -235,6 +235,19 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   會被吃掉，hero 用純 JS `white-space:pre-wrap` 原文呈現最穩（也最誠實）。
 - **大 payload（如 int8 向量 b64）不要手抄**：spike 印出 → 佔位符 → python 腳本注入 lesson.py。
 
+### 平行寫課時的 `.wip` 標記（2026-09-04 mlops 系列補充）
+
+- **寫作中的課放一個 `content/<topic>/<id>/.wip` 空檔**：`build.sh` 與 `smoke-all.sh` 都會跳過它（印 `⏭`），
+  已 gitignore。用途：subagent 還在寫第 N 課時，主代理就能 build＋冒煙＋部署已完成的課，
+  不會把 scaffold 模板頁（h1 對、quiz 缺）建進 dist、也不會被它的冒煙拖垮整站結果。
+  課寫完、驗過就 `rm .wip` 再 build。（實錄：忘了標，build 把模板頁與半成品 lesson.py 一起編，只能砍掉重來。）
+- **`pgrep -f`／`pkill -f` 的樣式會比對到自己這條 shell 指令**（指令字串本身含樣式）——
+  用 `ps -eo pid,args | grep -E ... | grep -v -E "grep|zsh -c"` 過濾，或樣式寫成 `[b]uild.sh` 且**確保指令其他地方
+  沒有再出現同一字串**（實錄三次誤殺自己，exit 144）。
+- **Dagster 課的 `marimo export --sandbox` 收尾不退出**（全 cell 已跑完、session JSON 已寫）：根因在 dagster
+  kernel 子程序（關 telemetry、不用 ephemeral instance 都一樣）。驗證用 `timeout 900 bash verify-ext.sh …`，
+  回 124 就改用 `nb-outputs.py` 掃 session JSON（全 cell 有輸出且 errors 0 即通過），再收掉殘留行程。
+
 ### 一次建多堂課：fork 平行＋port 分段（FastMCP 4 補充系列，2026-08-20）
 
 - **四堂課平行寫**：主代理先把每課的 spike 跑通（`_spikes/spike_*.py`，一課一支、`--部分名` 可只跑一段），

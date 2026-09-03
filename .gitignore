@@ -42,3 +42,6 @@ video/audit/
 # publish-videos skill 的暫存計畫／結果
 video/.plan.json
 video/.publish-result.json
+
+# 寫作中的課：build.sh／smoke-all.sh 跳過（subagent 平行寫課時避免半成品進 dist）
+content/*/*/.wip
