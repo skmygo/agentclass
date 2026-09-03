@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feast 特徵倉：訓練與上線用同一份特徵 · AI 互動教室</title>
+<meta name="description" content="訓練時用 pandas 算特徵、上線時用 SQL 再算一次——兩邊不一致就是 training-serving skew；join 時順手拿「最新一筆」就是資料洩漏。用 Feast 把 Entity／FeatureView／ttl 定義一次，point-in-time join 出訓練集、materialize 進 online store 毫秒取值，兩條路讀同一份定義。molab 免費環境全程實作。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="Feast 特徵倉：訓練與上線用同一份特徵 · AI 互動教室">
+<meta property="og:description" content="訓練時用 pandas 算特徵、上線時用 SQL 再算一次——兩邊不一致就是 training-serving skew；join 時順手拿「最新一筆」就是資料洩漏。用 Feast 把 Entity／FeatureView／ttl 定義一次，point-in-time join 出訓練集、materialize 進 online store 毫秒取值，兩條路讀同一份定義。molab 免費環境全程實作。">
+<meta property="og:url" content="https://class.itsmygo.uk/feature-store/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝point-in-time（正確）、橘＝online／最新一筆、綠＝ttl、紅＝洩漏與掉列 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* hero：時間旅行 join */
+  #fs-demo .ctl { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 11px; }
+  #fs-demo .lbl { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; color: var(--ink-soft); }
+  #fs-demo input[type="range"] { flex: 1 1 190px; min-width: 150px; max-width: 300px; accent-color: var(--cut); }
+  #fs-demo .dayout { font-family: var(--mono); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  #fs-demo .ttl { font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+  #fs-demo .ttl input { accent-color: var(--c3); }
+
+  #fs-demo .tl { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+  #fs-demo .cell { flex: 1 1 0; min-width: 31px; border: 1.5px solid var(--grid); border-radius: 8px;
+    background: #fff; color: var(--ink); cursor: pointer; padding: 6px 2px 5px; text-align: center;
+    font-family: var(--mono); line-height: 1.25; transition: border-color .15s, background .15s, opacity .15s; }
+  #fs-demo .cell b { display: block; font-size: 14px; font-weight: 700; }
+  #fs-demo .cell i { display: block; font-style: normal; font-size: 9.5px; color: var(--ink-soft); letter-spacing: .02em; }
+  #fs-demo .cell.none { background: repeating-linear-gradient(135deg, #fff, #fff 4px, var(--chip-bg) 4px, var(--chip-bg) 8px); }
+  #fs-demo .cell.none b { color: var(--ink-soft); font-weight: 500; }
+  #fs-demo .cell.pick { border-color: var(--c1); box-shadow: inset 0 0 0 1.5px var(--c1); }
+  #fs-demo .cell.pick b { color: var(--c1); }
+  #fs-demo .cell.leak { border-color: var(--c2); box-shadow: inset 0 0 0 1.5px var(--c2); }
+  #fs-demo .cell.leak b { color: var(--c2); }
+  #fs-demo .cell.now { border-style: dashed; border-color: var(--cut); }
+  #fs-demo .cell.gone { opacity: .42; border-color: var(--cut); box-shadow: none; }
+  #fs-demo .cell.gone b { color: var(--cut); text-decoration: line-through; }
+
+  #fs-demo .io { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  #fs-demo .pane { border: 1.5px solid var(--grid); border-radius: 10px; padding: 8px 10px 10px; min-width: 0; }
+  #fs-demo .pane.pit { border-color: var(--c1); }
+  #fs-demo .pane.leak { border-color: var(--c2); }
+  #fs-demo .ptag { font-size: 10px; font-weight: 800; letter-spacing: .06em; display: block; margin-bottom: 6px; }
+  #fs-demo .pane.pit .ptag { color: var(--c1); }
+  #fs-demo .pane.leak .ptag { color: var(--c2); }
+  #fs-demo .kv { font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  #fs-demo .kv em { font-style: normal; color: var(--ink-soft); }
+  #fs-demo .kv b { font-size: 15px; }
+  #fs-demo .verdict { margin-top: 11px; font-size: 13px; line-height: 1.6; border-top: 1px solid var(--grid); padding-top: 9px; }
+  #fs-demo .verdict b { color: var(--cut); }
+  @media (max-width: 620px) {
+    #fs-demo .io { grid-template-columns: 1fr; }
+    #fs-demo .tl { gap: 3px; }
+    #fs-demo .cell { min-width: 24px; padding: 5px 1px 4px; }
+    #fs-demo .cell b { font-size: 12.5px; }
+    #fs-demo .cell i { font-size: 9px; }
+    #fs-demo input[type="range"] { flex: 1 1 120px; min-width: 110px; }
+  }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.b { color: var(--c1); font-weight: 700; }
+  table.cmp td.o { color: var(--c2); font-weight: 700; }
+  table.cmp td.r { color: var(--cut); font-weight: 700; }
+  table.cmp td.num, table.cmp th.num { white-space: nowrap; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/mlops/">‹ MLOps 自動化技術</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="feature-store_ext.py" download>下載 .py</a>
+  <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">FEATURE STORE · 補充 F · 11</span>
+  <h1>Feast 特徵倉：<br>訓練與上線用同一份特徵</h1>
+  <p style="margin-top:18px">
+    做訓練集時，你得把「事件」跟「特徵」接起來。最順手的寫法是
+    <span class="kbd">events.join(每位客戶最新的一筆)</span>——一行搞定，跑得動，不報錯。
+    但事件發生在 8 天前，「最新的一筆」是今天早上才算出來的：你等於告訴模型「這位客戶 8 天後會怎樣」，
+    然後要它預測 8 天前的事。先玩玩看這件事有多容易發生——
+  </p>
+
+  <div class="hero-demo" id="fs-demo">
+    <div class="ctl">
+      <span class="lbl">事件發生在</span>
+      <input type="range" id="fs-day" min="1" max="9" step="1" value="2" aria-label="事件發生在第幾天">
+      <span class="dayout" id="fs-dayout">第 2 天</span>
+      <label class="ttl"><input type="checkbox" id="fs-ttl" checked> 套用 <span class="kbd">ttl</span> 3 天</label>
+    </div>
+    <div class="tl" id="fs-tl"></div>
+    <div class="io">
+      <div class="pane pit">
+        <span class="ptag">POINT-IN-TIME：那一刻真的知道的</span>
+        <div class="kv" id="fs-pit"></div>
+      </div>
+      <div class="pane leak">
+        <span class="ptag">「拿最新一筆」：塞給模型的未來</span>
+        <div class="kv" id="fs-leak"></div>
+      </div>
+    </div>
+    <div class="verdict" id="fs-verdict"></div>
+  </div>
+
+  <p class="note">
+    時間軸上的每一個數字都是 notebook 實測資料裡「客戶 7」的真實快照（他的上游管線在第 4–6 天壞掉，
+    所以那三天沒有資料）。整份訓練資料有 <b>246 / 360 筆</b>會因為那行 join 拿到不一樣的特徵值。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 兩個災難</span>
+  <h2>特徵出事的兩種方式，都不會報錯</h2>
+  <p>
+    模型上線之後表現不如預期，第一個被懷疑的永遠是模型。但很多時候問題在更上游：
+    <b>特徵是怎麼算出來的</b>。有兩種經典災難，共通點是<b>沒有任何錯誤訊息</b>——
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>訓練／上線不一致（skew）</th><th>資料洩漏（leakage）</th></tr>
+    <tr><td>發生在哪</td><td>同一個特徵，兩個地方各算一次</td><td>同一份訓練資料，join 少寫了時間條件</td></tr>
+    <tr><td>典型現場</td><td>資料科學家用 pandas 算「近 30 天訂單數」，後端工程師照規格用 SQL 再寫一次</td><td><span class="kbd">events.join(latest_features)</span>——每位客戶都拿最新一筆</td></tr>
+    <tr><td>症狀</td><td>離線很準，上線就是差一截</td><td>模型學到一個上線時不存在的世界</td></tr>
+    <tr><td>為什麼難抓</td><td>兩段程式都「對」，只是對不上（時區、含不含當天、null 怎麼處理）</td><td>錯誤散在資料裡，不會集中成一個看得出來的症狀</td></tr>
+  </table>
+  <p>
+    第二種特別陰險，因為它<b>大部分時候是對的</b>。實測 360 筆事件裡，那行 join 有
+    <b>114 筆剛好給對了</b>（客戶這幾天沒什麼變化），錯的 246 筆散在其中——
+    你不會看到一個壞掉的欄位，只會看到一個「好像沒有想像中準」的模型。
+  </p>
+  <p>
+    差最誇張的一筆：客戶在事件當天的快照是 <b>10 筆訂單、退貨率 0.108</b>，
+    但那行 join 給模型的是 <b>3 筆、退貨率 0.204</b>——那是<b>事件之後 7.9 天</b>才算出來的數字，
+    正好記錄了「這位客戶後來不買了」。模型學得很開心，上線時卻永遠拿不到這種資訊。
+  </p>
+  <div class="codeblock"># 正確的 point-in-time join，pandas 也寫得出來
+# ——但這四個參數少一個就出事
+asof = pd.merge_asof(
+    events.sort_values("event_timestamp"),     # ← 兩邊都要先排序
+    snapshots.sort_values("event_timestamp"),  #   沒排序直接報錯
+    on="event_timestamp",
+    by="customer_id",                # ← 忘了它，拿到別人的特徵
+    direction="backward",            # ← 忘了它，預設往後找（洩漏）
+    tolerance=pd.Timedelta(days=3),  # ← 忘了它，拿到三個月前的特徵
+)</div>
+  <p>
+    <b>問題不在寫不寫得出來，在於這段程式住在哪裡。</b>它住在某個人的 notebook 裡，
+    上線的工程師看不到；半年後加一個特徵，訓練管線、線上服務、批次評分腳本各有一份要改；
+    而且它沒有名字，沒有人能問「<span class="kbd">n_orders_30d</span> 是誰定義的、算多久、什麼時候更新」。
+    <b>特徵倉不是因為 join 難寫才存在，是因為 join 的定義需要一個唯一的家。</b>
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 1️⃣ 節：兩種 join 並排、洩漏分佈圖</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 三個定義</span>
+  <h2>Entity、FeatureView、Field，加上一個 yaml</h2>
+  <div class="codeblock">customer = Entity(name="customer", join_keys=["customer_id"],
+                  value_type=ValueType.INT64)
+
+daily_source = FileSource(          # timestamp_field 說的是
+    path=PARQUET,                   # 「這一列是何時算出來的」
+    timestamp_field="event_timestamp")
+
+customer_daily = FeatureView(
+    name="customer_daily", entities=[customer],
+    ttl=timedelta(days=3),          # 超過 3 天沒更新就當它不存在
+    schema=[Field(name="n_orders_30d", dtype=Int64),
+            Field(name="total_30d",    dtype=Float32),
+            Field(name="return_rate",  dtype=Float32)],
+    source=daily_source, online=True)
+
+store = FeatureStore(repo_path=".")
+store.apply([customer, customer_daily])   # ← 等同 CLI 的 feast apply</div>
+  <p>
+    三個定義各回答一個問題：<b>Entity</b>＝特徵是「誰」的、<b>FeatureView</b>＝一組特徵從哪張表來、多久算過期、
+    <b>Field</b>＝每個特徵叫什麼、什麼型別。<span class="kbd">apply()</span> 把它們寫進 registry——
+    從那一刻起這些定義就不屬於某個人的 notebook 了。實測不到 <b>50 毫秒</b>，registry 檔案只有 <b>1.3 KB</b>：
+    它只存定義，不存資料。
+  </p>
+  <p>
+    另一個檔案 <span class="kbd">feature_store.yaml</span> 講的是<b>東西存在哪裡</b>。
+    看懂這三個角色就看懂特徵倉了：<b>同一份定義，兩個資料倉庫</b>。
+  </p>
+  <table class="cmp">
+    <tr><th>角色</th><th>存什麼</th><th>誰在讀</th><th>本課用什麼</th><th>正式環境常見</th></tr>
+    <tr><td><b>registry</b></td><td>定義本身</td><td>所有人</td><td>本機 <span class="kbd">registry.db</span></td><td>S3／GCS 上的一個檔，或 SQL registry</td></tr>
+    <tr><td class="b">offline store</td><td>完整歷史（每天每位客戶）</td><td>訓練、批次評分</td><td>一張 parquet</td><td>BigQuery／Snowflake／Redshift</td></tr>
+    <tr><td class="o">online store</td><td><b>只有每位客戶最新的一筆</b></td><td>線上服務</td><td>一個 SQLite 檔</td><td>Redis／DynamoDB／Bigtable</td></tr>
+  </table>
+  <p>
+    離線那邊要「查得到過去任何一刻」，所以慢而全；線上那邊只要「現在最新值、毫秒內回答」，所以快而薄。
+    兩邊存的是同一份定義下的同一種特徵——這就是特徵倉的整個設計。
+    （順帶一提：很多文件叫你在終端機下 <span class="kbd">feast apply</span>，
+    但 <span class="kbd">python -m feast</span> 是跑不起來的——它沒有 <span class="kbd">__main__</span>。）
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 2️⃣ 節：寫定義、apply、看 registry 裡有什麼</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · POINT-IN-TIME</span>
+  <h2>一行查詢，換掉整段手寫 join</h2>
+  <div class="codeblock">training_df = store.get_historical_features(
+    entity_df=events,        # 客戶 id ＋ event_timestamp ＋ 標籤
+    features=["customer_daily:n_orders_30d",
+              "customer_daily:total_30d",
+              "customer_daily:return_rate"],
+).to_df()                    # 標籤等欄位會原封不動帶回來</div>
+  <p>
+    Feast 對<b>每一列</b>分別去找「那一刻最新的快照」。實測 360 筆事件約 <b>0.1 秒</b>跑完，
+    跟第 1 節手寫的 point-in-time 版本<b>一致率 100%</b>——它做的就是你手寫的那件事，
+    差別在於這次它是一個<b>有名字的定義</b>，訓練跟上線都會走同一份。
+  </p>
+  <p>
+    有兩件事第一次用就要知道，兩件都是靜默的：
+  </p>
+  <table class="cmp">
+    <tr><th>行為</th><th>後果</th><th>怎麼防</th></tr>
+    <tr><td class="r">進去 360 列，出來 356 列</td><td><span class="kbd">isna()</span> 全是 0——不是 NaN，是整列消失</td><td>查完永遠比對筆數（下一節詳談）</td></tr>
+    <tr><td class="r">回傳的列順序跟 entity_df 不同</td><td>用 <span class="kbd">.values</span> 對齊兩張表會靜默錯位</td><td>一律用 join key 做 <span class="kbd">merge</span>／<span class="kbd">join</span></td></tr>
+  </table>
+  <p>
+    還有一個會讓整批資料默默錯掉的坑：<b>時區</b>。
+    來源時間戳如果沒有帶時區，Feast 與 pandas 都會把它當成 UTC——不報錯、不警告。
+    實測把同一批快照的時間往後推 8 小時（就是「台北時間被當成 UTC」的效果），
+    <b>360 筆事件裡有 59 筆</b>拿到不一樣的特徵值。模型照樣訓練得出來、AUC 照樣有數字，
+    只是全部建立在錯的特徵上。<b>時區不是格式問題，是資料正確性問題。</b>
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 3️⃣ 節：跟手寫版對答案、時區實測</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · TTL</span>
+  <h2>太舊的特徵不給——而且它不是給你 NaN</h2>
+  <p>
+    <span class="kbd">ttl=timedelta(days=3)</span> 的意思是：一筆快照從被算出來那一刻起只「有效」3 天。
+    這個設定在回答一個很重要的問題：<b>上游壞掉沒更新時，模型該用舊值硬撐，還是該知道自己不知道？</b>
+  </p>
+  <table class="cmp">
+    <tr><th class="num">ttl</th><th>會發生什麼</th></tr>
+    <tr><td>太長</td><td>上游停更一週，模型還在用一週前的行為預測今天，而且完全不知道自己在用舊資料</td></tr>
+    <tr><td>太短</td><td>正常的更新延遲（批次晚跑一小時）就讓大量樣本沒有特徵</td></tr>
+    <tr><td class="b">合理的起點</td><td><b>更新週期 × 2～3</b>。每天更新 → 給 3 天；實測改成 1 天，訓練集從 356 筆掉到 341 筆</td></tr>
+  </table>
+  <p>
+    然後是那個<b>你一定要親眼看過一次</b>的行為。ttl 到期時，Feast 的檔案 offline store
+    <b>不是把特徵填成 NaN，而是把整列從結果裡拿掉</b>：
+  </p>
+  <div class="codeblock">>>> len(events), len(training_df)
+(360, 356)
+>>> training_df[FEATURE_COLS].isna().sum().sum()
+0</div>
+  <p>
+    訓練集靜靜地少了 4 筆，<span class="kbd">isna()</span> 檢查不出來，<span class="kbd">shape</span> 你也不會每次都看。
+    所以請養成習慣：<b><span class="kbd">get_historical_features</span> 之後永遠比對筆數</b>，不一樣就丟例外。
+    而且少掉的那些列本身就是訊號——它們是「上游資料在那段時間壞掉」的客戶，
+    通常也正是最該被關注的那群人。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 4️⃣ 節：3 列進 2 列出的實測＋時間軸圖</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 訓練</span>
+  <h2>同一批事件，兩種特徵，四次訓練</h2>
+  <p>
+    有了 point-in-time 正確的訓練集，剩下就是老套路。切法用<b>時間切</b>不用隨機切——
+    隨機切在時間序列資料上本身就是一種洩漏（用未來的事件訓練、預測過去的事件）。
+    實測訓練集 207 筆、測試集 149 筆，兩個演算法各訓練一次「正確特徵」與一次「洩漏特徵」，
+    <b>四個模型都在同一批測試事件、同一份 point-in-time 特徵上評估</b>——因為那才是上線時的樣子。
+  </p>
+  <table class="cmp">
+    <tr><th>演算法</th><th class="b">point-in-time 特徵 AUC</th><th class="r">洩漏特徵 AUC</th><th class="num">差</th></tr>
+    <tr><td>LogisticRegression</td><td class="b num">0.8757</td><td class="r num">0.8629</td><td class="num">+0.0128</td></tr>
+    <tr><td>RandomForest（100 棵、depth 4）</td><td class="b num">0.8685</td><td class="r num">0.8411</td><td class="num">+0.0274</td></tr>
+  </table>
+  <p>
+    <b>差距沒有你想像的大——這正是重點。</b>洩漏不會讓模型當場崩潰，
+    它讓模型學到一個上線時不存在的世界，然後你會發現：離線評估的每一個數字看起來都很正常，
+    <b>沒有任何指標會跳出來說「你的特徵是未來來的」</b>。
+    你只會在上線後看到模型比預期差一點，然後開始調參數、換演算法、加特徵——
+    而真正的問題在 join 的那一行。
+  </p>
+  <p>
+    （本課的洩漏是「拿到同一位客戶幾天後的行為」，屬於比較溫和的一種。
+    真正致命的版本是特徵欄位本身就是答案的結果——例如拿「客訴結案原因」去預測客訴會不會發生；
+    那種洩漏會讓離線分數高到不真實，反而比較容易被發現。<b>越像這一課這種、越難發現。</b>）
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：四次訓練全部記進 MLflow</a>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 上線</span>
+  <h2>materialize 到 online store，毫秒級取特徵</h2>
+  <div class="codeblock"># 排程每天跑這一行（Feast 自己記水位）
+store.materialize_incremental(end_date=now)
+
+feats = store.get_online_features(
+    features=FEATURE_REFS,
+    entity_rows=[{"customer_id": 7}],
+).to_dict()
+
+# 跟訓練時讀的是同一份定義
+model.predict_proba(pd.DataFrame(feats)[FEATURE_COLS])</div>
+  <p>
+    客服系統打電話來：「客戶 7 正在線上，他會不會流失？」你有 50 毫秒可以回答。
+    那張 parquet 查不動，所以 <span class="kbd">materialize</span> 把資料推進 online store。
+    實測 online store 只有 <b>24 KB、60 列</b>＝20 位客戶 × 3 個特徵（offline 那張表是 192 列的完整歷史）。
+  </p>
+  <table class="cmp">
+    <tr><th>量測</th><th>毫秒</th></tr>
+    <tr><td>第一次呼叫（含開連線）</td><td>4.5</td></tr>
+    <tr><td class="o">之後單筆（20 次）最快／中位／最慢</td><td class="o num">0.13 ／ 0.16 ／ 0.25</td></tr>
+    <tr><td>一次拿 20 位客戶</td><td>0.87</td></tr>
+    <tr><td colspan="2" style="color:var(--ink-soft)">SQLite 跑在本機的數字，換成 Redis 之後多的是網路來回的時間——看<b>數量級</b>：offline 幾十毫秒起跳，online <b>次毫秒</b>。</td></tr>
+  </table>
+  <p>
+    <b>這件事必須排程。</b>特徵倉不會自己更新：接上第 4 課的 schedule，
+    每天批次算完快照之後跟著跑一次 <span class="kbd">materialize_incremental</span>。
+    沒排程的下場是 online store 停在某一天，線上服務拿著三個月前的特徵繼續回答，而且不會報錯。
+  </p>
+  <p>
+    還有一個上線必知的行為：<b>查一個 online store 裡沒有的客戶不會報錯，每個特徵回 <span class="kbd">None</span></b>。
+    新註冊的客戶還沒被 materialize 進來、或某位客戶的上游斷線超過 ttl，
+    你的服務就會拿到一排 <span class="kbd">None</span> 然後在下一行炸掉——
+    或更糟，被某個 <span class="kbd">fillna(0)</span> 默默補成 0，模型照樣給出一個看起來很正常的分數。
+  </p>
+  <p>
+    最後是這一課真正的驗收：同一批客戶、同一個時刻，分別走
+    <span class="kbd">get_historical_features</span>（訓練那條路）與 <span class="kbd">get_online_features</span>（上線那條路），
+    <b>三個特徵、20 位客戶，每一個值都完全相同</b>。這不是碰巧——
+    你沒有寫第二份特徵計算程式，所以<b>根本沒有機會</b>寫出跟訓練不一致的版本。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 6️⃣ 節：延遲量測、離線 vs 線上對答案</a>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 版本與演進</span>
+  <h2>特徵服務、加欄位、現算特徵</h2>
+  <div class="codeblock">churn_v1 = FeatureService(
+    name="churn_v1",
+    features=[customer_daily[["n_orders_30d", "return_rate"]]])
+
+store.get_online_features(
+    features=store.get_feature_service("churn_v1"),
+    entity_rows=[{"customer_id": 7}])
+# → {'customer_id': [7], 'return_rate': [0.2041],
+#    'n_orders_30d': [3]}</div>
+  <p>
+    v1 模型吃 3 個特徵、v2 加了兩個，線上服務怎麼知道現在該拿哪幾個？
+    <b><span class="kbd">FeatureService</span> 就是把「一組特徵」取個名字</b>，讓模型跟特徵清單一起版本化。
+    線上服務的程式碼裡從此不需要出現任何特徵名稱——只需要知道它服務的是哪個模型版本。
+  </p>
+  <p>
+    <b>加一個特徵欄位</b>是四個步驟，而第四步是最多人漏掉、也最痛的一步：
+    來源多一欄 → <span class="kbd">schema</span> 加一個 <span class="kbd">Field</span> →
+    <span class="kbd">apply</span> → <b>全量</b> <span class="kbd">materialize</span>。
+  </p>
+  <table class="cmp">
+    <tr><th>做完 apply 之後</th><th>離線</th><th>線上</th></tr>
+    <tr><td>什麼都不做</td><td class="b">馬上有新欄位（每次都重讀來源）</td><td class="r">沒有</td></tr>
+    <tr><td>跑 <span class="kbd">materialize_incremental</span></td><td class="b">有</td><td class="r"><span class="kbd">None</span>——水位已經到「現在」，它認為沒有新資料要推</td></tr>
+    <tr><td>跑全量 <span class="kbd">materialize(start, end)</span></td><td class="b">有</td><td class="o">有</td></tr>
+  </table>
+  <p>
+    這個坑之所以難，是因為它完全沉默：離線測試都對、<span class="kbd">apply</span> 沒報錯、
+    <span class="kbd">materialize_incremental</span> 也「成功」了，只有線上服務拿到一排 <span class="kbd">None</span>。
+  </p>
+  <p>
+    最後一個工具：<b>on-demand feature view</b>——有些特徵不該存，該現算。
+    「平均客單價」是 <span class="kbd">total_30d / n_orders_30d</span> 算出來的，
+    存一份等於多一個可能跟另外兩欄不同步的地方。定義成一個函式，離線與線上查詢時<b>當場算</b>，
+    兩邊自動套用同一份轉換邏輯。判準是<b>算它要多久</b>：四則運算、取 log、算比值 → on-demand；
+    要掃三個月的訂單表 → 乖乖批次算好存起來。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">到 notebook 的 7️⃣–9️⃣ 節：FeatureService、加欄位、on-demand、錯誤原文速查</a>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>再加一個特徵欄位 <span class="kbd">orders_per_day</span>，走完完整的四步（改來源 → 加 <span class="kbd">Field</span> → <span class="kbd">apply</span> → <b>全量</b> <span class="kbd">materialize</span>）。驗收：線上拿得到值而不是 <span class="kbd">None</span>。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>把 <span class="kbd">ttl</span> 改成 1 天再 <span class="kbd">apply</span>，重跑查詢，數數看訓練集少了幾筆，並找出是<b>哪些客戶</b>的事件被吃掉。順便想想：如果你的批次工作偶爾會晚兩小時跑完，<span class="kbd">ttl</span> 該給多少？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>做一個「請求當下才知道的特徵」：用 <span class="kbd">RequestSource</span> ＋ on-demand feature view 算出「這次購物車金額 ÷ 這位客戶的平均客單價」，線上查詢時把 <span class="kbd">cart_amount</span> 一起放進 <span class="kbd">entity_rows</span>。這是特徵倉最實用的模式之一：<b>存起來的歷史特徵 × 這一秒才發生的事</b>。</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">09 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你要做一份流失預測的訓練集：一張「每日客戶快照」表，一張「推播事件＋30 天後有沒有流失」表。同事說「直接 join 每位客戶最新的一筆特徵就好，反正特徵變化不大」。最佳做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 照同事說的做，之後用交叉驗證確認模型沒有過擬合</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 照同事說的做，但只保留最近 3 天的事件，這樣「最新一筆」就夠接近了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 做 point-in-time join：每一筆事件只拿「該事件時間之前」最後一筆快照，並把這個定義放進特徵倉讓上線那邊共用</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 先兩種都做，比較 AUC，哪個高用哪個</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「特徵變化不大」是個假設，而且實測會打臉：360 筆事件裡有 <b>246 筆</b>拿到不一樣的值，最極端的一筆是「10 筆訂單、退貨率 0.108」被換成「3 筆、退貨率 0.204」——那是事件之後 8 天才算出來的數字。模型上線時拿不到未來，所以它學到的規則在上線時根本不存在。A 的交叉驗證抓不到這件事：洩漏在訓練集與驗證集裡是同一種，兩邊都被污染。B 縮短時間窗只是把洩漏變小，沒有消除，而且丟掉大部分訓練資料。D 最危險：洩漏的模型離線分數<b>不一定比較低</b>（實測差距只有 0.01–0.03），拿 AUC 當裁判會選錯，而且你永遠不會知道為什麼上線後不對。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你把 360 筆事件丟給 <span class="kbd">get_historical_features</span>，程式沒有報錯，但下游的訓練筆數對不上。檢查了一下：</h3>
+      <div class="codeblock">>>> len(events), len(training_df)
+(360, 356)
+>>> training_df[FEATURE_COLS].isna().sum().sum()
+0</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 事件表裡有 4 筆重複的 <code>(customer_id, event_timestamp)</code>，被 Feast 去重了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 那 4 筆事件最近的一筆快照已經超過 <code>ttl</code>——Feast 不是填 NaN，是把整列從結果裡拿掉</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 那 4 筆的 <code>customer_id</code> 不在 Entity 定義裡，需要重新 <code>apply</code></button>
+        <button type="button" class="quiz-opt" data-k="D">D. parquet 讀取時掉了幾列，重新寫一次來源檔就會好</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>isna()</code> 是 0 卻少了 4 列，這個組合只有一個解釋：<b>那些列根本沒有進到結果裡</b>。Feast 的檔案 offline store 對「事件時間距離最近快照超過 <code>ttl</code>」的列，做的是整列丟棄而不是填 NaN——實測就是上游管線斷線那幾天的客戶。這是本課最該記住的靜默行為，防法只有一個：<b>查完永遠比對筆數</b>（<code>len(got) != len(entity_df)</code> 就丟例外）。而且少掉的那些列本身就是訊號，它們指向資料管線壞掉的時段。A 說得通但這裡不成立（事件時間戳是不重複的，而且去重不會挑出這 4 筆）；C 的話 Entity 沒定義會在 <code>apply</code> 或查詢時直接報錯，不會安靜地少 4 列；D 沒有根據，parquet 讀取失敗會拋例外而不是少列。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>上游多算了一個 <span class="kbd">avg_amount</span>，你把 parquet 加了欄、<span class="kbd">schema</span> 加了 <span class="kbd">Field</span>、也 <span class="kbd">apply</span> 過了。離線查得到值，排程也照常跑完，但線上服務拿到的是：</h3>
+      <div class="codeblock">>>> store.materialize_incremental(end_date=now)
+Materializing 1 feature views to ... into the sqlite online store.
+>>> store.get_online_features(
+...     features=["customer_daily:avg_amount"],
+...     entity_rows=[{"customer_id": 7}]).to_dict()
+{'customer_id': [7], 'avg_amount': [None]}</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 新欄位的 <code>dtype</code> 宣告錯了，改成 <code>Float64</code> 再 <code>apply</code></button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>FeatureView</code> 的 <code>online=True</code> 沒開，開了就會推上去</button>
+        <button type="button" class="quiz-opt" data-k="C">C. online store 的 SQLite 檔要先刪掉，Feast 才會重建表</button>
+        <button type="button" class="quiz-opt" data-k="D">D. <code>materialize_incremental</code> 是「從上次水位接著做」，水位已經到現在了所以一列都沒補——加欄位之後要跑一次全量 <code>materialize(start, end)</code></button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>materialize_incremental</code> 只處理「上次水位到現在」這段新資料。加欄位並不會產生新的時間區間，所以它認為沒事可做、乾乾淨淨地「成功」了，而舊的那些列從來沒被重寫過——線上就永遠是 <code>None</code>。修法是跑一次涵蓋完整歷史的 <code>materialize(start_date, end_date)</code>。<b>凡是改了 schema 或改了特徵計算邏輯，都要全量重做一次。</b>A 的 dtype 不符會在 <code>apply</code> 當場報 <code>SpecifiedFeaturesNotPresentError</code>，不會安靜回 <code>None</code>；B 若真的沒開，<code>materialize</code> 根本不會處理這個 view（而且離線也不受影響，症狀不同）；C 刪檔案是把問題連同資料一起刪掉的做法，重建之後仍然要 materialize 才有值，而且線上服務會在這段期間全部拿到 <code>None</code>。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>線上推論服務用 <span class="kbd">get_online_features</span> 取特徵。上線第三天，監控顯示有一小群客戶的流失機率全部落在同一個很低的數值上，但服務沒有任何錯誤紀錄。你查到那群人都是昨天剛註冊的新客戶。最該做的是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把 <code>ttl</code> 拉長到 30 天，這樣新客戶就查得到特徵了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 在取完特徵後檢查 <code>None</code>：拿不到特徵的客戶不要送進模型，改走明確的降級路徑並記錄下來</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 在服務端把 <code>None</code> 統一 <code>fillna(0)</code>，讓模型永遠有輸入可以算</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 每次請求改用 <code>get_historical_features</code> 取特徵，它比較完整</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>症狀完全對得上「一排 <code>None</code> 被補成同一個預設值」：新客戶還沒被 materialize 進 online store，<code>get_online_features</code> <b>不報錯、回 <code>None</code></b>，某段程式把它補成 0，模型就對每個人輸出同一個分數。這種故障最貴的地方是它<b>看起來完全正常</b>。正確做法是把「拿不到特徵」當成一個明確的狀態：不送模型、走降級（給預設策略或轉人工）、並記錄下來當監控指標。A 拉長 ttl 對「從來沒有任何一筆快照」的新客戶沒用，而且會讓所有人都能用到很舊的特徵，是拿一個更大的問題換小問題。C 正是造成這次事故的那一行——<code>0</code> 不是「不知道」，模型會把它當成一個真實的、極端的特徵值。D 方向錯了：離線查詢是為了完整歷史而設計的，延遲差好幾個數量級，而且新客戶在那裡一樣沒有資料。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>模型要上線了，後端工程師拿到一份規格文件，準備用 SQL 在 API 裡重新實作「近 30 天訂單數／金額／退貨率」三個特徵。你會怎麼建議？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 不要重寫：線上直接呼叫 <code>get_online_features</code>（用 <code>FeatureService</code> 綁定這個模型版本要哪幾個特徵），跟訓練走同一份定義</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 讓他照規格寫，上線後拿一批樣本比對兩邊的特徵值，差太多再修</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 讓他照規格寫，但把時區、含不含當天這些細節寫得更清楚，並補上單元測試</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 訓練那邊改成也用他的 SQL 產生特徵，這樣兩邊就一致了</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這題就是 training-serving skew 的源頭：<b>只要同一個特徵存在兩份實作，它們遲早會不一致</b>——不是第一天，是半年後某一次只改了其中一邊的時候。特徵倉的第一個承諾就是消除這件事：線上服務呼叫 <code>get_online_features</code>，跟訓練用的 <code>get_historical_features</code> 讀同一份 registry 定義；再用 <code>FeatureService</code> 把「這個模型版本要哪幾個特徵」也綁進去，換模型只要換服務名稱，服務程式一行不用改。實測同一批客戶、同一個時刻，兩條路取出的三個特徵完全相同。B 是把驗證推遲到出事之後，而且「差太多」沒有客觀界線；C 把賭注押在文件與紀律上，這正是實務上最常輸的一種賭；D 方向對（收斂成一份）但選錯了那一份：SQL 寫在 API 裡，批次評分、重新訓練、實驗都用不到它，而且離線要做 point-in-time join 遠比 SQL 直覺得多。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/dvc-basics/">
+    <span class="tag">下一課</span>
+    <b>DVC 資料版本控制：資料與模型也要有 git →</b>
+  </a>
+  <a href="/mlops/">
+    <span class="tag">主題</span>
+    <b>‹ 回「MLOps 自動化技術」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：molab 導流面板（常駐，無內嵌 notebook） ══════════════ -->
+<div id="lab">
+  <div id="molab-panel">
+    <div class="panel-inner">
+      <span class="eyebrow">HANDS-ON · MOLAB</span>
+      <h3>實作在 molab 跑（免費）</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 notebook 要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU；特徵倉整組跑在 notebook 自己的機器上，不連任何外部服務</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/feature-store/feature-store_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="feature-store_ext.py" download>下載 feature-store_ext.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>feature-store_ext.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox feature-store_ext.py</code>，依賴會自動安裝。</p>
+      <p class="panel-note">molab 的線上編輯器在手機上體驗有限——動手這一段建議用電腦進行。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：時間旅行 join ═══
+   時間軸上的每一個數字都是 notebook 實測資料裡「客戶 7」的每日快照（Feast 0.66）：
+   他的上游管線在第 4–6 天壞掉，所以那三天沒有列。
+   規則與 notebook 一致：事件發生在第 d 天的中午，point-in-time 拿「≤ 事件時間」最後一筆快照，
+   ttl=3 天到期時 Feast 把整列丟掉（不是 NaN）。 */
+(function () {
+  const SNAP = [
+    { d: 0, n: 10, r: 0.1253 },
+    { d: 1, n: 10, r: 0.1081 },
+    { d: 2, n: 9, r: 0.1190 },
+    { d: 3, n: 9, r: 0.1183 },
+    { d: 4, n: null, r: null },
+    { d: 5, n: null, r: null },
+    { d: 6, n: null, r: null },
+    { d: 7, n: 4, r: 0.1793 },
+    { d: 8, n: 4, r: 0.2074 },
+    { d: 9, n: 3, r: 0.2041 },
+  ];
+  const LATEST = SNAP[9];
+
+  const tl = document.getElementById("fs-tl");
+  const slider = document.getElementById("fs-day");
+  const dayout = document.getElementById("fs-dayout");
+  const ttlBox = document.getElementById("fs-ttl");
+  const pitBox = document.getElementById("fs-pit");
+  const leakBox = document.getElementById("fs-leak");
+  const verdict = document.getElementById("fs-verdict");
+
+  SNAP.forEach((s) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cell" + (s.n === null ? " none" : "");
+    b.dataset.d = s.d;
+    b.innerHTML = `<b>${s.n === null ? "—" : s.n}</b><i>d${s.d}</i>`;
+    b.title = s.n === null ? `第 ${s.d} 天：上游沒有資料` : `第 ${s.d} 天：${s.n} 筆訂單、退貨率 ${s.r}`;
+    if (s.d > 0) b.addEventListener("click", () => { slider.value = String(s.d); render(); });
+    tl.appendChild(b);
+  });
+
+  const kv = (s) =>
+    `<em>n_orders_30d</em> <b>${s.n}</b><br><em>return_rate</em> <b>${s.r.toFixed(4)}</b>`;
+
+  function render() {
+    const day = Number(slider.value);
+    dayout.textContent = `第 ${day} 天`;
+    // 事件在當天中午：point-in-time 拿「≤ 事件時間」最後一筆
+    let pick = null;
+    for (let i = day; i >= 0; i--) if (SNAP[i].n !== null) { pick = SNAP[i]; break; }
+    const ageDays = day - pick.d + 0.5;
+    const expired = ttlBox.checked && ageDays > 3;
+
+    tl.querySelectorAll(".cell").forEach((c) => {
+      const d = Number(c.dataset.d);
+      c.classList.toggle("now", d === day);
+      c.classList.toggle("pick", d === pick.d && !expired);
+      c.classList.toggle("gone", d === pick.d && expired);
+      c.classList.toggle("leak", d === 9 && day !== 9);
+    });
+
+    if (expired) {
+      pitBox.innerHTML =
+        `<em>整列被丟掉</em><br><b style="color:var(--cut)">沒有這筆訓練樣本</b>` +
+        `<br><em>最近的快照是 ${ageDays} 天前</em>`;
+    } else {
+      pitBox.innerHTML = kv(pick) + `<br><em>快照來自 d${pick.d}（${ageDays} 天前）</em>`;
+    }
+    leakBox.innerHTML = kv(LATEST) + `<br><em>快照來自 d9（事件之後 ${9 - day} 天）</em>`;
+
+    if (day === 9) {
+      verdict.innerHTML =
+        "事件就發生在今天，兩邊當然一樣——<b>洩漏只發生在「過去的事件」上</b>，而訓練資料裡幾乎全部都是過去的事件。";
+    } else if (expired) {
+      verdict.innerHTML =
+        `這位客戶最近一筆快照已經 ${ageDays} 天沒更新，超過 <b>ttl 3 天</b>：` +
+        "point-in-time 誠實地說「這一刻我不知道」，Feast 直接把整列拿掉；" +
+        "而「拿最新一筆」照樣給得出一個漂亮的數字——<b>它永遠給得出答案，這正是它危險的地方</b>。";
+    } else {
+      const dn = LATEST.n - pick.n;
+      const dr = LATEST.r - pick.r;
+      verdict.innerHTML =
+        `同一筆訓練樣本，兩種 join 差 <b>${dn > 0 ? "+" : ""}${dn} 筆訂單</b>、` +
+        `<b>退貨率 ${dr > 0 ? "+" : ""}${dr.toFixed(4)}</b>——` +
+        `「拿最新一筆」那組數字是事件之後 ${9 - day} 天才算出來的，模型上線時永遠拿不到。`;
+    }
+  }
+
+  slider.addEventListener("input", render);
+  ttlBox.addEventListener("change", render);
+  render();
+})();
+</script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

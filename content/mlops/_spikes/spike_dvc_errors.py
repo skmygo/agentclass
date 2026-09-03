@@ -242,4 +242,52 @@ run(f"{PY} -m dvc status", w)
 run(f"{PY} -m dvc checkout", w)
 print("→ dvc checkout 之後才變成:", pd.read_csv(w / "data" / "raw.csv").loc[0, "label"])
 
+sec("8. 改了 params.yaml 但沒把 key 加進 dvc.yaml 的 params 清單（靜默不重跑）")
+w = fresh("silentparam")
+(w / "params.yaml").write_text("train:\n  max_depth: 4\n")
+(w / "train.py").write_text(
+    "import yaml\n"
+    "p = yaml.safe_load(open('params.yaml'))['train']\n"
+    "open('model.txt','w').write(str(p))\n"
+    "print('trained with', p)\n"
+)
+(w / "dvc.yaml").write_text(
+    textwrap.dedent("""
+    stages:
+      train:
+        cmd: python train.py
+        deps:
+          - train.py
+        params:
+          - train.max_depth
+        outs:
+          - model.txt
+    """)
+)
+run(f"{PY} -m dvc repro", w)
+print("model.txt =", (w / "model.txt").read_text())
+print("\n>>> 加一個新參數 min_samples_leaf，但『忘了』加進 dvc.yaml 的 params 清單")
+(w / "params.yaml").write_text("train:\n  max_depth: 4\n  min_samples_leaf: 3\n")
+run(f"{PY} -m dvc status", w)
+run(f"{PY} -m dvc repro", w)
+print("model.txt 還是 =", (w / "model.txt").read_text(), "  ← 參數改了，產物沒變")
+print("\n>>> 把 min_samples_leaf 補進 dvc.yaml 的 params 清單之後")
+(w / "dvc.yaml").write_text(
+    textwrap.dedent("""
+    stages:
+      train:
+        cmd: python train.py
+        deps:
+          - train.py
+        params:
+          - train.max_depth
+          - train.min_samples_leaf
+        outs:
+          - model.txt
+    """)
+)
+run(f"{PY} -m dvc repro", w)
+print("model.txt =", (w / "model.txt").read_text())
+
+
 print("\n\n全部錯誤情境跑完。")

@@ -19,9 +19,10 @@
 | 08 | optuna-hpo | 上線 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
 | 09 | data-validation | 上線 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
 | 10 | mlflow-tracing | 上線 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
-| 11 | feature-store | 寫作中 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
-| 12 | dvc-basics | 寫作中 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
-| 13+ | ml-testing | 候選（spike 已跑通） | 時間允許再加 |
+| 11 | feature-store | 完成待部署 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
+| 12 | dvc-basics | 完成待部署 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
+| 13 | ml-testing | 寫作中 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
+| 14 | model-explainability | 寫作中 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -221,6 +222,31 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
 - `_spikes/` 與 scratchpad 是跨 agent 共享的：背景 log 檔名要帶課程 id。Dagster 課 export 依賴快取命中時 cell 全跑完約 15–40 秒，其餘全是 hang。
 - 驗證成本：500 列 2.4 ms、5 萬列 ~9 ms、50 萬列 60–107 ms；`drop_invalid_rows=True` 丟壞列。錯誤原文在 `_spikes/spike_pandera_errors.py`。
 
+### Feast 課（11）subagent 實測補充（2026-09-04 05:45，Feast 0.66）
+
+- **ttl 到期是整列丟掉不是 NaN**（360→356、`isna()` 全 0）——查完必比對筆數。`get_historical_features` 回傳列順序 ≠ entity_df 順序，用 join key 對齊。
+- tz-naive 時間戳完全不報錯（都當 UTC），台北時間誤讀 → 59/360 列拿到不同特徵。`entity_df` 時間欄叫 `timestamp` 只印一行提示。
+- 加欄位後 `materialize_incremental` 一列都不補（水位已到現在）→ 線上 `None`；要全量 `materialize(start, end)`。
+- **on-demand feature view 在 Python 3.14 直接炸**（dill `_Pickler._batch_setitems() missing 1 required positional argument`）→ 本課 PEP 723 釘
+  `requires-python = ">=3.11,<3.14"`；ODFV 宣告 dtype 必須等於函式推論 dtype（float64 宣告 Float32 → `SpecifiedFeaturesNotPresentError`）。
+- `get_online_features` 對不存在 entity／未 materialize 回 `None` 不報錯；`materialize*` 印帶 ANSI 色碼的進度 → `redirect_stdout`＋去色碼。
+- 教學：這份資料上「洩漏」不會讓離線分數變漂亮（PIT 0.8757 vs 洩漏 0.8629），課程把差距小本身當教學點。實測 naive「拿最新一筆」
+  有 68% 列拿到不同值、最遠偷看未來 7.9 天；離線 vs 線上 20 位客戶三個特徵全等；online 熱查 0.13–0.25 ms。
+- 頁面：`table.cmp` 數字欄要 `white-space:nowrap`；codeblock 單行視覺寬（CJK 算 2 欄）>~70 欄會被雙欄版面截掉。
+
+### DVC 課（12）subagent 實測補充（2026-09-04 05:50，DVC 3.67.1、marimo 0.24 sandbox）
+
+- **`mo.md` 會把程式碼區塊裡以 `- ` 開頭的行當 markdown 清單重排**（YAML／dvc.lock 縮排 6→8、項目間插空行），fence 有無縮排都一樣壞，
+  export／冒煙 `errors: 0` 看不出來——只有挖 session JSON 的 `text/html` 才看得到。**檔案內容與終端機輸出一律走
+  `mo.Html("<pre>" + html.escape(text) + "</pre>")` 或 `mo.plain_text`**。（```text 圍欄內 `$` 不會被當 LaTeX。）
+- DVC 最沉默的坑：改了 `params.yaml` 但沒把 key 加進 `dvc.yaml` 的 `params:` → `dvc status` 回 up to date、`repro` skip、零警告。
+- `dvc.yaml` 的 `cmd: python train.py` 需要 `python` 在 PATH → subprocess 的 `env` 併入 `Path(sys.executable).parent`；設 `DVC_NO_ANALYTICS=1`。
+  `dvc exp run` 跑完會 apply 到工作區，要 `git checkout -- params.yaml dvc.lock`＋`dvc repro` 收回。`dvc metrics diff` 需要 HEAD 的 metrics 在 cache
+  （刪 cache→pull 後立刻 commit）。`dvc checkout` 遇未 add 修改 → `Can't remove the following unsaved files without confirmation. Use --force.`
+- `mo.ui.dropdown(...).form()` export 時 `.value is None` → 用 `if` 分支渲染提示（不要 `mo.stop`）。
+- hero 三欄 `<pre>` 桌機各約 200px：每行壓在 ~24 字元、md5 留 8 碼；`word-break: normal; overflow-wrap: anywhere`。
+- 數字：raw.csv 470,591 B vs 指標檔 89 B；第一次 repro 2.2–2.6 s、skip 0.5–0.6 s；auc 0.95318→0.97287；`dvc exp` depth 6/20 → 0.96376/0.97063。
+
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 
 24 個月、每月 300 筆、6 維；概念漂移＝決定邊界的權重向量以 `theta = drift_rate * month` 旋轉。
@@ -293,3 +319,9 @@ k=1/3/6 → 0.916/0.900/0.867；thr 0.8/0.9/0.95 → 3/7/23 次重訓。全部�
   `contextlib.redirect_stdout` 抓輸出；測試檔寫到暫存目錄（model.pkl＋test.csv 用 fixture 載）。八種模型測試（最低表現、輸出形狀與範圍、
   雜訊不變性、方向性、缺欄要炸、決定性、parametrize 特徵洗牌）8 passed 0.12 s；失敗輸出格式
   `E       AssertionError: accuracy 0.916 below gate 0.95`＋`FAILED …::test_min_perf_strict`、exit code 1。
+
+- **model-explainability**（`_spikes/spike_shap.py`，SHAP 0.52.0）：`TreeExplainer(rf).shap_values(300 列)` 0.41 s，回 ndarray (300, 12, 2)
+  （取 `[:, :, 1]`）；mean|SHAP| 前五 f2 0.2128／f3 0.1006／f9 0.0513／f4 0.0377／f0 0.0245；`expected_value` [0.512, 0.488]；
+  第 0 筆 0.746 ＝ 0.488 ＋ Σ 貢獻（加總對得起來）。permutation_importance（roc_auc, 5 次）0.7 s 前五 f2 0.2424／f3 0.0862／f9 0.0218；
+  RF 內建 f2 0.4078／f3 0.1608／f9 0.0868——三種方法前二名一致、之後順序不同。`summary_plot(show=False, plot_size=)`、
+  `plots.waterfall(expl[0, :, 1], show=False)` 都可存 png。

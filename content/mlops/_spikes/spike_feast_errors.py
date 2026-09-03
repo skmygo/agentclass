@@ -76,7 +76,9 @@ from feast.types import Float32, Float64, Int64  # noqa: E402
 print("feast", feast.__version__, "| python", sys.version.split()[0])
 
 # ── 0. python -m feast ────────────────────────────────────────────────────
-_p = subprocess.run([sys.executable, "-m", "feast", "apply"], capture_output=True, text=True, cwd=W)
+_p = subprocess.run(
+    [sys.executable, "-m", "feast", "apply"], capture_output=True, text=True, cwd=W, check=False
+)
 print("\n=== 0. python -m feast apply（很多教學這樣寫）" + "=" * 24)
 print("exit", _p.returncode, "|", (_p.stderr or _p.stdout).strip().splitlines()[-1])
 
