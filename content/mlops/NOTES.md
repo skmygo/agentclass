@@ -10,11 +10,12 @@
 |---|---|---|---|
 | 01 | mlflow-tracking | 上線 | run 的 params/metrics/tags/artifacts、step 曲線、autolog、nested runs、search_runs |
 | 02 | mlflow-registry | 上線 | log_model 資料夾、signature 合約、Registry 版本與 alias、evaluate、自訂 pyfunc、log_input |
-| 03 | dagster-assets | 完成待部署 | @asset、依賴成圖、metadata、deps、IO manager、asset check（blocking）、Definitions |
-| 04 | dagster-automation | 完成待部署 | resources/Config、partitions、schedules、sensors（cursor）、AutomationCondition、RetryPolicy |
+| 03 | dagster-assets | 上線 | @asset、依賴成圖、metadata、deps、IO manager、asset check（blocking）、Definitions |
+| 04 | dagster-automation | 上線 | resources/Config、partitions、schedules、sensors（cursor）、AutomationCondition、RetryPolicy |
 | 05 | mlops-pipeline | 寫作中 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
-| 00 | mlops-why | 寫作中 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
-| 06+ | model-serving / model-monitoring / optuna-hpo / mlflow-tracing | 候選 | 時間允許再加 |
+| 00 | mlops-why | 完成待部署 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
+| 06 | model-serving | 寫作中 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
+| 07+ | model-monitoring / optuna-hpo / data-validation(pandera) / mlflow-tracing / dvc | 候選（spike 已跑通） | 時間允許再加 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -134,6 +135,16 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
 k=1/3/6 → 0.916/0.900/0.867；thr 0.8/0.9/0.95 → 3/7/23 次重訓。全部模擬 1.2 秒（CPython），Pyodide 可負擔。
 **注意 drift_rate 上限 ≈0.13**：旋轉超過 π 會「繞回來」（0.25 時第 23 月 acc 又回到 0.87 是假象）——
 拉桿範圍設 0–0.13，或改用不會繞回的漂移形式。
+
+### 前導課（00）subagent 實測補充（2026-09-04 03:00）
+
+- 純瀏覽器模擬課的省算法：`functools.lru_cache` 包「世界（資料）」與「整段模擬」，拉桿回到看過的值 0 ms；
+  載入時全部模擬 CPython 468 ms、拉一次 77 ms。
+- 兩種漂移對照：只有資料漂移（特徵均值平移 1.5）準確率 **0.945 不掉**（正類比 48%→95%），概念漂移 0.660 但輸入分佈幾乎不動
+  ——「準確率沒掉不代表沒事、概念漂移在輸入看不見」。延遲標籤 delay 0→6：平均 0.889→0.796、重訓 4→14 次；
+  delay 6 輸給「每 6 個月盲目重訓」（0.867、3 次）。
+- 兩條資料重疊的曲線會被上層完全蓋住（像少畫一條）：底層畫粗＋半透明當光暈。
+- 圖 5 張（`data-ready-figures="5"`），hero 用 notebook 實測的 23×23 上三角矩陣（第 m 月訓練的模型在第 t 月的準確率）重播。
 
 ## 候選課（model-serving）spike 實測（`_spikes/spike_model_serving.py`）
 
