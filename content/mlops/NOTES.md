@@ -15,11 +15,13 @@
 | 05 | mlops-pipeline | 上線 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
 | 00 | mlops-why | 上線 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
 | 06 | model-serving | 上線 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
-| 07 | model-monitoring | 完成待部署 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
-| 08 | optuna-hpo | 完成待部署 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
-| 09 | data-validation | 寫作中 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
-| 10 | mlflow-tracing | 寫作中 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
-| 11+ | feast（feature-store）/ dvc | 候選（spike 已跑通） | 時間允許再加 |
+| 07 | model-monitoring | 上線 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
+| 08 | optuna-hpo | 上線 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
+| 09 | data-validation | 完成待部署 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
+| 10 | mlflow-tracing | 完成待部署 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
+| 11 | feature-store | 寫作中 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
+| 12 | dvc-basics | 寫作中 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
+| 13+ | ml-testing | 候選（spike 已跑通） | 時間允許再加 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -193,6 +195,32 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
   數字：25 trial 17–20 s best 0.9683；縮小空間第二輪 10 trial 7 s → 0.9716、測試集 0.9691；MedianPruner 15 trial 砍 8 個省 33–36%。
 - hero 熱區色階：資料集中在高分區時用 `t^2` 才拉得開；`.cell.top` 標記用 `outline`（`box-shadow` 會被更高特異度的規則蓋掉）。
 
+### Tracing 課（10）subagent 實測補充（2026-09-04 04:55，MLflow 3.15.2）
+
+- `search_traces` filter：點前的 entity type 會驗（`foo.` → `Invalid entity type 'foo'. Valid values are {…}`），**點後的 key 不驗**
+  （`tags.Topic`／`tags.topics` 靜靜回 0 筆）；`tag.` 與 `tags.` 都合法。DataFrame 欄名 `execution_duration` ≠ filter 欄名
+  `attributes.execution_time_ms`。**不 flush 的查詢結果不確定**（0 或 2 筆都出現過）——文案別寫「一定 0 筆」。
+- `get_trace(不存在)` 回 None 不拋錯；`update_current_trace()`／`get_current_active_span()` 在 trace 外靜默／回 None。
+- `@scorer` 參數名只能是 `inputs`/`outputs`/`expectations`/`trace`；寫錯不報錯，`evaluate` 的 `metrics` 回 `{}`。
+  `genai.evaluate` 每列會產生一條名為 `root_span` 的 trace。`register_prompt` 同名同 template 仍產生新版本（不去重）。
+- 第一條 trace 有暖機成本（130–220 ms vs 之後 71–92 ms）。marimo：多個各自寫 DB 的 cell 要用變數顯式串成鏈，否則拓樸順序可能亂。
+- 錯誤原文（`_spikes/spike_tracing_errors.py`）：`search_traces() got an unexpected keyword argument 'experiment_names'. Did you mean
+  'experiment_ids'?`、`Trace with ID '…' not found. It may have been deleted.`、`Prompt alias nope not found.`、
+  `Prompt (name=support-answer, version=99) not found`、`Missing variables: {'context'}…allow_partial=True`。
+
+### 資料驗證課（09）subagent 實測補充（2026-09-04 05:05，pandera 0.33.1＋pandas 3.0.5）
+
+- **pandas 3 讓時間型別合約變脆**：預設單位 `us`，`pa.DateTime`／`"datetime64[ns, UTC]"` 對 tz-aware 欄一律不過（`expected series 'ts' to have
+  type datetime64[ns], got datetime64[us, UTC]`）、`pa.DateTime(unit=, tz=)` 是 TypeError → 只能靠 `coerce=True`。字串欄是 `str`／`string[python]`，
+  `category` 欄會被 `pa.Column(str)` 拒。`import pandera as pa` 噴 FutureWarning，用 `pandera.pandas`。
+- `schema.to_yaml()` 丟掉表級 `checks`（輸出 `checks: null`），欄位層檢查（含 regex）存得下——合約進版控要兩層。
+- 表級 `pa.Check` 回傳 Series ＝逐列判定（failure_cases 把壞掉那列的每個欄位各記一筆，index 相同）；回傳 bool ＝整批判定。
+  `field_uniqueness` 重複的兩列都報；`strict="filter"` 砍多餘欄不報錯；`strict=True` 的陷阱其實是**少欄位** `column 'refund' not in dataframe.`
+- `mo.ui.table` 當 cell 最後運算式時 `nb-outputs.py` 掃不到輸出 → 關鍵數字另用 `mo.md` 寫一句。教學欄比視窗窄（1400px 視窗時 pane 只有 644px），
+  多欄對照表要包 `.tw { overflow-x:auto }`＋`min-width`，視窗層 media query 擋不住。
+- `_spikes/` 與 scratchpad 是跨 agent 共享的：背景 log 檔名要帶課程 id。Dagster 課 export 依賴快取命中時 cell 全跑完約 15–40 秒，其餘全是 hang。
+- 驗證成本：500 列 2.4 ms、5 萬列 ~9 ms、50 萬列 60–107 ms；`drop_invalid_rows=True` 丟壞列。錯誤原文在 `_spikes/spike_pandera_errors.py`。
+
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 
 24 個月、每月 300 筆、6 維；概念漂移＝決定邊界的權重向量以 `theta = drift_rate * month` 旋轉。
@@ -260,3 +288,8 @@ k=1/3/6 → 0.916/0.900/0.867；thr 0.8/0.9/0.95 → 3/7/23 次重訓。全部�
   `get_historical_features(entity_df, features=[...]).to_df()` 做 point-in-time join（每列拿到「當時」最新的特徵）；
   `materialize_incremental(end_date=now)` 推進 online store；`get_online_features(features, entity_rows).to_dict()`。全程 0.5 秒。
   parquet 的 `event_timestamp` 要 tz-aware（UTC）。
+
+- **ml-testing**（`_spikes/spike_ml_testing.py`，候選）：notebook 內用 `pytest.main(["-q", "-p", "no:cacheprovider", path])`＋
+  `contextlib.redirect_stdout` 抓輸出；測試檔寫到暫存目錄（model.pkl＋test.csv 用 fixture 載）。八種模型測試（最低表現、輸出形狀與範圍、
+  雜訊不變性、方向性、缺欄要炸、決定性、parametrize 特徵洗牌）8 passed 0.12 s；失敗輸出格式
+  `E       AssertionError: accuracy 0.916 below gate 0.95`＋`FAILED …::test_min_perf_strict`、exit code 1。

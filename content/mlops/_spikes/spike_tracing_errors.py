@@ -123,10 +123,23 @@ show("7 update_current_trace(沒有 active trace)", lambda: mlflow.update_curren
 # ── 8. get_current_active_span 在 trace 外
 show("8 get_current_active_span() 在 trace 外", lambda: repr(mlflow.get_current_active_span()))
 
-# ── 9. search_traces filter 語法錯（少引號 / == ）
+# ── 9. search_traces filter 語法：什麼會報錯、什麼會靜靜回 0
+#     實測結論：「點」前面的 entity type 會驗，「點」後面的 key 不驗。
+#     tag 與 tags 都是合法 entity type（少一個 s 不是 bug）；tag 名字大小寫／單複數打錯才是沉默的失敗。
+with mlflow.start_span(name="tagged") as _sp:   # 先造一條帶 topic 標籤的 trace 來搜
+    _sp.set_inputs({"q": "退貨"})
+    mlflow.update_current_trace(tags={"topic": "退貨"})
+mlflow.flush_trace_async_logging()
+
 show("9a filter 少引號", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tags.topic = 退貨")))
 show("9b filter 用 ==", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tags.topic == '退貨'")))
-show("9c filter 欄位名打錯", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tag.topic = '退貨'")))
+show("9c tags.topic（正確）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tags.topic = '退貨'")))
+show("9d tag.topic（少一個 s：也合法）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tag.topic = '退貨'")))
+show("9e tags.Topic（大小寫錯：沉默回 0）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tags.Topic = '退貨'")))
+show("9f tags.topics（多一個 s：沉默回 0）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="tags.topics = '退貨'")))
+show("9g foo.topic（entity type 不存在）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="foo.topic = '退貨'")))
+show("9h attributes.execution_duration（欄名錯）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="attributes.execution_duration > 100")))
+show("9i attributes.execution_time_ms（正確）", lambda: len(mlflow.search_traces(experiment_ids=[EXP], filter_string="attributes.execution_time_ms > 0")))
 
 # ── 10. genai.evaluate 的 scorer 簽章寫錯
 from mlflow.genai import evaluate, scorer  # noqa: E402

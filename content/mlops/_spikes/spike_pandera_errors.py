@@ -394,4 +394,38 @@ show(lambda: pa.DataFrameSchema({"ts": pa.Column(pa.DateTime)}).validate(pd.Data
 print("\n--- 字串日期 + coerce=True ---")
 show(lambda: print("  通過:", len(pa.DataFrameSchema({"ts": pa.Column(pa.DateTime, coerce=True)}).validate(pd.DataFrame({"ts": ["2026-08-01", "2026-08-02"]}))), "列"))
 
+# ─────────────────────────────────────────────────────────────────────────────
+head("11 · 擋下來之後：drop_invalid_rows 與驗證成本")
+# ─────────────────────────────────────────────────────────────────────────────
+_d = base.copy()
+_d.loc[0, "amount"] = -50
+_dropper = pa.DataFrameSchema(
+    {"amount": pa.Column(float, pa.Check.gt(0))},
+    drop_invalid_rows=True,
+)
+print("drop_invalid_rows=True：", len(_dropper.validate(_d, lazy=True)), "列留下（原本", len(_d), "列）")
+
+import time  # noqa: E402
+
+for _rows in (500, 50_000, 500_000):
+    _big = pd.concat([base] * (_rows // 500), ignore_index=True)
+    _big["order_id"] = range(len(_big))
+    _ts = []
+    for _ in range(5):
+        _t0 = time.perf_counter()
+        schema.validate(_big, lazy=True)
+        _ts.append((time.perf_counter() - _t0) * 1000)
+    print(f"  {_rows:>7} 列 lazy validate：{min(_ts):.1f}–{max(_ts):.1f} ms")
+
+# ─────────────────────────────────────────────────────────────────────────────
+head("12 · 舊寫法 import pandera as pa 還能不能用")
+# ─────────────────────────────────────────────────────────────────────────────
+with warnings.catch_warnings(record=True) as _w:
+    warnings.simplefilter("always")
+    _legacy = pandera.DataFrameSchema({"order_id": pandera.Column(int)})
+    print("舊寫法驗得動:", len(_legacy.validate(base[["order_id"]])), "列")
+    for _rec in _w:
+        print(f"  [{_rec.category.__name__}] {str(_rec.message).splitlines()[0]}")
+        print("  " + " ".join(str(_rec.message).split())[:220])
+
 head("完成")

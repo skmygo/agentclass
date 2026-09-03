@@ -96,11 +96,20 @@
          剪枝省三分之一時間；每個 trial 都是 MLflow 的 nested run——還誠實地示範小空間裡格點掃描反而贏。</p>
       <span class="go">開始上課 →</span>
     </a>
-    <div class="card soon">
-      <span class="tag">補充 D · DATA VALIDATION · 即將開課</span>
+    <a class="card" href="/data-validation/">
+      <span class="tag">補充 D · DATA VALIDATION</span>
       <h2>🧪 資料驗證：用 pandera 幫資料寫合約</h2>
-      <p>壞資料進不了管線：逐欄型別、範圍、唯一、允許值，lazy 一次列出全部違約，接成 Dagster 的擋門檢查。</p>
-    </div>
+      <p>管線最常見的故障不是 bug，是上游資料悄悄變了。逐欄型別、範圍、唯一、允許值寫成 schema，lazy 一次列出全部違約、
+         合約存成 YAML 進版控，再接成 Dagster 的擋門檢查——壞資料進不了訓練。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/mlflow-tracing/">
+      <span class="tag">補充 E · TRACING · LLMOPS</span>
+      <h2>🔍 MLflow Tracing：LLM 應用的每一步都留下軌跡</h2>
+      <p>LLM 應用出錯只看得到最後一句話——把一次請求拆成 retriever → prompt → llm 的 span 樹，看每步的輸入輸出與毫秒；
+         人工標記與程式化 scorer 評分、Prompt Registry 給 prompt 版本與 alias，哪個回答是哪一版 prompt 一查就知道。</p>
+      <span class="go">開始上課 →</span>
+    </a>
   </div>
 
   <footer>
