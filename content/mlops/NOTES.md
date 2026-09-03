@@ -17,8 +17,8 @@
 | 06 | model-serving | 上線 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
 | 07 | model-monitoring | 上線 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
 | 08 | optuna-hpo | 上線 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
-| 09 | data-validation | 完成待部署 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
-| 10 | mlflow-tracing | 完成待部署 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
+| 09 | data-validation | 上線 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
+| 10 | mlflow-tracing | 上線 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
 | 11 | feature-store | 寫作中 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
 | 12 | dvc-basics | 寫作中 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
 | 13+ | ml-testing | 候選（spike 已跑通） | 時間允許再加 |
