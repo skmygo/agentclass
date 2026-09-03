@@ -23,7 +23,8 @@
     模型訓好只是開始：怎麼記住每一次實驗、怎麼把「最好的那版」變成「線上那版」、怎麼讓資料一更新就自動重訓、
     怎麼擋下不合格的模型。這條主線用 <b>MLflow</b>（實驗追蹤、模型註冊）與 <b>Dagster</b>（資產管線、排程、感測器）
     兩大熱門工具，每課都在 molab 免費環境真的跑一遍，最後串成一條會自己運轉的管線。
-    有 Python 與基礎 ML 背景即可，照順序上。
+    有 Python 與基礎 ML 背景即可，照順序上；主線之後的<b>補充系列</b>把上線後會遇到的事一件件補齊：
+    模型服務、監控、自動調參、資料驗證、LLM 追蹤、特徵倉、資料版本、模型測試、可解釋性。
   </p>
 
   <!-- 課程卡片依課程順序排（第 1 課在最上；新課插在主線最下面） -->
@@ -122,6 +123,13 @@
       <h2>🕰️ DVC 資料版本控制：資料與模型也要有 git</h2>
       <p>git 只存 89 bytes 的指標檔，470 KB 的資料放 cache；改一格資料 git diff 只有一行 md5，git checkout＋dvc checkout 就回到上個月；
          dvc.yaml 管線依賴沒變就 skip、params／metrics diff 一眼看出調參前後，push 到遠端同事 pull 就有。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/ml-testing/">
+      <span class="tag">補充 H · ML TESTING</span>
+      <h2>🧰 ML 測試：用 pytest 幫模型寫行為測試</h2>
+      <p>AUC 0.968 不是驗收。合約、表現、切片、不變性、方向性、黃金樣本十條測試 0.2 秒跑完；換上淺樹或打亂標籤的壞模型，
+         各紅六條但紅的不同組——測試就是把 code review 的直覺自動化，exit code 當註冊閘門。</p>
       <span class="go">開始上課 →</span>
     </a>
   </div>
