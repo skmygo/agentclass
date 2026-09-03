@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模型可解釋性：上線前要能說出為什麼 · AI 互動教室</title>
+<meta name="description" content="AUC 0.9684 答不出「它憑什麼說這位客戶會流失」。SHAP 把預測與平均的差距一分不剩地分給每個特徵——加總必須等於預測；三種全域重要度為什麼前三名一致、第四名就分家；解釋報告掛成 MLflow artifact、禁用欄位檢查為什麼會被代理特徵繞過。molab 免費環境全程實作。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="模型可解釋性：上線前要能說出為什麼 · AI 互動教室">
+<meta property="og:description" content="AUC 0.9684 答不出「它憑什麼說這位客戶會流失」。SHAP 把預測與平均的差距一分不剩地分給每個特徵——加總必須等於預測；三種全域重要度為什麼前三名一致、第四名就分家；解釋報告掛成 MLflow artifact、禁用欄位檢查為什麼會被代理特徵繞過。molab 免費環境全程實作。">
+<meta property="og:url" content="https://class.itsmygo.uk/model-explainability/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：紅＝把機率推高、藍＝往下拉／RF 內建、橘＝permutation、綠＝SHAP */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --cut: #C44E52; }
+  a.golab { text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+
+  /* ── hero：一位客戶的 waterfall 播放器 ── */
+  #xa-demo .tabs { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  #xa-demo .tabs button { font-family: var(--mono); font-size: 12.5px; padding: 5px 11px; border-radius: 8px;
+    border: 1.5px solid var(--grid); background: #fff; color: var(--ink); cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s; }
+  #xa-demo .tabs button:hover { background: var(--chip-bg); }
+  #xa-demo .tabs button.on { border-color: var(--ink); background: var(--ink); color: #fff; }
+  #xa-demo .tabs .lbl { font-size: 11.5px; font-weight: 800; letter-spacing: .06em; color: var(--ink-soft); }
+
+  #xa-demo .meter { margin: 4px 0 12px; }
+  #xa-demo .mtrack { position: relative; height: 22px; border-radius: 6px; background: var(--chip-bg);
+    overflow: hidden; border: 1px solid var(--grid); }
+  #xa-demo .mfill { position: absolute; inset: 0 auto 0 0; width: 48.8%; background: var(--cut);
+    opacity: .82; transition: width .34s ease; }
+  #xa-demo .mbase { position: absolute; top: 0; bottom: 0; left: 48.8%; width: 2px; background: var(--ink); opacity: .55; }
+  #xa-demo .mnums { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); gap: 8px; }
+  #xa-demo .mnums b { font-size: 17px; color: var(--ink); }
+
+  #xa-demo .steps { display: grid; gap: 4px; }
+  #xa-demo .step { display: grid; grid-template-columns: 86px 1fr 52px; gap: 8px; align-items: center;
+    font-size: 12px; opacity: .28; transition: opacity .25s; min-width: 0; }
+  #xa-demo .step.on { opacity: 1; }
+  #xa-demo .step .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-family: var(--mono); font-weight: 700; font-size: 11.5px; }
+  #xa-demo .step .nm em { font-style: normal; font-weight: 400; color: var(--ink-soft); }
+  #xa-demo .bar { position: relative; height: 14px; border-radius: 4px; background: var(--chip-bg); overflow: hidden; }
+  #xa-demo .bar::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--grid); }
+  #xa-demo .bar i { position: absolute; top: 2px; bottom: 2px; width: 0; border-radius: 3px; transition: width .3s ease; }
+  #xa-demo .step.pos .bar i { left: 50%; background: var(--cut); }
+  #xa-demo .step.neg .bar i { right: 50%; background: var(--c1); }
+  #xa-demo .step .val { font-family: var(--mono); font-size: 11.5px; text-align: right; white-space: nowrap; }
+  #xa-demo .step.pos .val { color: var(--cut); } #xa-demo .step.neg .val { color: var(--c1); }
+
+  #xa-demo .say { margin-top: 13px; padding: 11px 12px; border-radius: 9px; background: var(--chip-bg);
+    font-size: 13px; line-height: 1.75; min-height: 74px; }
+  #xa-demo .say span { display: block; }
+  #xa-demo .say span + span { margin-top: 4px; }
+
+  #xa-demo .rule { border: 0; border-top: 1px dashed var(--grid); margin: 18px 0 14px; }
+  #xa-demo .rank { display: grid; gap: 3px; }
+  #xa-demo .rrow { display: grid; grid-template-columns: 22px 34px 1fr 56px; gap: 7px; align-items: center;
+    font-size: 12px; min-width: 0; }
+  #xa-demo .rrow .rk { font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); text-align: right; }
+  #xa-demo .rrow .fn { font-family: var(--mono); font-weight: 700; }
+  #xa-demo .rrow .rb { height: 11px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; }
+  #xa-demo .rrow .rb i { display: block; height: 100%; width: 0; background: var(--c3); transition: width .3s ease; border-radius: 3px; }
+  #xa-demo .rrow .rv { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); text-align: right; white-space: nowrap; }
+  #xa-demo .rrow.top .fn { color: var(--c3); }
+  #xa-demo[data-m="builtin"] .rrow .rb i { background: var(--c1); }
+  #xa-demo[data-m="builtin"] .rrow.top .fn { color: var(--c1); }
+  #xa-demo[data-m="perm"] .rrow .rb i { background: var(--c2); }
+  #xa-demo[data-m="perm"] .rrow.top .fn { color: var(--c2); }
+  #xa-demo .hint { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 10px 0 0; }
+
+  @media (max-width: 560px) {
+    #xa-demo .step { grid-template-columns: 74px 1fr 46px; font-size: 11.5px; }
+    #xa-demo .rrow { grid-template-columns: 20px 30px 1fr 50px; }
+  }
+
+  /* 對照表 */
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 7px 9px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); white-space: nowrap; }
+  table.cmp td.b { color: var(--c1); font-weight: 700; }
+  table.cmp td.o { color: var(--c2); font-weight: 700; }
+  table.cmp td.g { color: var(--c3); font-weight: 700; }
+  table.cmp td.r { color: var(--cut); font-weight: 700; }
+  .tw { overflow-x: auto; }
+  .tw table.cmp { min-width: 470px; }
+  .tw table.cmp th:first-child, .tw table.cmp td:first-child { white-space: nowrap; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/mlops/">‹ MLOps 自動化技術</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="model-explainability_ext.py" download>下載 .py</a>
+  <a class="tool gpu" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">開啟實戰 notebook ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">EXPLAINABILITY · 補充 I · 14</span>
+  <h1>模型可解釋性：<br>上線前要能說出「為什麼」</h1>
+  <p style="margin-top:18px">
+    模型評審會上，AUC <span class="kbd">0.9684</span> 投影在牆上。業務主管問：「它憑什麼說這位客戶會流失？
+    我要打電話過去，總得說個理由。」法遵同事問：「有沒有用到不該用的欄位？」——
+    <b>AUC 一個都答不出來</b>，它是一個總分，總分不會告訴你分數是怎麼來的。
+    SHAP 給的是明細：把預測跟平均之間的差距，一分不剩地分給每個特徵。挑一位客戶，看它怎麼分——
+  </p>
+
+  <div class="hero-demo" id="xa-demo" data-m="shap">
+    <div class="tabs" id="xa-cust">
+      <span class="lbl">客戶</span>
+      <button type="button" data-c="high" class="on">#1340 高流失</button>
+      <button type="button" data-c="mid">#842 說不準</button>
+      <button type="button" data-c="low">#775 低流失</button>
+      <button type="button" id="xa-replay">↺ 重播</button>
+    </div>
+
+    <div class="meter">
+      <div class="mtrack"><i class="mfill" id="xa-fill"></i><span class="mbase"></span></div>
+      <div class="mnums">
+        <span>基準 48.8%</span>
+        <b id="xa-now">48.8%</b>
+        <span id="xa-goal">預測 98.6%</span>
+      </div>
+    </div>
+
+    <div class="steps" id="xa-steps"></div>
+    <div class="say" id="xa-say"></div>
+
+    <hr class="rule">
+    <div class="tabs" id="xa-methods">
+      <span class="lbl">全域重要度</span>
+      <button type="button" data-m="builtin">RF 內建</button>
+      <button type="button" data-m="perm">permutation</button>
+      <button type="button" data-m="shap" class="on">mean|SHAP|</button>
+    </div>
+    <div class="rank" id="xa-rank"></div>
+    <p class="hint" id="xa-hint"></p>
+  </div>
+
+  <p class="note">
+    貢獻值、機率、排名全部來自 notebook 的實測輸出（shap 0.52.0，RandomForest 100 棵樹 depth 8，
+    測試集 500 位客戶）；特徵的中文名字是為了好讀而貼上去的，資料本身是模擬的 <span class="kbd">f0</span>–<span class="kbd">f11</span>。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 兩個層次</span>
+  <h2>「為什麼」有兩種問法，別答錯題</h2>
+  <p>
+    可解釋性不是一個問題，是兩個。搞混了，你會拿全域的答案去回答局部的問題——而那正是最常見的錯。
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>全域（global）</th><th>局部（local）</th></tr>
+    <tr><td>問題長什麼樣</td><td>整體來說，哪些特徵在決定這個模型的輸出？</td><td><b>這一筆</b>為什麼被判成 0.986？</td></tr>
+    <tr><td>誰在問</td><td>模型審核、法遵、監控</td><td>客戶、客服、申訴處理</td></tr>
+    <tr><td>本課的工具</td><td>三種重要度、蜂群圖</td><td>SHAP 值、waterfall 圖</td></tr>
+    <tr><td>典型誤用</td><td colspan="2">拿「全域前三名」去解釋某一位客戶——實測那位低風險客戶身上，全域排第 3 的欄位是他的<b>第 2 大</b>原因</td></tr>
+  </table>
+  <p>
+    SHAP 用一句白話講完就是：<b>把「這一筆的預測」跟「平均」之間的差距，公平地分給每一個特徵。</b>
+    「公平」不是形容詞，是有數學定義的（合作賽局理論的 Shapley value）。實務上你只要記住一個檢查：
+  </p>
+  <div class="codeblock">expected_value  +  sum(這一筆 12 個特徵的 SHAP 值)  =  模型對這一筆的預測
+    基準                    各自的功過                       最後的機率</div>
+  <p>
+    一分不多、一分不少。這條等式讓 SHAP 跟「感覺型」的解釋徹底分開：它不是「大概是這幾個原因」，
+    而是把 0.9860 減 0.4882 的那 0.4978 <b>分完</b>。第 3 節會拿真實的一位客戶驗算到小數點後 15 位。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 1️⃣ 節：資料與 champion 模型</a>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 三種重要度</span>
+  <h2>同一個模型，三種答案，而三種都對</h2>
+  <div class="codeblock"># ① 這個特徵讓樹分得多乾淨（加總一定等於 1）
+rf.feature_importances_
+
+# ② 打亂這一欄，分數掉多少
+permutation_importance(rf, Xte, yte, scoring="roc_auc")
+
+# ③ 平均把預測機率推動多遠（單位就是機率）
+np.abs(shap.TreeExplainer(rf).shap_values(Xte)[:, :, 1]).mean(0)</div>
+  <p>
+    三行程式，三個<b>不同的問題</b>。所以答案不一樣是正常的，不是誰算錯了：
+  </p>
+  <div class="tw">
+  <table class="cmp">
+    <tr><th>特徵</th><th>① 內建（佔比）</th><th>② permutation（AUC 掉多少）</th><th>③ mean|SHAP|（機率）</th></tr>
+    <tr><td class="n">f2</td><td class="n b">0.4078 (#1)</td><td class="n o">+0.2424 (#1)</td><td class="n g">0.2137 (#1)</td></tr>
+    <tr><td class="n">f3</td><td class="n b">0.1608 (#2)</td><td class="n o">+0.0862 (#2)</td><td class="n g">0.1003 (#2)</td></tr>
+    <tr><td class="n">f9</td><td class="n b">0.0868 (#3)</td><td class="n o">+0.0218 (#3)</td><td class="n g">0.0509 (#3)</td></tr>
+    <tr><td class="n">f4</td><td class="n">0.0747 (#4)</td><td class="n">+0.0090 (#5)</td><td class="n">0.0359 (#4)</td></tr>
+    <tr><td class="n">f1</td><td class="n">0.0449 (#7)</td><td class="n">+0.0093 (#4)</td><td class="n">0.0142 (#6)</td></tr>
+    <tr><td class="n">f11</td><td class="n">0.0499 (#6)</td><td class="n">+0.0038 (#7)</td><td class="n">0.0117 (#8)</td></tr>
+    <tr><td class="n">f10</td><td class="n">0.0189 (#10)</td><td class="n">−0.0005 (#12)</td><td class="n">0.0037 (#10)</td></tr>
+  </table>
+  </div>
+  <p>
+    <b>前三名 f2 → f3 → f9 三種完全一致</b>——這是好消息：三個問法不同的方法都指向同一組主角，
+    你可以放心跟業務說「模型主要靠這三件事在判斷」。<b>第 4 名開始就分家了</b>，而每一處分歧都有原因：
+    f4 被模型用得多（內建與 SHAP 都排第 4），但打亂它 AUC 只掉 0.0090——<b>用得多不等於有用</b>。
+    尾巴那幾欄 permutation 是負的，那不代表「有害」，只代表「打亂它反而剛好好一點點」，也就是雜訊。
+  </p>
+  <p>
+    ①「加起來一定等於 1」是它最大的限制：它只講得出相對佔比，講不出「重要多少」。
+    而且它<b>偏愛切得動的特徵</b>——連續值與高基數類別可以切出很多刀，每刀貢獻一點，加起來就不低了。
+    在資料裡加一欄<b>純亂數的客戶編號</b>重訓，三種算法對它的評價是：
+  </p>
+  <table class="cmp">
+    <tr><th>算法</th><th><span class="kbd">customer_id</span>（純亂數）的分數</th><th>排名（共 13 欄）</th></tr>
+    <tr><td class="b">RF 內建</td><td class="n b">0.0172</td><td>第 11 名——<b>排在兩個真特徵之上</b>（f10 0.0165、f5 0.0158）</td></tr>
+    <tr><td class="o">permutation</td><td class="n o">+0.0003</td><td>第 9 名，數值基本上是 0（打亂它 AUC 一動也不動）</td></tr>
+    <tr><td class="g">mean|SHAP|</td><td class="n g">0.0038</td><td>第 10 名，很小但不是 0——<b>模型確實在用它</b>，SHAP 照實說</td></tr>
+  </table>
+  <p>
+    一句話記住三者的分工：<b>內建說「建樹時切了幾刀」、permutation 說「有沒有用」、SHAP 說「模型實際上怎麼用」。</b>
+    看到「客戶編號很重要」這種結果，先別急著寫進報告——換一種算法問一次。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 2️⃣ 節：三張長條圖、排名對照與亂數陷阱</a>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 加總等式</span>
+  <h2>SHAP 值可以驗算——這是它跟「感覺」的分界線</h2>
+  <p>
+    拿測試集第 1 位客戶（編號 #405，預測機率 0.7460）實際走一遍。從基準出發，把 12 個貢獻依序加上去：
+  </p>
+  <div class="codeblock">基準 expected_value = 0.48824   ← 訓練資料的流失率
+  f2 = +1.342  →  SHAP +0.2600   累積 0.74824
+  f9 = +1.473  →  SHAP +0.0534   累積 0.80166
+  f3 = +1.046  →  SHAP −0.0345   累積 0.76715   ← 有的推、有的拉
+  f1 = +0.041  →  SHAP −0.0205   累積 0.74668
+  ...（其餘 8 欄）
+加總結果          = 0.74600
+predict_proba 的答案 = 0.74600
+兩者差距          = 2.22e-16   ← 浮點捨入誤差，不是近似
+500 位客戶的最大誤差 = 1.80e-15</div>
+  <p>
+    這條等式有兩個立即可用的價值。第一，<b>它是你「有沒有把 SHAP 用錯」最快的自我檢查</b>：
+    算完加總一次，對不上就是哪裡錯了（多半是忘了選類別、或欄序跟訓練時不同——第 11 節的測驗有實例）。
+    第二，<b>它讓「最不可能流失的客戶」有唯一解</b>：因為預測 ＝ 基準 ＋ 總和，而基準對每一筆都一樣，
+    所以「SHAP 總和最小」必然等於「預測最小」。
+  </p>
+  <p>
+    另外兩個一定要知道的細節。<b>形狀</b>：<span class="kbd">shap_values(Xte)</span> 回的是
+    <span class="kbd">(500, 12, 2)</span>——<span class="kbd">(列數, 特徵數, 類別數)</span>。二元分類的兩面完全對稱，
+    要「往流失推」那一面就得寫 <span class="kbd">[:, :, 1]</span>。<b>忘了這一刀是新手最常見的錯，而且它多半不會噴錯</b>。
+    <b>單位</b>：sklearn 樹模型的 <span class="kbd">TreeExplainer</span> 預設解釋
+    <span class="kbd">predict_proba</span>，所以 SHAP 值的單位是機率；XGBoost／LightGBM 預設是 log-odds，
+    加總會等於 margin 而不是機率。看到「加起來不等於機率」，先確認單位。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 3️⃣ 節：逐欄累積、驗算到 1e-15</a>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 局部解釋</span>
+  <h2>三張圖，各回答一個問題</h2>
+  <table class="cmp">
+    <tr><th>圖</th><th>回答什麼</th><th>拿給誰看</th></tr>
+    <tr><td class="n">waterfall</td><td>這一位客戶，從基準走到預測值的每一步</td><td>客服、申訴處理、業務</td></tr>
+    <tr><td class="n">beeswarm</td><td>全部客戶疊在一起：這個特徵越大，機率越高還是越低</td><td>模型審核、領域專家</td></tr>
+    <tr><td class="n">scatter</td><td>一個特徵的值 vs 它的 SHAP 值：形狀與交互作用</td><td>你自己（除錯與理解）</td></tr>
+  </table>
+  <p>
+    <b>兩位客戶，兩個世界。</b>高風險的 #1340（0.986）從 0.488 出發，
+    <span class="kbd">f2 = +1.45</span> 推了 +0.235、<span class="kbd">f3</span> 再推 +0.103，
+    一路加到 0.986——他身上幾乎沒有任何一項在往下拉（最大的負貢獻只有 −0.001），
+    <b>所以他不是「某一項特別糟」，而是全面偏向流失</b>。
+    低風險的 #775（0.004）則是十二項全部為負：
+    <span class="kbd">f2</span> 拉了 −0.215、<span class="kbd">f9</span> 拉了 −0.097。
+  </p>
+  <p>
+    注意 <span class="kbd">f9</span>：它在全域重要度只排第 3，但在<b>這一位</b>身上是第 2 大原因。
+    <b>全域重要度不能拿來解釋個案</b>——這是可解釋性最常被誤用的地方，也是第 1 節那張表最後一列講的事。
+  </p>
+  <p>
+    蜂群圖用來看<b>方向</b>：每個點是一位客戶，橫軸是 SHAP 值，顏色是那位客戶的特徵值（紅＝高、藍＝低）。
+    把方向量化成「特徵值與它的 SHAP 值的相關係數」：
+  </p>
+  <table class="cmp">
+    <tr><th>特徵</th><th>corr(值, SHAP)</th><th>讀法</th></tr>
+    <tr><td class="n">f2</td><td class="n r">+0.924</td><td>越大，流失機率越高</td></tr>
+    <tr><td class="n">f3</td><td class="n b">−0.921</td><td>越大，流失機率越低</td></tr>
+    <tr><td class="n">f4</td><td class="n b">−0.895</td><td>越大，流失機率越低</td></tr>
+    <tr><td class="n">f0</td><td class="n r">+0.838</td><td>越大，流失機率越高</td></tr>
+    <tr><td class="n">f9</td><td class="n r">+0.775</td><td>越大，流失機率越高（散得比較開＝交互作用較強）</td></tr>
+  </table>
+  <p>
+    這張圖是<b>上線前審核最好用的一張</b>：拿給業務看，問一句「照你們的經驗，這個方向對嗎？」
+    ——方向跟常識相反的特徵，十次有九次是資料處理出了問題（符號寫反、欄位對錯位、缺值被填成 0）。
+  </p>
+  <p>
+    依賴圖則揭露兩件事。<b>形狀</b>：f2 對 SHAP 的曲線是 <b>S 形</b>，兩端都會飽和——
+    分箱平均是 −0.311 / −0.133 / +0.054 / +0.176 / +0.247，中段變化最劇烈、兩端趨平。
+    樹模型學到的是「切點」不是直線，所以線性模型的係數講不出這件事。
+    <b>交互作用</b>：f2 落在 1.0 附近的那 26 位客戶，f2 幾乎一樣，SHAP 值卻從 0.111 散到 0.256、<b>相差超過兩倍</b>。
+    所以：<b>SHAP 值不是「f2 的效果」，是「f2 在這位客戶身上的效果」。</b>
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 4️⃣ 節：兩張 waterfall、蜂群圖、依賴圖</a>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 上線前審核</span>
+  <h2>解釋要跟模型一起版本化，不然它只是一張漂亮的圖</h2>
+  <div class="codeblock"># 續掛回「訓練那個 run」，不要另開一個
+with mlflow.start_run(run_id=TRAIN_RUN_ID):
+    shap.plots.beeswarm(expl[:, :, 1], show=False, plot_size=(6.2, 4))
+    mlflow.log_figure(plt.gcf(), "explain/global_beeswarm.png")
+    mlflow.log_dict({"base_value": 0.48824,
+                     "mean_abs_shap": {...},
+                     "top3": ["f2", "f3", "f9"]},
+                    "explain/global_importance.json")</div>
+  <p>
+    要變成 MLOps 資產，解釋必須滿足三個條件：<b>跟模型版本綁在一起、之後查得到、跟當時的數字一模一樣</b>。
+    <span class="kbd">log_figure</span> 讓圖不用先存檔就進 artifact；<span class="kbd">log_dict</span> 存的是
+    <b>可以被程式讀回來比對</b>的數字——第 6 節的監控就靠它。重點在<b>掛到哪一個 run</b>：
+    解釋是訓練完之後才算的，用 <span class="kbd">start_run(run_id=...)</span> 續掛回訓練那個 run，
+    否則半年後你會有一堆孤兒報告，對不回是哪一版模型。
+  </p>
+  <p>
+    有了報告，模型評審就有東西可以問。三個問題按殺傷力排序：<b>①</b> 有沒有一枝獨秀的特徵？
+    <b>②</b> 方向合不合常識？<b>③</b> 有沒有用到不該用的欄位？第 ① 個值得當場做一次——
+    假設有人在特徵表加了一欄 <span class="kbd">days_since_cancel</span>（距離上次取消服務幾天），
+    聽起來很合理，但它<b>是客戶流失之後才算得出來的</b>：
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>正常模型</th><th>混進洩漏特徵</th></tr>
+    <tr><td>測試集 AUC</td><td class="n">0.9684</td><td class="n r">0.9996</td></tr>
+    <tr><td>重要度冠軍</td><td class="n">f2（0.2137）</td><td class="n r">days_since_cancel（0.3542）</td></tr>
+    <tr><td>冠軍佔全部重要度</td><td class="n">44.4%</td><td class="n r">65.7%</td></tr>
+  </table>
+  <p>
+    AUC 0.9996——只看指標，這是一個該開香檳的模型；而它上線之後會是一場災難，因為預測的那一刻根本拿不到這一欄。
+    <b>重要度分佈是抓洩漏最便宜的雷達</b>：看到一欄吃掉大半重要度、而且 AUC 好得不像話，
+    先問一句「這一欄在預測的那一刻真的存在嗎？」。這不是判決（真的有主導特徵的問題確實存在），
+    <b>它是一個要求你解釋的訊號</b>。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 5️⃣ 節：掛 artifact ＋ 洩漏偵測</a>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 監控</span>
+  <h2>重要度什麼時候會變？答案可能跟你想的相反</h2>
+  <p>
+    第 7 課（模型監控）看的是「<b>哪個特徵的分佈變了</b>」，這一課看的是「<b>哪個特徵在決定</b>」。
+    很容易混為一談，做兩個實驗就分得清楚。
+  </p>
+  <p>
+    <b>實驗 A：同一個模型 ＋ 漂移的資料。</b>把生產資料的 <span class="kbd">f0</span> 整體平移 +1.5
+    （跟第 7 課同一種漂移），丟給同一個模型重算 SHAP：
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>正常資料</th><th>f0 漂移 +1.5 之後</th></tr>
+    <tr><td>測試集 AUC</td><td class="n">0.9684</td><td class="n">0.9676</td></tr>
+    <tr><td>平均預測機率</td><td class="n">0.5070</td><td class="n o">0.5225 ← 第 7 課抓得到的預測漂移</td></tr>
+    <tr><td>12 欄重要度排名</td><td class="n" colspan="2"><b>一名都沒換</b>（f0 自己從 0.0261 微升到 0.0337，但誰都沒換位置）</td></tr>
+  </table>
+  <p>
+    第一次看到會意外，但很合理：<b>模型是同一個模型、樹是同一批樹，它的「想法」當然沒變</b>，變的是資料。
+    所以 <b>SHAP 重要度不是資料漂移偵測器</b>——想知道「輸入變了沒」用 PSI／KS，
+    想知道「模型的想法變了沒」才看重要度排名。混用會讓你在最需要警報的時候什麼都收不到。
+  </p>
+  <p>
+    <b>實驗 B：重訓之後，才是重要度該警報的時候。</b>假設上游改版，
+    <span class="kbd">f2</span> 被灌成常數 0（欄位改名、join 失敗、預設值填 0，這種事每季發生一次）。
+    管線照常跑完、模型照常重訓、照常註冊成新版本，<b>沒有任何一個步驟報錯</b>：
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>上一版 champion</th><th>重訓後的新版</th></tr>
+    <tr><td>測試集 AUC</td><td class="n">0.9684</td><td class="n">0.8884 ← 掉了，但不到會有人尖叫</td></tr>
+    <tr><td>前五名</td><td class="n">f2 → f3 → f9 → f4 → f0</td><td class="n r">f3 → f9 → f4 → f6 → f0</td></tr>
+    <tr><td>f2 的 mean|SHAP|</td><td class="n">0.2137</td><td class="n r">0.0000</td></tr>
+    <tr><td>換過位置的欄位</td><td>—</td><td class="n r">9 / 12</td></tr>
+  </table>
+  <p>
+    品質閘門若設在 0.85，這個模型會被放過去。而重要度講的是完全不同的故事：
+    原本一個人扛起 44% 決策權的 f2，貢獻變成 0。警報寫起來只有三行：
+  </p>
+  <div class="codeblock">prev = json.loads(client.download_artifacts(
+    champion_run, "explain/global_importance.json"))
+new_top = imp.sort_values(ascending=False).index[:5].tolist()
+
+assert new_top[:3] == prev["top3"], "重要度前三名變了"</div>
+  <p>
+    把它寫成 Dagster 的 <span class="kbd">@asset_check</span>（第 3 課）或 pytest（第 13 課），每次重訓都跟上一版比。
+    <b>這就是第 5 節那份 artifact 的真正用途</b>：它不是給人看的圖，是給下一次重訓當比較基準的資料。
+    門檻用「前三名有沒有換人」比「數值差多少」穩，因為數值本來就會浮動；
+    而警報的動作是<b>要求人來看一眼</b>，不是自動擋——重要度變了，也可能只是模型真的變好了。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 6️⃣ 節：兩個實驗並排比較</a>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 合規</span>
+  <h2>禁用欄位檢查：寫得出來，也會被繞過去</h2>
+  <div class="codeblock"># 禁用欄位檢查：每一欄的 mean|SHAP| 必須低於門檻
+def forbidden_report(vals, cols, forbidden, thr=0.01):
+    imp = pd.Series(np.abs(vals).mean(0), index=cols)
+    return [(c, float(imp[c]), thr,
+             "PASS" if imp[c] < thr else "FAIL") for c in forbidden]
+
+欄位    mean|SHAP|    門檻   結果
+f8          0.0052    0.01   PASS
+f6          0.0130    0.01   FAIL   ← 超過門檻</div>
+  <p>
+    法遵給你一張清單：「這幾欄是敏感資訊，可以用來統計，<b>不得作為個案決策的依據</b>。」
+    「沒有放進訓練資料」是最乾淨的做法，但真實專案的特徵表是共用的、是別的團隊維護的、上週還多了三欄——
+    所以你需要一個<b>每次上線都跑一次</b>的檢查。注意它回傳的是報告不是 <span class="kbd">True/False</span>：
+    出事的時候你需要知道<b>差多少</b>。
+  </p>
+  <p>
+    <span class="kbd">f6</span> 沒過。這時候該做的<b>不是把門檻調到 0.02</b>（雖然那樣報告會變綠色），
+    而是三步：<b>①</b> 從訓練資料把它拿掉重訓，看代價有多大——實測拿掉 f6 之後 AUC 是
+    <span class="kbd">0.9699</span>，<b>比原本的 0.9684 還高一點點</b>（合規常常沒有你以為的那麼貴，做過才知道）；
+    <b>②</b> 確認沒有代理特徵頂上來；<b>③</b> 把檢查寫進管線，不是上線前才想起來。
+  </p>
+  <p>
+    第 ② 步比第 ① 步重要得多。把 <span class="kbd">f2</span> 當成禁用欄位、照規定移除，
+    但特徵表裡另外有一欄 <span class="kbd">region_score</span>（與 f2 的相關係數 0.97）：
+  </p>
+  <table class="cmp">
+    <tr><th>檢查項目</th><th>結果</th></tr>
+    <tr><td>禁用欄位檢查</td><td class="g">PASS——<span class="kbd">f2</span> 根本不在欄位清單裡</td></tr>
+    <tr><td>模型 AUC</td><td class="n">0.9655（原本 0.9684，幾乎沒損失）</td></tr>
+    <tr><td>新的重要度冠軍</td><td class="n r">region_score 0.2104（原本 f2 是 0.2137）</td></tr>
+  </table>
+  <p>
+    <b>模型照樣在用那個資訊，只是換了個名字。</b>這叫代理特徵（proxy），是所有「禁用欄位」制度共同的漏洞，
+    而且不需要有人故意——只要特徵表裡有任何跟禁用欄位相關的東西就會自然發生。
+    SHAP 幫得上忙的地方是<b>讓它現形</b>：一個新欄位突然衝上第一名，你至少會問一句「這欄是怎麼算出來的？」。
+    真正的解法在資料治理那一層（查代理欄位的相關係數、要求特徵有來源說明），
+    但這一節至少告訴你：<b>只查名字的合規檢查，是會被繞過去的</b>。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 7️⃣ 節：檢查函式與代理特徵實驗</a>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 對客戶說明</span>
+  <h2>把 waterfall 變成三句話</h2>
+  <p>
+    瀑布圖是給你看的，不是給客戶看的。客服打電話出去需要的是三句話，而這完全可以自動生成
+    ——SHAP 值本來就是排好序的數字：
+  </p>
+  <div class="codeblock">【高風險 #1340】
+這位客戶（編號 1340）未來一季的流失機率我們估計是 98.6%，
+所有客戶的平均是 48.8%。
+把機率推高最多的是 合約剩餘月數指標（目前值 +1.45，推動 +0.235）、
+方案滿意度分數（目前值 −0.54，推動 +0.103）、
+帳單金額變化（目前值 −2.19，推動 +0.058）。
+往下拉的則有 續約提醒回應（目前值 +0.10，推動 −0.001）、
+推薦人數（目前值 +0.06，推動 −0.000）。
+
+【低風險 #775】
+這位客戶（編號 775）未來一季的流失機率我們估計是 0.4%，
+所有客戶的平均是 48.8%。
+沒有任何一項在推高流失機率。
+往下拉的則有 合約剩餘月數指標（目前值 −1.26，推動 −0.215）、
+競品優惠曝光度（目前值 −4.16，推動 −0.097）、
+方案滿意度分數（目前值 +0.84，推動 −0.052）。</div>
+  <p>
+    這段模板有三個刻意的設計，每一個都是被投訴教出來的：
+  </p>
+  <table class="cmp">
+    <tr><th>設計</th><th>不這樣做會怎樣</th></tr>
+    <tr><td><b>先給基準再給分數</b></td><td>單獨一個「98.6%」客戶只會問「所以呢」；有了 48.8% 才有意義</td></tr>
+    <tr><td><b>推高與拉低都講</b></td><td>只講壞消息像在找碴</td></tr>
+    <tr><td><b>「沒有」也要有分支</b></td><td>低風險那位十二項全是負的，沒有這個分支就會印出半句話——<b>上線後炸掉的都是這種邊界情況</b></td></tr>
+    <tr><td><b>特徵值與 SHAP 值分開講</b></td><td>混在一起講，客戶會以為你在說「中斷 3 次就一定會流失」</td></tr>
+  </table>
+  <p>
+    ⚠️ 最後一件事，也是最重要的一件：這三句話講的是<b>模型怎麼算的</b>，不是<b>為什麼會發生</b>。下一節就講這件事。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 8️⃣ 節與 🎛 互動格：換一位客戶看解釋</a>
+</section>
+
+<section id="s9">
+  <span class="eyebrow">09 · 限制</span>
+  <h2>誠實比方便重要：SHAP 做不到的三件事</h2>
+  <p>
+    <b>① SHAP 不是因果。</b>f2 的 SHAP 是 +0.26，正確的說法是「<b>這個模型</b>因為 f2 的值而把機率調高了 0.26」；
+    錯誤的說法是「f2 高<b>導致</b>客戶流失」，更錯的是「把 f2 降下來就能留住客戶」。
+    模型只學到相關；相關可能來自因果，也可能來自共同原因或反向因果——
+    「客服接觸次數多」不是流失的原因，是<b>已經想走</b>的症狀。
+    實務分界線：SHAP 可以拿來<b>排優先順序</b>（先打給誰）與<b>做審核</b>（模型有沒有亂來），
+    不能拿來<b>制定干預</b>（改哪個欄位就會怎樣）。
+  </p>
+  <p>
+    <b>② 相關的特徵會分攤貢獻。</b>把 f2 原封不動複製一欄叫 f2_copy 再訓練：
+  </p>
+  <table class="cmp">
+    <tr><th></th><th>原本</th><th>多了一欄一模一樣的 f2_copy</th></tr>
+    <tr><td>模型 AUC</td><td class="n">0.9684</td><td class="n">0.9653（一樣強）</td></tr>
+    <tr><td>f2 的 mean|SHAP|</td><td class="n">0.2137</td><td class="n r">0.1150 ← 腰斬</td></tr>
+    <tr><td>f2_copy 的 mean|SHAP|</td><td>—</td><td class="n">0.1368（兩者相加 0.2517）</td></tr>
+  </table>
+  <p>
+    f2 沒有變得比較不重要，只是有人跟它平分功勞。真實特徵表裡這太常見了
+    （「近 30 天訂單數」和「近 30 天訂單金額」高度相關），後果是<b>你會低估一整組相關特徵裡每一個成員</b>，
+    甚至誤以為某個關鍵資訊「模型沒在用」。對策不是換工具，是先看特徵之間的相關係數、把高度相關的欄位當一組看。
+  </p>
+  <p>
+    <b>③ <span class="kbd">TreeExplainer</span> 只吃樹模型。</b>餵它一個 <span class="kbd">LogisticRegression</span>
+    會直接拒絕（<span class="kbd">InvalidModelError</span>）。兩條退路，代價差很多：
+  </p>
+  <div class="tw">
+  <table class="cmp">
+    <tr><th></th><th>TreeExplainer</th><th>KernelExplainer</th><th>LinearExplainer</th></tr>
+    <tr><td>適用</td><td>只有樹</td><td>任何模型</td><td>線性模型</td></tr>
+    <tr><td>這次算了幾列</td><td class="n">500</td><td class="n">20</td><td class="n">500</td></tr>
+    <tr><td>花了多久</td><td class="n">0.6–1.2 秒</td><td class="n r">5–6 秒</td><td class="n">0.3 毫秒</td></tr>
+    <tr><td>每列成本</td><td class="n">1–3 毫秒</td><td class="n r">約 270 毫秒（差 200 倍上下）</td><td class="n">—</td></tr>
+    <tr><td>結果</td><td>精確</td><td>與 TreeSHAP 相關 0.9906</td><td>封閉解，完全精確</td></tr>
+  </table>
+  </div>
+  <p>
+    <span class="kbd">KernelExplainer</span> 靠反覆遮蔽特徵、重新預測來估計，所以要給它一份<b>背景資料</b>
+    （被遮掉的特徵用什麼值代替），成本大約正比於背景筆數——用
+    <span class="kbd">shap.sample(X, 100)</span> 壓縮，別把整個訓練集丟進去。
+    實務規則：<b>能用專用 explainer 就用專用的</b>，Kernel 是最後手段（抽樣看全域、個案來申訴時才現算那一筆）。
+  </p>
+  <p>
+    <span class="kbd">LinearExplainer</span> 快到不用計時（500 列 0.3 毫秒），而且給了理解 SHAP 最好的入口
+    ——它的結果不是估計，是封閉解：
+  </p>
+  <div class="codeblock">SHAP(第 i 筆, 第 j 欄) = coef[j] × (x[i, j] − 訓練集平均[j])
+
+實測 shap_values 與手算的最大差距 = 0.0（完全相等）
+expected_value = −0.04768
+  ← 注意：這是 log-odds 不是機率（換算回機率是 0.4881）</div>
+  <p>
+    <b>線性模型的 SHAP 就是「係數 × 這一筆偏離平均多少」</b>，樹模型只是把同一個概念推廣到非線性。
+    順帶戳破一個統計課上的簡化：mean|SHAP| 的排名跟「|係數| × 標準差」的排名<b>完全一致</b>，
+    但跟「只看係數大小」從第 6 名起就不同——一個係數再大，如果那一欄在資料裡幾乎不變動，它對實際預測就沒有影響力。
+  </p>
+  <a class="golab" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">到 notebook 的 9️⃣ 節：三種 explainer 實測與計時</a>
+</section>
+
+<section id="s10">
+  <span class="eyebrow">10 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>找出測試集裡「SHAP 貢獻總和最負」的那位客戶（模型最確定不會流失的人），印出他的前三大原因並產出三句說明。
+       想一下：他跟「機率最低」的那位是同一個人嗎？為什麼？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>用 <span class="kbd">LinearExplainer</span> 解釋 logistic regression，把 mean|SHAP| 排名、|coef| 排名、
+       |coef|×標準差 排名三者並排印出來，找出排名不一致的那一對特徵，並解釋為什麼。</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>寫一個「禁用欄位檢查」的<b>失敗案例</b>：把 <span class="kbd">f2</span> 改名成 <span class="kbd">is_vip</span> 訓練，
+       斷言它的 mean|SHAP| &lt; 0.01——這個斷言<b>應該要失敗</b>。接著把它修好（提示：修的方法不是調門檻），
+       並回答「修好之後模型損失多少 AUC」。</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？每一題在 notebook 末節都有折疊解答——先自己做，再打開對照。</p>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">11 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>客服要打電話給一位被判為高流失風險（0.986）的客戶，問你「跟他說什麼理由」。你手上有全域重要度報告（前三名 f2 → f3 → f9）。最好的做法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 直接用全域前三名回答：「因為 f2、f3、f9 這三項」——反正它們是模型最重要的特徵</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 告訴客服模型不可解釋，只能給機率不能給理由</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 算這一筆的 SHAP 值畫 waterfall，用「基準 0.488 → 各項貢獻 → 0.986」的明細，挑貢獻最大的幾項講</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 拿 permutation importance 重跑一次，只用這位客戶的資料算，看哪一欄打亂之後他的機率變最多</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這是<b>局部</b>問題，要用局部工具。全域重要度講的是「模型整體靠什麼」，不是「這一位為什麼」——實測就有反例：全域排第 3 的 f9，在低風險客戶 #775 身上是他的<b>第 2 大</b>原因；而某些客戶的主因根本不在全域前三名裡。C 的 waterfall 直接把 0.986 減 0.488 的差距分完，每一項都有數字可以講，這也正是第 8 節那個三句話模板的來源。A 是最常見的誤用，講出來的理由可能跟這位客戶完全無關。B 放棄太早，SHAP 就是為這件事發明的。D 概念上混了：permutation 是把整欄在客戶之間洗牌來看<b>指標</b>掉多少，單筆資料無從洗起，而且它衡量的是「對準確度有沒有用」，不是「這一筆為什麼」。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事照文件寫了下面這段，程式跑完<b>沒有任何錯誤訊息</b>，但畫出來的圖只剩兩個特徵、x 軸寫著 <span class="kbd">SHAP interaction value</span>。最可能的原因？</h3>
+      <div class="codeblock">explainer = shap.TreeExplainer(rf)      # RandomForest，二元分類
+shap_raw = explainer.shap_values(Xte)
+print(shap_raw.shape)                   # (500, 12, 2)
+shap.summary_plot(shap_raw, Xte)        # → 畫得出來，但不是那張圖</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>Xte</code> 要傳 numpy 陣列，傳 DataFrame 會讓 shap 誤判成交互作用矩陣</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 三維陣列的最後一維是「類別」，忘了選 <code>shap_raw[:, :, 1]</code>——shap 把三維輸入當成交互作用值去畫了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. <code>summary_plot</code> 已經被棄用，要改用 <code>shap.plots.beeswarm</code> 才會正常</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 模型要先 <code>predict_proba</code> 過一次，explainer 才知道要解釋哪一個輸出</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p><code>shape</code> 已經把答案印出來了：<code>(500, 12, 2)</code> ＝（列數, 特徵數, <b>類別數</b>）。二元分類的兩面完全對稱，要「往流失推」那一面必須寫 <code>[:, :, 1]</code>。而 <code>summary_plot</code> 收到三維陣列時會把它當成<b>交互作用值</b>（interaction values）來畫——這是本課最危險的一種錯：<b>它不噴任何錯誤</b>，只是安靜地畫出一張看起來很專業、但完全不是你要的圖。防身法有兩個：形狀先 print 出來看；以及第 3 節那條加總等式，<code>base + vals.sum(1)</code> 必須等於 <code>predict_proba</code>。A 不成立，DataFrame 正是建議的傳法（欄名是解釋的一部分）。C 是杜撰，<code>summary_plot</code> 沒有被棄用，而且 <code>beeswarm</code> 收到同樣的三維輸入一樣會出問題。D 是誤解，explainer 建立時就知道模型的輸出形狀。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>團隊想加一個「模型的想法有沒有變」的監控，提案是：<b>每天</b>把當天的生產資料丟給<b>現在線上這個模型</b>重算 SHAP，比對重要度排名，變了就發警報。這個設計最大的問題是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 每天算 SHAP 太貴，TreeExplainer 跑不動生產資料量</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 沒有標籤就算不出 SHAP，生產資料當天拿不到真實答案</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 排名會每天小幅浮動，警報會一直誤報，應該改成比對數值差異並設容忍區間</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 模型沒換，重要度排名就幾乎不會動——這個警報永遠不會響；排名要在<b>重訓後</b>跟上一版的解釋報告比才有意義</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>實測直接打臉這個設計：把 f0 整體平移 +1.5（明顯的資料漂移，平均預測機率從 0.5070 跳到 0.5225）丟給同一個模型，12 欄的重要度<b>一名都沒換</b>。原因很簡單——模型是同一個模型、樹是同一批樹，它的「想法」當然沒變，變的是資料。所以這個監控會安安靜靜地永遠不響。正確的分工是：<b>資料變了沒</b>用第 7 課的 PSI／KS；<b>模型的想法變了沒</b>在每次重訓後、拿新模型的重要度跟 champion 的 <code>explain/global_importance.json</code> 比。實測那個「上游把 f2 灌成常數」的案例，重訓後前五名整批換人、9/12 欄換位置，而 AUC 只從 0.9684 掉到 0.8884——閘門設 0.85 還會放它過。A 不對，TreeSHAP 每列只要 1–3 毫秒，成本不是問題。B 是誤解，SHAP 解釋的是模型的輸出，完全不需要標籤（這正是它適合上線後使用的原因）。C 的觀察本身沒錯（所以實務上比「前三名有沒有換人」比較穩），但它沒有點出這個設計根本不會偵測到任何東西。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>解釋報告產出來了、圖也畫得很漂亮，但同事做自我檢查時發現加總對不上。他把同一份 DataFrame 丟給模型預測時看到下面的錯誤。最可能的原因與修法？</h3>
+      <div class="codeblock"># 自我檢查：應該要是 1e-15 等級
+>>> base + shap_vals.sum(1) - rf.predict_proba(X_new)[:, 1]
+array([ 0.31, -0.28,  0.44, ...])       # 卻差了 0.3 以上
+
+>>> rf.predict_proba(X_new)
+ValueError: The feature names should match those that were
+passed during fit.
+Feature names must be in the same order as they were in fit.</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. <code>X_new</code> 的欄位順序跟訓練時不同：sklearn 會擋，但 <code>shap_values()</code> 不檢查欄名、照樣算出一份對到錯欄位的值——把欄序調回 <code>rf.feature_names_in_</code> 再重算</button>
+        <button type="button" class="quiz-opt" data-k="B">B. <code>expected_value</code> 取錯了一面，應該用 <code>expected_value[0]</code></button>
+        <button type="button" class="quiz-opt" data-k="C">C. 資料有缺值，SHAP 對 NaN 的處理跟模型不同，補值後就會一致</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 浮點誤差累積，12 個特徵相加本來就會有 0.3 的誤差，屬正常範圍</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>錯誤訊息最後一句寫得很明白：「欄名必須跟 fit 時<b>同一個順序</b>」。真正危險的是另一半——實測同一份亂序資料丟給 <code>explainer.shap_values()</code> <b>完全不報錯</b>，照樣回一個形狀正確的陣列，只是每個值都對到錯的欄位。這種錯畫得出圖、有小數點、看起來很專業，全部是錯的。第 3 節那條加總等式就是為這種情況存在的自我檢查：對不上就是哪裡錯了。B 不成立，取 <code>[0]</code> 只會讓整批差一個固定常數（而且方向相反），不會每一筆差不同的量。C 不成立，這份資料沒有缺值，而且錯誤訊息講的是欄名順序不是 NaN。D 明顯不對，實測 500 筆的最大誤差是 1.8e-15，差 0.3 是十四個數量級以外的事。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>法遵要求某一欄不得作為決策依據。你把它從訓練資料移除、重訓、跑禁用欄位檢查——PASS，AUC 幾乎沒掉。可以送審了嗎？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 可以，欄位已經不存在，模型不可能用到它</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 不行，要把檢查門檻從 0.01 調到 0.001 再跑一次才算嚴謹</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 不行，先查<b>代理特徵</b>：把剩下每一欄跟被移除那欄算相關係數——實測一欄相關 0.97 的 <code>region_score</code> 就會直接接手重要度第一名，而檢查照樣 PASS</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 不行，應該把那一欄留著但在預測時填成常數 0，這樣模型結構不變、比較好回溯</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>只查名字的合規檢查會被繞過去。實測：拿掉 f2、留下一欄與它相關 0.97 的 <code>region_score</code>，禁用欄位檢查 PASS（f2 根本不在清單裡）、AUC 只從 0.9684 掉到 0.9655、而 <code>region_score</code> 以 0.2104 直接坐上重要度第一名——<b>模型照樣在用那個資訊，只是換了個名字</b>。而且這不需要有人故意，只要特徵表裡有任何相關的欄位就會自然發生。SHAP 在這裡的價值是讓它現形（一個新欄位突然衝上第一名，你至少會去問「這欄怎麼算的」），真正的解法在資料治理那一層。A 正是這一題要打破的直覺。B 調門檻沒有意義，被移除的欄位根本不在報告裡，門檻再嚴也查不到不存在的東西。D 更糟：把欄位灌成常數就是第 6 節那個「上游 bug」的樣子，模型會沉默地失去 0.08 AUC，而且留著一個隨時可能被還原的洞。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/mlflow-tracking/">
+    <span class="tag">系列已完課</span>
+    <b>回主線第 1 課，從頭複習 →</b>
+  </a>
+  <a href="/mlops/">
+    <span class="tag">主題</span>
+    <b>‹ 回「MLOps 自動化技術」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：molab 導流面板（常駐，無內嵌 notebook） ══════════════ -->
+<div id="lab">
+  <div id="molab-panel">
+    <div class="panel-inner">
+      <span class="eyebrow">HANDS-ON · MOLAB</span>
+      <h3>實作在 molab 跑（免費）</h3>
+      <p>
+        molab 的登入狀態進不了內嵌框架（瀏覽器的跨站 cookie 保護），
+        所以 notebook 要在<b>新分頁</b>執行——把它跟本頁並排開，左邊教學照樣對照。
+      </p>
+      <ol>
+        <li>登入 molab（GitHub / Google）</li>
+        <li>開啟課程 notebook，<b>Fork 成自己的副本</b>即可編輯</li>
+        <li>從第一格往下全部執行（首次安裝套件約 1–2 分鐘）——<b>免費 CPU 環境即可</b>，不需要 GPU；全部計算加起來不到半分鐘</li>
+      </ol>
+      <div class="panel-btns">
+        <a class="pbtn primary" href="https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/model-explainability/model-explainability_ext.py" target="_blank" rel="noopener">在新分頁開啟課程 notebook ↗</a>
+        <a class="pbtn" href="https://molab.marimo.io" target="_blank" rel="noopener">登入 molab ↗</a>
+        <a class="pbtn" href="model-explainability_ext.py" download>下載 model-explainability_ext.py</a>
+      </div>
+      <p class="panel-note">不想用 molab？下載 <code>model-explainability_ext.py</code> 後在自己電腦
+        <code>uvx marimo edit --sandbox model-explainability_ext.py</code>，依賴會自動安裝。</p>
+      <p class="panel-note">molab 的線上編輯器在手機上體驗有限——動手這一段建議用電腦進行。</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：一位客戶的 SHAP waterfall 播放器 ＋ 三種全域重要度排名 ═══
+   貢獻值、機率、排名全部是 notebook 的實測輸出（shap 0.52.0、RandomForest 100 棵 depth 8、
+   測試集 500 位客戶，基準 expected_value = 0.48824）。 */
+(function () {
+  var BASE = 0.48824;
+  var CUST = {
+    high: {
+      id: 1340, prob: 0.9860,
+      steps: [
+        ["合約剩餘月數指標", "f2", 1.45, 0.2348],
+        ["方案滿意度分數", "f3", -0.54, 0.1030],
+        ["帳單金額變化", "f4", -2.19, 0.0578],
+        ["競品優惠曝光度", "f9", 1.64, 0.0428],
+        ["近三個月使用量", "f0", 0.62, 0.0321],
+        ["服務中斷次數", "f6", -2.33, 0.0148],
+        ["其他 6 項合計", "", null, 0.0125]
+      ],
+      say: [
+        "這位客戶（編號 1340）未來一季的流失機率我們估計是 98.6%，所有客戶的平均是 48.8%。",
+        "把機率推高最多的是 合約剩餘月數指標（目前值 +1.45，推動 +0.235）、方案滿意度分數（目前值 −0.54，推動 +0.103）、帳單金額變化（目前值 −2.19，推動 +0.058）。",
+        "往下拉的則有 續約提醒回應（目前值 +0.10，推動 −0.001）、推薦人數（目前值 +0.06，推動 −0.000）。"
+      ]
+    },
+    mid: {
+      id: 842, prob: 0.4998,
+      steps: [
+        ["方案滿意度分數", "f3", -0.10, 0.0625],
+        ["帳單金額變化", "f4", 0.19, -0.0381],
+        ["競品優惠曝光度", "f9", -0.07, 0.0271],
+        ["續約提醒回應", "f11", 0.36, -0.0239],
+        ["裝置數量", "f8", 0.80, -0.0172],
+        ["近三個月使用量", "f0", -0.68, -0.0086],
+        ["其他 6 項合計", "", null, 0.0097]
+      ],
+      say: [
+        "這位客戶（編號 842）未來一季的流失機率我們估計是 50.0%，所有客戶的平均是 48.8%。",
+        "把機率推高最多的是 方案滿意度分數（目前值 −0.10，推動 +0.063）、競品優惠曝光度（目前值 −0.07，推動 +0.027）、推薦人數（目前值 −0.94，推動 +0.008）。",
+        "往下拉的則有 帳單金額變化（目前值 +0.19，推動 −0.038）、續約提醒回應（目前值 +0.36，推動 −0.024）、裝置數量（目前值 +0.80，推動 −0.017）。"
+      ]
+    },
+    low: {
+      id: 775, prob: 0.0041,
+      steps: [
+        ["合約剩餘月數指標", "f2", -1.26, -0.2152],
+        ["競品優惠曝光度", "f9", -4.16, -0.0968],
+        ["方案滿意度分數", "f3", 0.84, -0.0516],
+        ["帳單金額變化", "f4", 1.01, -0.0380],
+        ["客服接觸次數", "f1", -0.43, -0.0269],
+        ["服務中斷次數", "f6", 1.22, -0.0238],
+        ["其他 6 項合計", "", null, -0.0319]
+      ],
+      say: [
+        "這位客戶（編號 775）未來一季的流失機率我們估計是 0.4%，所有客戶的平均是 48.8%。",
+        "沒有任何一項在推高流失機率。",
+        "往下拉的則有 合約剩餘月數指標（目前值 −1.26，推動 −0.215）、競品優惠曝光度（目前值 −4.16，推動 −0.097）、方案滿意度分數（目前值 +0.84，推動 −0.052）。"
+      ]
+    }
+  };
+  var RANK = {
+    builtin: {
+      label: "「這個特徵讓樹分得多乾淨」——加起來一定等於 1，所以它只講得出佔比。它偏愛切得動的特徵：實測一欄純亂數的客戶編號也能拿到 0.0172，排在兩個真特徵之上。",
+      rows: [["f2",.4078],["f3",.1608],["f9",.0868],["f4",.0747],["f0",.0657],["f11",.0499],["f1",.0449],["f6",.0377],["f8",.0199],["f10",.0189],["f7",.0167],["f5",.0162]]
+    },
+    perm: {
+      label: "「把這一欄打亂，AUC 掉多少」——跟指標綁定，換成 accuracy 排名就可能不同。尾巴幾欄是負的，那不代表有害，只代表雜訊。同一欄亂數在這裡是 +0.0003，等於 0。",
+      rows: [["f2",.2424],["f3",.0862],["f9",.0218],["f1",.0093],["f4",.0090],["f0",.0054],["f11",.0038],["f6",.0030],["f7",.0001],["f5",.0000],["f8",-.0002],["f10",-.0005]]
+    },
+    shap: {
+      label: "「平均把預測機率推動多遠」——單位就是機率，三種裡只有它講得出「推動多少」。同一欄亂數在這裡是 0.0038：SHAP 誠實地說「模型確實有在用它」。",
+      rows: [["f2",.2137],["f3",.1003],["f9",.0509],["f4",.0359],["f0",.0261],["f1",.0142],["f6",.0130],["f11",.0117],["f8",.0052],["f10",.0037],["f5",.0035],["f7",.0032]]
+    }
+  };
+  var COMMON = "三種算法的前三名都是 f2 → f3 → f9，第 4 名才開始分家（內建與 SHAP 選 f4，permutation 選 f1）。";
+
+  var demo = document.getElementById("xa-demo");
+  if (!demo) return;
+  var stepsEl = document.getElementById("xa-steps"),
+      sayEl = document.getElementById("xa-say"),
+      fillEl = document.getElementById("xa-fill"),
+      nowEl = document.getElementById("xa-now"),
+      goalEl = document.getElementById("xa-goal"),
+      rankEl = document.getElementById("xa-rank"),
+      hintEl = document.getElementById("xa-hint");
+  var timer = null, cur = "high";
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function pct(x) { return (x * 100).toFixed(1) + "%"; }
+  function sgn(x) { return (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(3); }
+
+  function build(key) {
+    cur = key;
+    var c = CUST[key];
+    goalEl.textContent = "預測 " + pct(c.prob);
+    stepsEl.innerHTML = c.steps.map(function (s, i) {
+      var nm = s[1]
+        ? '<span class="nm" title="' + s[0] + '">' + s[1] +
+          ' <em>= ' + (s[2] >= 0 ? "+" : "−") + Math.abs(s[2]).toFixed(2) + "</em></span>"
+        : '<span class="nm">其他 6 項</span>';
+      return '<div class="step ' + (s[3] >= 0 ? "pos" : "neg") + '" data-i="' + i + '">' +
+        nm + '<span class="bar"><i></i></span>' +
+        '<span class="val">' + sgn(s[3]) + "</span></div>";
+    }).join("");
+    sayEl.innerHTML = "";
+    fillEl.style.width = pct(BASE);
+    nowEl.textContent = pct(BASE);
+    play();
+  }
+
+  function play() {
+    if (timer) { clearInterval(timer); timer = null; }
+    var c = CUST[cur], acc = BASE, i = 0;
+    var rows = stepsEl.querySelectorAll(".step");
+    rows.forEach(function (r) { r.classList.remove("on"); r.querySelector("i").style.width = "0"; });
+    sayEl.innerHTML = "<span>" + c.say[0] + "</span>";   // 第一句不必等動畫，先出來
+    fillEl.style.width = pct(BASE);
+    nowEl.textContent = pct(BASE);
+
+    function tick() {
+      if (i >= c.steps.length) {
+        clearInterval(timer); timer = null;
+        sayEl.innerHTML = c.say.map(function (t) { return "<span>" + t + "</span>"; }).join("");
+        return;
+      }
+      var s = c.steps[i];
+      acc += s[3];
+      var w = Math.min(50, (Math.abs(s[3]) / 0.25) * 50);
+      rows[i].classList.add("on");
+      rows[i].querySelector("i").style.width = w + "%";
+      fillEl.style.width = pct(Math.max(0, Math.min(1, acc)));
+      nowEl.textContent = pct(acc);
+      i++;
+    }
+    if (reduced) { while (i < c.steps.length) tick(); tick(); }
+    else { tick(); timer = setInterval(tick, 480); }
+  }
+
+  function drawRank(m) {
+    demo.setAttribute("data-m", m);
+    var d = RANK[m], max = d.rows[0][1];
+    rankEl.innerHTML = d.rows.map(function (r, i) {
+      var w = Math.max(0, (r[1] / max) * 100);
+      return '<div class="rrow' + (i < 3 ? " top" : "") + '">' +
+        '<span class="rk">' + (i + 1) + "</span>" +
+        '<span class="fn">' + r[0] + "</span>" +
+        '<span class="rb"><i style="width:' + w.toFixed(1) + '%"></i></span>' +
+        '<span class="rv">' + (r[1] >= 0 ? "" : "−") + Math.abs(r[1]).toFixed(4) + "</span></div>";
+    }).join("");
+    hintEl.innerHTML = "<b>" + d.label + "</b><br>" + COMMON;
+  }
+
+  document.getElementById("xa-cust").querySelectorAll("[data-c]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      demo.querySelectorAll("[data-c]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      build(b.dataset.c);
+    });
+  });
+  document.getElementById("xa-replay").addEventListener("click", play);
+  document.getElementById("xa-methods").querySelectorAll("[data-m]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      demo.querySelectorAll("#xa-methods [data-m]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      drawRank(b.dataset.m);
+    });
+  });
+
+  build("high");
+  drawRank("shap");
+})();
+</script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

@@ -21,8 +21,9 @@
 | 10 | mlflow-tracing | 上線 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
 | 11 | feature-store | 上線 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
 | 12 | dvc-basics | 上線 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
-| 13 | ml-testing | 寫作中 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
-| 14 | model-explainability | 寫作中 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
+| 13 | ml-testing | 完成待部署 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
+| 14 | model-explainability | 完成待部署 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
+| 15 | onnx-export | 寫作中 | skl2onnx 轉換、onnxruntime 推論對答案、延遲比較（單筆快約 500×）、型別／形狀合約 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -246,6 +247,33 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
 - `mo.ui.dropdown(...).form()` export 時 `.value is None` → 用 `if` 分支渲染提示（不要 `mo.stop`）。
 - hero 三欄 `<pre>` 桌機各約 200px：每行壓在 ~24 字元、md5 留 8 碼；`word-break: normal; overflow-wrap: anywhere`。
 - 數字：raw.csv 470,591 B vs 指標檔 89 B；第一次 repro 2.2–2.6 s、skip 0.5–0.6 s；auc 0.95318→0.97287；`dvc exp` depth 6/20 → 0.96376/0.97063。
+
+### ML 測試課（13）subagent 實測補充（2026-09-04 06:05，pytest 9.1）
+
+- **`pytest.main()` 同 process 重跑吃 `sys.modules` 快取**：同名測試檔改內容後仍回舊結果 → 重跑前掃 `sys.modules` 刪掉 `__file__` 在測試資料夾的模組
+  （含 conftest）。sandbox 內 pytest 噴 `PytestAssertRewriteWarning: … anyio` → `-p no:warnings`；`os.environ["COLUMNS"]="100"` 才可重現換行；
+  輸出路徑縮寫先相對後絕對。assert 先算成 float/bool 再斷言（否則印整個 ndarray）。
+- exit code 5 ＝ 一條測試都沒跑（檔名沒 `test_`、`-k` 打錯）；`parametrize` 清單混進字串不報錯（`"f9"` 被解包）。
+- sklearn 1.9 欄位破壞三種訊息不同：`yet now missing: - f11`／`unseen at fit time: - extra`／`must be in the same order`（**多一欄也會炸**）。
+- `mo.md(r"""…""")` 內的程式範例不能含 `"""`（提前終止）→ 用 `#` 註解。`mlflow.set_experiment` 不給 artifact_location 會在 cwd 建 `mlruns/`。
+- 數字：champion 10 條測試 0.20 s 全過；淺樹／打亂標籤各 6 failed 但紅的不同組；切片 `f1>1` 0.8837 最慘、`f0>1` 0.9844 最好；校準三個模型都過（0.021–0.037）。
+- **onnx-export spike**（`_spikes/spike_onnx.py`，onnxruntime 1.29／onnx 1.22／skl2onnx）：`to_onnx(rf, Xtr[:1], options={id(rf): {"zipmap": False}})`
+  0.22 s；onnx 561 KB vs pkl 1.24 MB；500 列 ORT 1.19 ms vs sklearn 10.43 ms；單筆 0.012 vs 5.8 ms；logreg 單筆 0.012 vs 0.248 ms；機率最大差 1.9e-7；
+  float64 → `Unexpected input data type. Actual: (tensor(double)) , expected: (tensor(float))`；少一欄 → `Got invalid dimensions for input: X … Got: 11 Expected: 12`。
+
+### 可解釋性課（14）subagent 實測補充（2026-09-04 06:25，SHAP 0.52）
+
+- **shap 課的 PEP 723 要釘 `numba>=0.61`＋`requires-python = ">=3.12,<3.14"`**：marimo `--sandbox` 用 uv 通用解析（要同時滿足整個 python 範圍），
+  不釘會退回 numba 0.53／llvmlite 0.36 現場編譯失敗（`Cannot install on Python version 3.14.4; only versions >=3.6,<3.10`）；單獨 `uv run --script`
+  不會重現。3.11 只解得到 shap 0.50（`shap_values` 回 list），下限 3.12 才拿到 0.52。
+- `shap.plots.*` 預設 8 吋寬：`waterfall`／`scatter` 呼叫後 `plt.gcf().set_size_inches(6.4, 4.0)`；`beeswarm`／`summary_plot` 吃 `plot_size=`；
+  每格開頭 `plt.close("all")`＋`plt.figure()`；`plt.gcf()` 當最後運算式可渲染（session JSON 存成 marimo mimebundle，`nb-outputs.py` 掃不到圖）。
+- shap 兩個不報錯的坑：`summary_plot` 吃到三維 (n,12,2) 靜靜改畫 interaction plot；`shap_values()` 不檢查欄名欄序（sklearn 會擋）。防身法＝加總等式。
+- `mo.ui.dropdown(value=...)` export 時 `.value` 不是 None（`.form()` 才是）。`.tw{overflow-x:auto}` 包表格要同時 `table{min-width:470px}`＋第一欄
+  `nowrap`，否則手機被壓成每格一字（不算溢出，mobile smoke 抓不到）。`.codeblock` 中文輸出壓在 ~73 視覺欄內。
+- 教學實測：三法前三名 f2→f3→f9 一致、第 4 名分家；純亂數欄位內建重要度排第 11 高於真特徵（perm/SHAP 都接近 0）；洩漏欄位
+  `days_since_cancel` → AUC 0.9996、SHAP 佔比 65.7%；同模型吃漂移資料 SHAP 排名 spearman 1.00（SHAP 解釋模型不解釋資料）；上游把 f2
+  灌成常數重訓 → AUC 0.8884、9/12 欄換位置；KernelExplainer 20 列 5 秒（比 TreeSHAP 慢 200×）；LinearExplainer 等於 coef×(x−平均)。
 
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 
