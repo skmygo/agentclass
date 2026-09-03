@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLOps 自動化技術 · AI 互動教室</title>
+<meta name="description" content="MLflow 與 Dagster 兩大工具詳解，再串成一條會自己訓練、評估、把關、上線的管線：實驗追蹤、模型註冊、軟體定義資產、排程與感測器、品質閘門——全部在 molab 免費環境親手跑。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="MLOps 自動化技術 · AI 互動教室">
+<meta property="og:description" content="MLflow 與 Dagster 兩大工具詳解，再串成一條會自己訓練、評估、把關、上線的管線：實驗追蹤、模型註冊、軟體定義資產、排程與感測器、品質閘門——全部在 molab 免費環境親手跑。">
+<meta property="og:url" content="https://class.itsmygo.uk/mlops/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/topic.css">
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← 回主題列表</a>
+  <span class="eyebrow">TOPIC · MLOPS AUTOMATION</span>
+  <h1>🔁 MLOps 自動化技術</h1>
+  <p class="sub">
+    模型訓好只是開始：怎麼記住每一次實驗、怎麼把「最好的那版」變成「線上那版」、怎麼讓資料一更新就自動重訓、
+    怎麼擋下不合格的模型。這條主線用 <b>MLflow</b>（實驗追蹤、模型註冊）與 <b>Dagster</b>（資產管線、排程、感測器）
+    兩大熱門工具，每課都在 molab 免費環境真的跑一遍，最後串成一條會自己運轉的管線。
+    有 Python 與基礎 ML 背景即可，照順序上。
+  </p>
+
+  <!-- 課程卡片依課程順序排（第 1 課在最上；新課插在主線最下面） -->
+  <div class="lessons">
+    <a class="card" href="/mlflow-tracking/">
+      <span class="tag">MLFLOW · 01</span>
+      <h2>🧾 MLflow 實驗追蹤：每一次訓練都留下證據</h2>
+      <p>上週 AUC 0.95、今天 0.92，當時參數是什麼沒人記得。把每次訓練記成 run：params／metrics／tags／artifacts、
+         有 step 的曲線、一行 autolog、nested runs 掃參數，再用 search_runs 像查資料庫一樣查實驗。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <a class="card" href="/mlflow-registry/">
+      <span class="tag">MLFLOW · 02</span>
+      <h2>📦 MLflow Models 與 Model Registry：從最好的 run 到線上那一版</h2>
+      <p>模型＋規格＋環境打包成一個資料夾、signature 擋下少一欄的輸入、Registry 給名字與版本、
+         alias 一行晉升或回滾、evaluate 一行產出 8 個指標 5 張圖、自訂 pyfunc 把前後處理一起包進部署單位。</p>
+      <span class="go">開始上課 →</span>
+    </a>
+    <div class="card soon">
+      <span class="tag">DAGSTER · 03 · 即將開課</span>
+      <h2>🧱 Dagster 軟體定義資產：管線不是一串任務，是一張資料地圖</h2>
+      <p>用 @asset 宣告「這份資料怎麼來的」，依賴自動連成圖；materialize、metadata、asset check 一次學會。</p>
+    </div>
+    <div class="card soon">
+      <span class="tag">DAGSTER · 04 · 即將開課</span>
+      <h2>⏰ Dagster 自動化：排程、感測器、分割與自動化條件</h2>
+      <p>每天凌晨兩點跑、新檔案一進來就跑、上游更新下游自動跟——三種觸發方式與分割資產的補跑。</p>
+    </div>
+    <div class="card soon">
+      <span class="tag">CAPSTONE · 05 · 即將開課</span>
+      <h2>🏁 Dagster × MLflow：一條會自己訓練、評估、把關、上線的管線</h2>
+      <p>資料資產 → 訓練資產記進 MLflow → 評估 → asset check 當品質閘門 → 通過才把 champion alias 移過去。</p>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://www.youtube.com/@itsmygouk" target="_blank" rel="noopener">YouTube 頻道</a> ·
+    <a href="https://blog.itsmygo.uk/" target="_blank" rel="noopener">部落格</a>
+  </footer>
+</div>
+</body>
+</html>
