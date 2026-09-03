@@ -72,7 +72,7 @@ lp.on("console", (msg) => {
   consoleErrors.push(`lesson-page: ${msg.text().slice(0, 300)}`);
 });
 lp.on("pageerror", (err) => consoleErrors.push(`lesson-page pageerror: ${err.message}`));
-await lp.goto(lessonUrl, { waitUntil: "networkidle", timeout: 60_000 });
+await lp.goto(lessonUrl, { waitUntil: "load", timeout: 60_000 }); // 不用 networkidle：頁面有 YouTube 等第三方 iframe 時永遠不會 idle；後面自己輪詢就緒
 const quiz = await lp.evaluate(() => {
   const count = document.querySelectorAll("#quiz .quiz-q").length;
   const btn = document.querySelector("#quiz .quiz-q .quiz-opt");

@@ -1,5 +1,8 @@
 # video/ — 用程式上傳影片到 YouTube 頻道
 
+> **一次全包的流程請用 `publish-videos` skill**（`.claude/skills/publish-videos/`）：
+> mp4 放進 `data/` → 跑 skill → 自動上傳、嵌進課程頁、部署。本檔說明的是底層工具。
+
 `upload.py` 用 YouTube Data API v3 把 `data/` 裡的影片傳到自己的頻道
 （[UCxwORIgu1LL5uGqQWmxmdLA](https://www.youtube.com/channel/UCxwORIgu1LL5uGqQWmxmdLA)）。
 單檔 PEP 723 腳本，`uv run` 會自己裝依賴，**不動 repo 根的 `pyproject.toml`**、也不會被 `build.sh` 部署。
@@ -12,8 +15,9 @@ video/
 ├── token.json             第一次登入後自動產生（已 gitignore）
 └── data/
     ├── 01litellm-basics.mp4    影片（*.mp4 已 gitignore，repo 是公開的）
-    ├── 01litellm-basics.json   同名 sidecar：標題／說明／tags／privacy（可進版控）
-    └── uploaded.jsonl          上傳紀錄：檔名 → video id／網址（防重複上傳）
+    └── 01litellm-basics.json   同名 sidecar（選用）：手動指定標題／說明／tags；skill 流程不需要
+├── config.json            全站影片格式：標題／說明模板、tags、隱私、播放清單 id（可版控）
+└── uploaded.jsonl         上傳紀錄：檔名 → video id／網址（放這層，data/ 清空也不會消失）
 ```
 
 ## 一次性設定（約 5 分鐘）
@@ -41,7 +45,7 @@ uv run video/upload.py video/data/01litellm-basics.mp4
 uv run video/upload.py video/data/01litellm-basics.mp4 --privacy unlisted --playlist-id PLxxxx
 ```
 
-成功後印出 `https://youtu.be/<id>` 與 Studio 編輯連結，並寫一行到 `data/uploaded.jsonl`；
+成功後印出 `https://youtu.be/<id>` 與 Studio 編輯連結，並寫一行到 `video/uploaded.jsonl`；
 同一個檔名再傳會被擋，確定要重傳加 `--force`。所有選項：`uv run video/upload.py -h`。
 
 ### 這台機器沒桌面／瀏覽器在別台電腦

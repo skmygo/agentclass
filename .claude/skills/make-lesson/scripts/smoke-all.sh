@@ -5,16 +5,18 @@
 #   bash .claude/skills/make-lesson/scripts/smoke-all.sh            # 跑全部（dist 要先 build）
 #   bash .claude/skills/make-lesson/scripts/smoke-all.sh --build    # 先 scripts/build.sh 再跑
 #   bash .claude/skills/make-lesson/scripts/smoke-all.sh --base https://agentclass.pages.dev   # 打線上（部署後）
+#   bash .claude/skills/make-lesson/scripts/smoke-all.sh --only litellm-basics,fastmcp4     # 只跑指定課（改動只碰這幾課時）
 #
 # URL 規則：純瀏覽器課 /<id>/nb/index.html、外部軌課 /<id>/（外部課沒有 nb/）。
 # 線上冒煙第一次失敗多半是 CDN 冷資產——會自動重試一次。
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
-PORT=8787; BASE=""; BUILD=0
+PORT=8787; BASE=""; BUILD=0; ONLY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --build) BUILD=1;;
     --base) BASE="$2"; shift;;
+    --only) ONLY="$2"; shift;;
     *) echo "不認識的參數：$1" >&2; exit 1;;
   esac; shift
 done
@@ -34,6 +36,7 @@ pass=0; fail=0; failed=()
 mobile_specs=()
 for smoke in "$ROOT"/content/*/*/smoke-test.mjs; do
   dir="$(dirname "$smoke")"; id="$(basename "$dir")"
+  if [ -n "$ONLY" ]; then case ",$ONLY," in *",$id,"*) ;; *) continue;; esac; fi
   if [ -f "$dir/lesson.py" ]; then
     url="$BASE/$id/nb/index.html"
     mode="edit"

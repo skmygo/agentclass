@@ -1,0 +1,52 @@
+{
+  "skill_name": "publish-videos",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "我把兩支新錄的影片放到 video/data/ 了（01-genai-tokens.mp4、02genai-training.mp4），幫我上傳到 YouTube、接到對應課程頁、然後上線。\n\n注意：這個 repo 是測試用的沙盒副本（路徑見上），沒有 YouTube 憑證、沒有 git remote、wrangler 已停用。請用 dry-run 模式走完整個流程（不會真的上傳、不部署、不 push）。計畫印出來後不用等我確認，我先同意了，直接繼續。最後把你會回報給我的內容寫成 REPORT.md 放在指定的 outputs 目錄。",
+      "expected_output": "兩課 page_content.py 都多了 VIDEO 常數（DESCRIPTION 下一行）、index.html 有對應的 youtube-nocookie 嵌入、tags 3–8 個且不與固定 tags 重複、build＋兩課冒煙通過、dry-run 不 commit、報告列出兩課。",
+      "files": [],
+      "assertions": [
+        "各課: page_content.py 有 VIDEO 常數且緊接在 DESCRIPTION 下一行",
+        "各課: index.html 的 youtube-nocookie 嵌入 id 與 VIDEO 一致",
+        "各課: dist/ 已重新 build 並含該嵌入（代表跑過 build）",
+        "每課 tags 3–8 個、不與固定 tags 重複、無 <>, 逗號（記在 video/.plan.json）",
+        "跑過該課冒煙且通過（輸出裡有 RESULT: PASS 或「冒煙通過」）",
+        "dry-run 不產生 commit（HEAD 仍是 sandbox baseline）",
+        "沒有改到不相干的檔案（只動兩課的 page_content.py／index.html）",
+        "REPORT.md 列出兩課的影片網址與課程頁網址",
+        "REPORT.md 說明影片是 private／dry-run 沒有真的上傳"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "video/data/ 裡有 03-genai-token.mp4 和 04-genai-rag.mp4，幫我全部上傳並接到課程頁上線。\n\n注意：這個 repo 是測試用的沙盒副本（路徑見上），沒有 YouTube 憑證、沒有 git remote、wrangler 已停用。請用 dry-run 模式走完整個流程（不會真的上傳、不部署、不 push）。計畫印出來後不用等我確認，我先同意了，直接繼續。最後把你會回報給我的內容寫成 REPORT.md 放在指定的 outputs 目錄。",
+      "expected_output": "檔名 genai-token 對不到課程（正確是 genai-tokens）→ 整批停在上傳前，任何 page_content.py 都沒被改（包括合法的 genai-rag），回報指出哪個檔名錯並建議相近的課程 id，不自行猜測改名。",
+      "files": [],
+      "assertions": [
+        "任何 page_content.py／index.html 都沒被改（整批停下，含合法的 genai-rag）",
+        "genai-rag 沒有被單獨上傳（page_content.py 無 VIDEO）",
+        "沒有產生 video/.publish-result.json（沒進到上傳步驟）",
+        "REPORT.md 指出 03-genai-token.mp4 對不到課程",
+        "REPORT.md 建議相近的正確 id genai-tokens",
+        "沒有自行改檔名（03-genai-token.mp4 仍在，沒出現 03-genai-tokens.mp4）",
+        "沒有 commit"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "fastmcp4 這課我重錄了，新檔在 video/data/03fastmcp4.mp4，幫我換掉課程頁上的舊影片。\n\n注意：這個 repo 是測試用的沙盒副本（路徑見上），沒有 YouTube 憑證、沒有 git remote、wrangler 已停用。請用 dry-run 模式走完整個流程（不會真的上傳、不部署、不 push）。計畫印出來後不用等我確認，我先同意了，直接繼續。最後把你會回報給我的內容寫成 REPORT.md 放在指定的 outputs 目錄。",
+      "expected_output": "辨識出該課已有 VIDEO（5COzYLpeyrQ）需用 --replace；VIDEO 換成新 id，index.html 嵌入更新，報告提到舊影片仍在 YouTube 需自行處理。",
+      "files": [],
+      "assertions": [
+        "fastmcp4 的 VIDEO 已換成新 id（不再是 5COzYLpeyrQ）",
+        "index.html 嵌入更新為新 id，舊 id 不在",
+        "dist/ 已重新 build 含新嵌入",
+        "只改 fastmcp4 的兩個檔",
+        "REPORT.md 提醒舊影片 5COzYLpeyrQ 仍在 YouTube 需自行處理",
+        "跑過冒煙且通過",
+        "dry-run 不產生 commit"
+      ]
+    }
+  ]
+}

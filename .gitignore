@@ -35,3 +35,10 @@ video/data/*.mkv
 video/data/*.webm
 video/client_secret*.json
 video/token*.json
+
+# YouTube API 審核用截圖（含帳號資訊，不進公開 repo）
+video/audit/
+
+# publish-videos skill 的暫存計畫／結果
+video/.plan.json
+video/.publish-result.json

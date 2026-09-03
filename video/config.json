@@ -1,0 +1,37 @@
+{
+  "site_url": "https://class.itsmygo.uk",
+  "site_name": "AI 互動教室",
+  "pages_project": "agentclass",
+  "channel_id": "UCxwORIgu1LL5uGqQWmxmdLA",
+  "title_template": "{title}｜{site_name}",
+  "description_template": "{description}\n\n▶ 互動課程（瀏覽器內直接實作）：{lesson_url}\n▶ 主題「{topic_name}」：{topic_url}\n▶ {site_name}首頁：{site_url}/",
+  "base_tags": [
+    "AI 互動教室"
+  ],
+  "topic_tags": {
+    "llm-apps": [
+      "LLM 應用開發",
+      "Python"
+    ],
+    "local-llm": [
+      "地端 LLM",
+      "本地大語言模型"
+    ],
+    "genai-intro": [
+      "生成式 AI",
+      "LLM 入門"
+    ],
+    "ml-basics": [
+      "機器學習",
+      "scikit-learn"
+    ]
+  },
+  "category": "27",
+  "language": "zh-Hant",
+  "privacy": "private",
+  "playlist_title_template": "{topic_name}｜{site_name}",
+  "playlist_privacy": "public",
+  "playlists": {
+    "llm-apps": "PLFZA4OckzrQU"
+  }
+}

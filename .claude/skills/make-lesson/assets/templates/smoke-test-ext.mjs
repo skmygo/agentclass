@@ -24,7 +24,7 @@ page.on("console", (msg) => {
 page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 
 console.log(`opening ${url} ...`);
-await page.goto(url, { waitUntil: "networkidle", timeout: 60_000 });
+await page.goto(url, { waitUntil: "load", timeout: 60_000 }); // 不用 networkidle：頁面有 YouTube 等第三方 iframe 時永遠不會 idle；後面自己輪詢就緒
 
 // 1) h1 可見（text=中文 會撈到隱藏 <title>，要等「可見的 h1」）
 await page.waitForSelector(`h1:has-text("${H1_TEXT}")`, {

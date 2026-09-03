@@ -21,6 +21,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 管線層級的新發現要**回寫 skill 的 references／scripts**；課程層級的坑寫該課或該主題的 `NOTES.md`
 （課程會被刪，skill 不會）。
 
+## 課程影片一律走 publish-videos skill
+
+錄好的 `.mp4` 放進 `video/data/`（檔名 `NN-<課程id>.mp4`）→ 用 `publish-videos` skill：上傳 YouTube、`VIDEO` 寫進
+`page_content.py`、page-fill、build、冒煙、commit、deploy、push 一次做完。格式由 `video/config.json` 決定，
+別手寫影片標題／說明、別手改 index.html。底層工具與帳號限制見 `video/README.md`。
+
 ## 常用指令
 
 ```bash

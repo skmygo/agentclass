@@ -56,7 +56,7 @@ for (const spec of args) {
     await page.waitForTimeout(1500);
     await page.screenshot({ path: `preview-shots/${name}.png` });
   } else {
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load"); // 第三方 iframe（YouTube 嵌入）會讓 networkidle 永遠等不到
     await page.screenshot({ path: `preview-shots/${name}.png`, fullPage: true });
   }
   console.log(`✓ preview-shots/${name}.png${errors.length ? `  ⚠ pageerror: ${errors[0].slice(0, 120)}` : ""}`);
