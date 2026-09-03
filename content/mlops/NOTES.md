@@ -21,8 +21,8 @@
 | 10 | mlflow-tracing | 上線 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
 | 11 | feature-store | 上線 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
 | 12 | dvc-basics | 上線 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
-| 13 | ml-testing | 完成待部署 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
-| 14 | model-explainability | 完成待部署 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
+| 13 | ml-testing | 上線 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
+| 14 | model-explainability | 上線 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
 | 15 | onnx-export | 完成待部署 | skl2onnx 轉換、onnxruntime 推論對答案、延遲比較（單筆快約 500×）、型別／形狀合約 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
