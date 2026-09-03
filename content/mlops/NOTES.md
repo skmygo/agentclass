@@ -12,10 +12,11 @@
 | 02 | mlflow-registry | 上線 | log_model 資料夾、signature 合約、Registry 版本與 alias、evaluate、自訂 pyfunc、log_input |
 | 03 | dagster-assets | 上線 | @asset、依賴成圖、metadata、deps、IO manager、asset check（blocking）、Definitions |
 | 04 | dagster-automation | 上線 | resources/Config、partitions、schedules、sensors（cursor）、AutomationCondition、RetryPolicy |
-| 05 | mlops-pipeline | 寫作中 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
-| 00 | mlops-why | 完成待部署 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
+| 05 | mlops-pipeline | 完成待部署 | Dagster 資產管線 × MLflow：訓練→evaluate→asset check 品質閘→通過才移 champion alias |
+| 00 | mlops-why | 上線 | 純瀏覽器 app：模型漂移與再訓練模擬（為什麼需要 MLOps） |
 | 06 | model-serving | 寫作中 | 批次評分 vs 線上 API：自包 FastAPI、`mlflow models serve`、alias 換版重載 |
-| 07+ | model-monitoring / optuna-hpo / data-validation(pandera) / mlflow-tracing / dvc | 候選（spike 已跑通） | 時間允許再加 |
+| 07 | model-monitoring | 寫作中 | PSI／KS 手算、預測漂移、Evidently 報告、監控結果接回 Dagster check／sensor |
+| 08+ | optuna-hpo / data-validation(pandera) / mlflow-tracing / dvc | 候選（spike 已跑通） | 時間允許再加 |
 
 ## 共用的教學素材（各課沿用，數字才對得上）
 
@@ -126,6 +127,21 @@ MLflow 以 `ConfigurableResource` 注入（tracking_uri／experiment）。四次
 註：gate 失敗時即使 `QUIET`（WARNING）仍會在 stderr 印 `DagsterAssetCheckFailedError` traceback；
 想完全安靜把 console log_level 設 `CRITICAL`。champion 的 eval_auc 用 `client.log_metric(run_id, "eval_auc", …)`
 補記到訓練 run 上，gate 才比得到。
+
+### 壓軸課（05）subagent 實測補充（2026-09-04 03:30）
+
+- **MLflow 3.15 預設 tracking uri 是 `sqlite:///<cwd>/mlflow.db`**（不是 `./mlruns`）：資產內忘了 `setup()` → Dagster success=True、
+  零錯誤，但管線的 tracking 0 個 run、cwd 多一個 `mlflow.db`（最沉默的錯）。spike／notebook 先 `os.chdir(tmp)` 或一律先 `set_tracking_uri`。
+- **AutomationCondition 需要基準 tick**：materialize 之後直接以 `cursor=None` 評估得 0；正確順序 tick0（基準）→ materialize → tick1 → tick2
+  ＝ 0 → 1 → 0。上游 blocking check 失敗時，其下游 eager 資產不會被 request（同一 tick：data_profile 1、champion_scorecard 0）。
+- `deps=` 可省：只靠參數名宣告依賴，blocking check 照樣擋下游。
+- Dagster 課 export 實際耗時：首次含裝套件 3–4 分鐘，之後快取命中約 100 秒（session JSON 寫出即算完），其餘全是 hang。
+- 錯誤原文（`_spikes/spike_mlops_pipeline_errors.py`）：`resource with key 'mlflow_res' required by op ... was not provided`；
+  `Registered Model with name=churn-clf not found`（未註冊）vs `Registered model alias chapmion not found.` vs
+  `Model Version (name=churn-clf, version=99) not found`；`DagsterInvalidConfigError: ... Value "deep" of type "<class 'str'>" is not valid for expected type "Int"`；
+  evaluate 的 `The specified pandas DataFrame does not contain the specified targets column 'churn'.`
+- 100 棵樹 RF 的 depth→AUC：2/4/6/8/12/16 → 0.9297/0.9551/0.9656/0.9684/0.9725/0.9698（16 以上持平）；drift 0.25/0.5/0.75/1.0/1.5/2.0 →
+  0.9739/0.9581/0.9366/0.9209/0.8641/0.8092；recall depth 8 = 0.9129、logreg 0.860。
 
 ## 前導課（00 mlops-why，純瀏覽器 app）spike 實測（`_spikes/spike_mlops_why.py`）
 
