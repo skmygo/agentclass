@@ -248,6 +248,30 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   kernel 子程序（關 telemetry、不用 ephemeral instance 都一樣）。驗證用 `timeout 900 bash verify-ext.sh …`，
   回 124 就改用 `nb-outputs.py` 掃 session JSON（全 cell 有輸出且 errors 0 即通過），再收掉殘留行程。
 
+### 外部軌系列課 subagent 平行寫作的實測（mlops 系列 14 課，2026-09-04）
+
+- **分工模式**：主代理先 spike 定軌（`_spikes/spike_*.py`）＋寫主題 `NOTES.md`（坑＋共用素材＋系列表），再每次派 ≤2 個 opus subagent
+  各寫一課（只准動自己的課程目錄＋一支 `_spikes/spike_<id>_errors.py`；不跑 build／smoke-all、不 commit）；主代理收尾接線、
+  `smoke-all.sh --build`、部署、commit／push、NOTES 回寫。一課約 40–60 分鐘，整夜 14 課。
+- **`.wip` 標記是必需品**：subagent 一 scaffold 就 `touch .wip`，寫完驗過才 `rm`；主代理的 build 若在 rm 之後、smoke 之前跑，
+  會對 dist 裡沒有的課跑冒煙而 FAIL——發現時補 `touch` 即可（smoke 迴圈當下才檢查）。
+- **marimo 0.24（sandbox export）的三個沉默坑**：(1) `mo.md` 會把 code block 裡以 `- ` 開頭的行當清單重排（YAML／lock 檔縮排壞掉、
+  插空行，export 與冒煙都 `errors: 0`）→ 檔案內容與終端機輸出一律 `mo.Html("<pre>"+html.escape(text)+"</pre>")`；(2) `mo.stop` 的下游 cell
+  在 export 會被記成 `ancestor-stopped` error → `mo.stop` 只放在沒有下游的 cell，計算格用 `if` 設 `None`；(3) f-string 的 `mo.md` 內放含
+  `{}` 的程式碼範例 → `Invalid format specifier`，拆成獨立 `mo.md(r"…")` 再 `mo.vstack`。另：`mo.ui.table` 當最後運算式時 `nb-outputs.py`
+  掃不到輸出（關鍵數字另用 `mo.md` 寫一句）；多個各自寫同一資源（DB、repo、parquet）的 cell 要用回傳變數顯式串鏈，否則拓樸順序可能亂。
+- **page-fill 的 PANEL_STEPS 現在只認 `#molab-panel` 內的 `<ol>`**（以前 `<ol>.*?</ol>` 會被 WRAP／STYLE 裡任何裸 `<ol>` 誤中，
+  連 CSS 註解都算）；課程內的清單仍建議 `<ol class="…">`。
+- **session JSON 不是原子的**：timeout 殺掉的 export 其 kernel 子程序可能還活著並補寫 → 改內容重驗前 `rm __marimo__/session/*.json`。
+  兩個 Dagster 課的 sandbox export 同時跑會互相拖垮（30 秒的 notebook 卡 10 分鐘）→ subagent 跑 export 前先 `ps` 確認沒有別的 export。
+- **pgrep／pkill 自殺**：指令字串本身含樣式時會殺到自己的 shell（exit 144）。一律
+  `ps -eo pid,args | grep "關鍵字[x]"` 取 PID 再 kill，或 `[b]uild.sh` 寫法且確保指令其他地方不再出現同一字串。
+- **測驗題的錯誤原文**：每課一支 `spike_<id>_errors.py`（PEP 723）撞出真實訊息，比從記憶裡寫可靠；錯誤訊息裡的 `{...}` 是 Python set，
+  順序每次不同，別當規格引用。
+- **教學欄比視窗窄**（1400px 視窗時 pane 約 644px）：多欄對照表包 `.tw{overflow-x:auto}`＋`min-width`；hero 用百分比寬長條時加
+  `overflow:hidden`，`white-space:nowrap` 的標籤在 390px 會撐破 `#lesson`（mobile smoke 會擋）。
+- 手機 mobile smoke 的 app 課抽樣全載在機器高負載時可能 240 s 逾時（genai-agents 一次），重跑即過——建置與 subagent export 同時跑時要有心理準備。
+
 ### 一次建多堂課：fork 平行＋port 分段（FastMCP 4 補充系列，2026-08-20）
 
 - **四堂課平行寫**：主代理先把每課的 spike 跑通（`_spikes/spike_*.py`，一課一支、`--部分名` 可只跑一段），

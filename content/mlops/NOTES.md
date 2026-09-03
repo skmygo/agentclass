@@ -19,8 +19,8 @@
 | 08 | optuna-hpo | 上線 | study/trial/objective、TPE vs Random、重要度、pruning、每 trial 一個 MLflow nested run、sqlite 續跑 |
 | 09 | data-validation | 上線 | pandera DataFrameSchema／DataFrameModel、lazy failure_cases、YAML 合約、接 Dagster blocking check |
 | 10 | mlflow-tracing | 上線 | @mlflow.trace span 樹、attributes/tags/search、assessments、genai.evaluate code scorer、Prompt Registry |
-| 11 | feature-store | 完成待部署 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
-| 12 | dvc-basics | 完成待部署 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
+| 11 | feature-store | 上線 | Feast：Entity/FeatureView、point-in-time join、ttl、materialize、online features、FeatureService |
+| 12 | dvc-basics | 上線 | dvc add／指標檔／cache 內容定址、git checkout＋dvc checkout 回溯、dvc.yaml repro／skip、params/metrics diff、remote push/pull |
 | 13 | ml-testing | 寫作中 | pytest 在 notebook 內跑：合約／表現／切片／行為（不變性、方向性、最低功能）測試，壞模型讓它紅 |
 | 14 | model-explainability | 寫作中 | 三種特徵重要度對照、SHAP TreeExplainer 全域／局部、waterfall、審核 artifact、禁用欄位檢查 |
 
