@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "會思考的模型：CoT 與 Reasoning Model"
 DESCRIPTION = "同一題、同一顆模型：直接答是錯的 55，「一步一步想」就答對 5——實測紀錄親眼看。CoT、Reasoning Model、Test-time Compute、Overthinking、ToT/GoT，推理範式的五個名詞一次搞懂。"
+VIDEO = "https://youtu.be/DyyXIopgSMo"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝CoT、橘＝reasoning model、綠＝test-time compute、紫＝ToT/GoT、紅＝錯誤 */

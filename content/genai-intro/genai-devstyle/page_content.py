@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "新開發範式：Vibe Coding 到 Spec-Driven"
 DESCRIPTION = "Vibe Coding、Agentic Engineering、Context Engineering、Spec-Driven Development——四個名詞其實是同一條光譜：專案越正式，你交給 AI 的東西越結構化。context 組裝的 token 帳用 tiktoken 真算給你看（省 69%）。"
+VIDEO = "https://youtu.be/XQDTDcaYxQA"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝vibe、橘＝agentic、綠＝context、紫＝spec、紅＝代價 */

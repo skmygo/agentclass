@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "AI Agent 與 MCP：模型長出手腳"
 DESCRIPTION = "Agent 不是魔法：模型吐一段 JSON、你的程式執行工具、結果塞回對話——用真實互動紀錄一步步播給你看。再看懂 MCP 怎麼把 M×N 配接地獄變成 M+N，以及 Agent Skills、Multi-Agent 這些名詞在講什麼。"
+VIDEO = "https://youtu.be/Qsy8RAKNN0A"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝agent/loop、橘＝工具、綠＝MCP、紫＝生態系、紅＝代價 */

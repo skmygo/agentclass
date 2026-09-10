@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "推理加速：KV Cache、量化與 vLLM"
 DESCRIPTION = "KV Cache 為什麼吃光顯存、量化砍掉四分之三的模型檔、投機解碼先猜後驗、連續批次把 GPU 餵飽、MoE 大而不貴——六組部署名詞全部算給你看，128k 上下文的 16 GB 帳一目瞭然。"
+VIDEO = "https://youtu.be/zLF0Gtm2ETg"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝KV、橘＝量化、綠＝加速與吞吐、紫＝MoE、紅＝代價 */

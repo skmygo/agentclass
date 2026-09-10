@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "RAG 與向量資料庫：先查再答"
 DESCRIPTION = "同一個模型、同一個問題：沒查手冊時一本正經教你「裝咖啡液體」，查了手冊後句句有據——RAG、向量資料庫、GraphRAG 一次看懂，對照全部來自實測紀錄。"
+VIDEO = "https://youtu.be/768XfMSREV8"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：紅＝幻覺、綠＝有據、藍＝檢索、橘＝向量庫、紫＝進階流派 */

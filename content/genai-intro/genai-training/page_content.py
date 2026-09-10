@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "模型是怎麼練成的：預訓練到 RLHF"
 DESCRIPTION = "生成式 AI 第二課：預訓練、SFT、LoRA、蒸餾、RLHF/GRPO 六個訓練名詞一次看懂——親手算 LoRA 為什麼把 90 GB 的微調壓到 15 GB、蒸餾的溫度在蒸什麼、DeepSeek-R1 的 GRPO 在比什麼。"
+VIDEO = "https://youtu.be/zNtNg84P778"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝預訓練、橘＝微調（SFT/LoRA）、綠＝蒸餾、紫＝RL 對齊、紅＝成本 */
