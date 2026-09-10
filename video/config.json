@@ -28,7 +28,7 @@
   },
   "category": "27",
   "language": "zh-Hant",
-  "privacy": "private",
+  "privacy": "public",
   "playlist_title_template": "{topic_name}｜{site_name}",
   "playlist_privacy": "public",
   "playlists": {
