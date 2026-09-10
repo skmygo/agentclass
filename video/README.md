@@ -76,7 +76,9 @@ bash scripts/build.sh && npx wrangler pages deploy dist --project-name=agentclas
 
 ## 要知道的限制
 
-- **未審核專案上傳的影片會被鎖成私人。** Google 規定 2020-07-28 之後建立、沒通過
+- **本專案的 compliance audit 已通過**（2026-09-10 實測：`privacy: public` 上傳後讀回仍是 public），
+  所以 `config.json` 的 `privacy` 設 `public` 就是真的公開。以下是還沒通過審核時的行為，留著備查：
+  Google 規定 2020-07-28 之後建立、沒通過
   [API compliance audit](https://support.google.com/youtube/contact/yt_api_form) 的 API 專案，
   用 `videos.insert` 上傳的影片一律「私人（鎖定）」——就算指定 `unlisted`／`public` 也一樣，Studio 也改不了。
   要公開有兩條路：填上面那張表申請審核（免費，通常數天到數週），或需要公開的那支改在 Studio 手動上傳。

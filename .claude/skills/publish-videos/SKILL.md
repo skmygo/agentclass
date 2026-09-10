@@ -59,7 +59,7 @@ python3 .claude/skills/publish-videos/scripts/plan.py show      # exit 0 才算�
 python3 .claude/skills/publish-videos/scripts/publish.py
 ```
 
-逐支：上傳（private，設定檔決定）→ 加進該主題的播放清單（沒有就建、照課程順序插入）→
+逐支：上傳（隱私由 `config.json` 的 `privacy` 決定，目前 public）→ 加進該主題的播放清單（沒有就建、照課程順序插入）→
 `VIDEO` 寫進 `page_content.py` → 重跑 page-fill。中途失敗會印已完成幾支；修好後從第 1 步重跑即可。
 
 **5. build、冒煙、commit、deploy、push**
@@ -79,7 +79,7 @@ COMMIT_TRAILER=$'Co-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session:
 上傳 N 支（跳過 M 支已有影片）：
 - <課程id> → https://youtu.be/<id> → https://class.itsmygo.uk/<id>/
 播放清單：https://www.youtube.com/playlist?list=<id>
-commit <hash>，已部署並 push。影片目前 private，公開請到 YouTube Studio 設定（或改 config 的 privacy）。
+commit <hash>，已部署並 push。影片隱私＝config 的 `privacy`（目前 public），並已讀回 YouTube 確認。
 ```
 
 ## 常見失敗與處理
@@ -100,13 +100,14 @@ commit <hash>，已部署並 push。影片目前 private，公開請到 YouTube 
 - **重錄替換**：`plan.py --replace <id>`。新影片上傳、`VIDEO` 換成新網址，舊影片留在 YouTube（回報時提醒使用者自行刪除或設私人）。
 - **只補播放清單**（例如早期上傳未入清單）：`uv run video/upload.py --add-existing <video_id> --playlist-title "<主題名>｜AI 互動教室" --playlist-order <該主題影片 id 課程順序，逗號分隔>`。
 - **清單順序亂了**（連續加入時 YouTube 查詢有幾秒延遲，位置可能算錯；publish.py 每批結尾已自動整理）：`uv run video/upload.py --playlist-sort --playlist-id <PL…> --playlist-order <課程順序的影片 id>`。
-- **要改成公開**：審核通過後把 `video/config.json` 的 `privacy` 改 `public`；已上傳的到 Studio 改。
+- **隱私**：`video/config.json` 的 `privacy` 說了算，**目前是 `public`**——這個 API 專案的 compliance audit 已通過
+  （2026-09-10 實測：上傳後讀回仍是 public）。上傳完值得用 `videos.list` 讀回確認一次，被打回 private 才是審核出問題。
 - **測試管線不想真的上傳**：只能在另一個 worktree／副本裡做 `plan.py --dry-run` → tags → `publish.py` → `ship.sh`（dry-run 會用假 id 寫進 page_content.py，且 ship 只做到 build＋冒煙）。真實 repo 不要 dry-run。
 
 ## 不要做的事
 
 - 不手寫標題／說明、不直接編輯 index.html、不 commit mp4（已 gitignore）。
-- 不把影片設 public／unlisted 繞過設定檔——未審核的 API 專案上傳的影片會被 YouTube 鎖成私人，設了也沒用。
+- 不在單支上用 `--privacy` 繞過設定檔：格式與隱私一律由 `config.json` 決定，要改就改設定檔再重跑第 1 步。
 - 使用者沒確認計畫前不跑 publish.py；沒跑過冒煙不 deploy。
 
 格式細節（檔名、模板欄位、tags 規則、設定檔每個鍵）見 `references/format.md`；底層上傳工具見 `video/README.md`。

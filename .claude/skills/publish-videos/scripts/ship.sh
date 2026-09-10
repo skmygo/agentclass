@@ -17,15 +17,17 @@ for a in "$@"; do case "$a" in --no-deploy) DEPLOY=0;; *) echo "不認識的參�
 
 RESULT=video/.publish-result.json
 [ -f "$RESULT" ] || { echo "✗ 沒有 $RESULT，先跑 publish.py" >&2; exit 1; }
-read -r DRY IDS FILES SUMMARY < <(python3 - <<'PY'
+# 一值一行：files 是空白分隔的多個路徑，塞進單行 read 只有第一個路徑會進 FILES，
+# 其餘會被最後一個變數吃掉 —— 那樣 git add 只加得到第一課的第一個檔案。
+{ read -r DRY; read -r IDS; read -r FILES; } < <(python3 - <<'PY'
 import json
 r = json.load(open("video/.publish-result.json"))
 items = r["items"]
 ids = ",".join(i["lesson_id"] for i in items)
 files = " ".join(f'{i["page_content"]} {i["index_html"]}' for i in items)
-topics = sorted({i["topic"] for i in items})
-summary = f"{'+'.join(topics)} {len(items)} 支"
-print("1" if r["dry_run"] else "0", ids or "-", files or "-", summary.replace(" ", "_"))
+print("1" if r["dry_run"] else "0")
+print(ids or "-")
+print(files or "-")
 PY
 )
 [ "$IDS" = "-" ] && { echo "沒有要出貨的課程。"; exit 0; }
@@ -70,7 +72,9 @@ fail=0
 python3 -c 'import json;[print(i["lesson_id"], i["video_id"]) for i in json.load(open("video/.publish-result.json"))["items"]]' | while read -r lid vid; do
   ok=0
   for _ in 1 2 3 4 5 6; do
-    if curl -sS -m 20 -H 'Cache-Control: no-cache' "$SITE/$lid/?v=$RANDOM" | grep -q "youtube-nocookie.com/embed/$vid"; then ok=1; break; fi
+    # 不接 grep：grep -q 找到就收工，curl 還在寫就吃 SIGPIPE（exit 23），配上 pipefail 會誤判成「還看不到」
+    html=$(curl -sS -m 20 -H 'Cache-Control: no-cache' "$SITE/$lid/?v=$RANDOM" || true)
+    case "$html" in *"youtube-nocookie.com/embed/$vid"*) ok=1; break ;; esac
     sleep 5
   done
   if [ $ok = 1 ]; then echo "✓ $SITE/$lid/ 有 $vid"; else echo "✗ $SITE/$lid/ 還看不到 $vid（快取？稍後再 curl 一次）"; fi
