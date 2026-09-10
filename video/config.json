@@ -32,6 +32,7 @@
   "playlist_title_template": "{topic_name}｜{site_name}",
   "playlist_privacy": "public",
   "playlists": {
-    "llm-apps": "PLFZA4OckzrQU"
+    "llm-apps": "PLFZA4OckzrQU",
+    "genai-intro": "PLFtBvQb7JHiU"
   }
 }

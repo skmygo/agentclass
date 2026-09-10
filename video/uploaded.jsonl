@@ -8,3 +8,10 @@
 {"file": "08fastmcp4-state.mp4", "video_id": "bTbVs9vTc80", "url": "https://youtu.be/bTbVs9vTc80", "title": "FastMCP 4 狀態：無狀態協定上的三種記憶｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:11+00:00"}
 {"file": "09fastmcp4-features.mp4", "video_id": "y3z2_6lhLwg", "url": "https://youtu.be/y3z2_6lhLwg", "title": "FastMCP 4 專屬功能：背景任務、快取、路由 header、擴充｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:14+00:00"}
 {"file": "10mcp-servers.mp4", "video_id": "fhY3nfPQWKk", "url": "https://youtu.be/fhY3nfPQWKk", "title": "常見 MCP 服務：接上別人的伺服器，再合成一台｜AI 互動教室", "privacy": "private", "uploaded_at": "2026-09-02T10:47:18+00:00"}
+{"file": "01-genai-tokens.mp4", "video_id": "zbx0jAxsI-Y", "url": "https://youtu.be/zbx0jAxsI-Y", "title": "Token、Embedding 與上下文窗｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:13:31+00:00"}
+{"file": "02-genai-training.mp4", "video_id": "zNtNg84P778", "url": "https://youtu.be/zNtNg84P778", "title": "模型是怎麼練成的：預訓練到 RLHF｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:13:35+00:00"}
+{"file": "03-genai-inference.mp4", "video_id": "zLF0Gtm2ETg", "url": "https://youtu.be/zLF0Gtm2ETg", "title": "推理加速：KV Cache、量化與 vLLM｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:13:40+00:00"}
+{"file": "04-genai-reasoning.mp4", "video_id": "DyyXIopgSMo", "url": "https://youtu.be/DyyXIopgSMo", "title": "會思考的模型：CoT 與 Reasoning Model｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:13:45+00:00"}
+{"file": "05-genai-agents.mp4", "video_id": "Qsy8RAKNN0A", "url": "https://youtu.be/Qsy8RAKNN0A", "title": "AI Agent 與 MCP：模型長出手腳｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:13:49+00:00"}
+{"file": "06-genai-devstyle.mp4", "video_id": "XQDTDcaYxQA", "url": "https://youtu.be/XQDTDcaYxQA", "title": "新開發範式：Vibe Coding 到 Spec-Driven｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:13:54+00:00"}
+{"file": "07-genai-rag.mp4", "video_id": "768XfMSREV8", "url": "https://youtu.be/768XfMSREV8", "title": "RAG 與向量資料庫：先查再答｜AI 互動教室", "privacy": "public", "uploaded_at": "2026-09-10T10:14:00+00:00"}

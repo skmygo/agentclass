@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "Token、Embedding 與上下文窗"
 DESCRIPTION = "生成式 AI 第一課：文字怎麼被切成 token（同一句話中文比英文多 70% token）、語意怎麼變成向量、模型一次能看多少、為什麼回答一個字一個字蹦出來——四個地基名詞，全部親手摸過。"
+VIDEO = "https://youtu.be/zbx0jAxsI-Y"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝token、橘＝embedding、綠＝context、紫＝autoregressive、紅＝代價 */
