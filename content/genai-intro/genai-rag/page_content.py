@@ -265,9 +265,9 @@ graphrag query --root ./my-project \
 </section>
 
 <div class="endnav">
-  <a href="/genai-tokens/">
-    <span class="tag">全系列完</span>
-    <b>↺ 從第 1 課再走一遍，名詞會全部串起來</b>
+  <a href="/genai-rag-advanced/">
+    <span class="tag">主線完 · 下一步：進階補充</span>
+    <b>補充 A：進階 RAG——父子檢索、混合搜尋與 Rerank →</b>
   </a>
   <a href="/genai-intro/">
     <span class="tag">主題</span>

@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>進階 RAG：父子檢索、混合搜尋與 Rerank · AI 互動教室</title>
+<meta name="description" content="天真 RAG 教你除垢，卻忘了叫你加除垢劑。用 90 句的咖啡機手冊和 41 題有標準答案的考卷，實測父子檢索、BM25 混合搜尋、cross-encoder rerank 各修好什麼、又弄壞什麼——每個分數都在你的瀏覽器裡現場算。">
+<link rel="icon" href="/shared/favicon.svg" type="image/svg+xml">
+<!-- og 三欄（title/description/url）由 page-fill 依 page_content.py 自動同步，不用手改 -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="進階 RAG：父子檢索、混合搜尋與 Rerank · AI 互動教室">
+<meta property="og:description" content="天真 RAG 教你除垢，卻忘了叫你加除垢劑。用 90 句的咖啡機手冊和 41 題有標準答案的考卷，實測父子檢索、BM25 混合搜尋、cross-encoder rerank 各修好什麼、又弄壞什麼——每個分數都在你的瀏覽器裡現場算。">
+<meta property="og:url" content="https://class.itsmygo.uk/genai-rag-advanced/">
+<meta property="og:image" content="https://class.itsmygo.uk/shared/og-cover.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/shared/lesson.css">
+<style>
+  /* 語義色：藍＝向量、橘＝BM25／關鍵字、綠＝標準答案／父子、紫＝混合、青＝rerank、紅＝出錯 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --c4: #8172B2; --c5: #2A7F8E; --cut: #C44E52; }
+
+  .tldr { border-left: 4px solid var(--tc, var(--c1)); background: var(--chip-bg);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 12px 0 16px;
+    font-size: 14.5px; line-height: 1.7; }
+  .tldr b { color: var(--tc, var(--c1)); }
+
+  /* hero：管線開關板 */
+  #sw-demo .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  #sw-demo .lbl { font-size: 12px; font-weight: 800; letter-spacing: .05em; color: var(--ink-soft); margin-right: 2px; }
+  #sw-demo .pick { font: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--grid); border-radius: 999px;
+    padding: 5px 12px; cursor: pointer; }
+  #sw-demo .pick.on { border-color: var(--ink); background: var(--chip-bg); }
+  #sw-demo .sw { font: inherit; font-size: 13px; font-weight: 800; color: var(--ink-soft);
+    background: var(--panel); border: 2px dashed var(--grid); border-radius: 10px;
+    padding: 6px 12px; cursor: pointer; }
+  #sw-demo .sw::before { content: "○ "; }
+  #sw-demo .sw.on { color: #fff; background: var(--sc); border: 2px solid var(--sc); }
+  #sw-demo .sw.on::before { content: "● "; }
+  #sw-demo .card { border: 2px solid var(--grid); border-radius: 12px; padding: 10px 13px; margin-top: 10px;
+    font-size: 13px; line-height: 1.75; }
+  #sw-demo .card .hd { font-size: 11.5px; letter-spacing: .06em; font-weight: 800; color: var(--ink-soft);
+    margin-bottom: 4px; }
+  #sw-demo ol.hits { margin: 0; padding-left: 20px; }
+  #sw-demo ol.hits li { margin: 2px 0; }
+  #sw-demo ol.hits li.g { color: #2E7042; font-weight: 700; }
+  #sw-demo ol.hits li .sec { font-size: 11.5px; color: var(--ink-soft); font-weight: 400; }
+  #sw-demo .expand { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #E4F2E7; color: #2E7042; }
+  #sw-demo .stat { margin-top: 6px; font-size: 12.5px; color: var(--ink-soft); }
+  #sw-demo .miss { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #FBEAEA; color: var(--cut); }
+  #sw-demo .ans .bd { white-space: pre-wrap; }
+  #sw-demo .facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #sw-demo .fact { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
+  #sw-demo .fact.y { background: #E4F2E7; color: #2E7042; }
+  #sw-demo .fact.n { background: #FBEAEA; color: var(--cut); }
+  #sw-demo .fact.w { background: #FFF4E0; color: #9A5B00; }
+  #sw-demo .board { margin-top: 10px; font-size: 13px; line-height: 1.7; border-left: 3px solid var(--ink);
+    padding-left: 10px; }
+  #sw-demo .src { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+
+  .tw { overflow-x: auto; }
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); font-weight: 800; }
+  table.cmp tr.best td { background: #E4F2E7; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
+  .quote { border-left: 3px solid var(--cut); padding: 4px 12px; margin: 10px 0; font-size: 13.5px;
+    line-height: 1.75; white-space: pre-wrap; background: #FBF5F5; border-radius: 0 8px 8px 0; }
+
+  table.cheat { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  table.cheat td { border-bottom: 1px solid var(--grid); padding: 10px 12px; vertical-align: top; line-height: 1.7; }
+  table.cheat td.t { font-weight: 800; width: 9.5em; }
+</style>
+</head>
+<body data-nb-mode="app" data-ready-figures="4">
+
+<header>
+  <a class="brand" href="/" title="回首頁"><span class="leaf">◥</span> AI 互動教室</a>
+  <a class="topic" href="/genai-intro/">‹ 生成式 AI 導論</a>
+  <div class="spacer"></div>
+  <a class="tool dl" href="lesson.py" download>下載 .py</a>
+  <a class="tool" href="nb/index.html" target="_blank" rel="noopener">單獨開啟實驗場 ↗</a>
+  <a class="tool" href="https://blog.itsmygo.uk/wordpress/%e7%95%99%e8%a8%80/" target="_blank" rel="noopener">留言回報</a>
+</header>
+
+<main>
+<!-- ══════════════ 左：教學 ══════════════ -->
+<div id="lesson">
+<div class="wrap">
+<section id="hero">
+  <span class="eyebrow">GENAI 進階補充 · A · 進階 RAG</span>
+  <h1>進階 RAG：<br>父子檢索、混合搜尋與 Rerank</h1>
+  <p style="margin-top:18px">
+    <a href="/genai-rag/">主線第 7 課</a>的 RAG 是天真版：一句（段）一塊、只用向量、取前 3 名。
+    手冊一變大、問題一變刁，它就開始出包——而且出包的地方模型不會告訴你。
+    下面是同一個模型、同一份 90 句手冊的<b>真實紀錄</b>：選一題、撥三個開關，
+    看送進 prompt 的內容和模型的回答怎麼變。
+  </p>
+
+  <div class="hero-demo" id="sw-demo">
+    <div class="row"><span class="lbl">問題</span><span class="qs" style="display:contents"></span></div>
+    <div class="row"><span class="lbl">開關</span><span class="sws" style="display:contents"></span></div>
+    <div class="card ctx"></div>
+    <div class="card ans"></div>
+    <div class="board"></div>
+    <div class="src">
+      實測紀錄（qwen3.5-2b，temperature=0、不開思考，2026-09）；檢索用 jina-embed 向量＋BM25＋bge-reranker-v2-m3。
+      「拿鐵大師」手冊是本課虛構教材；綠色＝標準答案句；關鍵事實是用字串比對自動檢查的，不是人工打分。
+    </div>
+  </div>
+
+  <p class="note">
+    實驗場是真的 Python，在你的瀏覽器裡跑、不用安裝。首次載入約需 30–60 秒——
+    正好夠你把上面的開關撥一輪、讀完第 1 節。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 考卷</span>
+  <h2>先出考卷，再談招式</h2>
+  <div class="tldr" style="--tc:var(--ink)">
+    <b>一句話重點</b>：進階 RAG 的每一招都有副作用——先準備一份<b>有標準答案的問題集</b>，
+    每撥一個開關就重考一次，用分數決定要不要留。
+  </div>
+  <p>
+    開場的開關板你撥過一輪就會發現：<b>8 種組合裡沒有一種三題都拿滿</b>。
+    父子檢索修好了除垢步驟，卻讓 E07 那題的模型說「手冊中沒有提到」；
+    混合搜尋把 E07 排到第一，卻把「摔到地上」那題的答案擠出前 3 名。
+    只看三題會被個案帶著走，所以這一課的實驗場配了一份考卷：41 題、每題標好答案在手冊哪幾句。
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>題型</th><th>題數</th><th>例子</th><th>難在哪</th></tr>
+    <tr><td>步驟題</td><td class="n">8</td><td>除垢的完整步驟是什麼？</td><td>答案橫跨同一節好幾句，少一句就是錯的操作</td></tr>
+    <tr><td>單點題</td><td class="n">8</td><td>單份濃縮要放幾公克咖啡粉？</td><td>答案就一句——天真版也答得好，當對照組</td></tr>
+    <tr><td>型號／故障碼</td><td class="n">15</td><td>螢幕顯示 E07 怎麼辦？</td><td>E07、E17 差一個字就是另一回事</td></tr>
+    <tr><td>換句話說</td><td class="n">10</td><td>摔到地上壞掉可以免費修嗎？</td><td>使用者說「摔到地上」，手冊寫「摔落」</td></tr>
+  </table></div>
+  <p>
+    打分用三個檢索界的標準指標：<b>第一名就對</b>（hit@1）、<b>recall@k</b>（標準答案句有幾成進了前 k 名）、
+    <b>MRR</b>（第一個對的排第 r 名得 1/r 分，再平均）。天真版的成績其實不差——
+    <b>第一名就對 35/41、MRR 0.92</b>。但換個問法就露餡：取前 3 名時，
+    8 題步驟題只有 <b>1 題</b>的步驟全部進了 prompt。「排對第一名」跟「答案完整」是兩回事。
+  </p>
+  <button class="golab" data-nb="1️⃣">到實驗場 1️⃣ 翻考卷，看天真版每題排第幾</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · PARENT-CHILD</span>
+  <h2>父子檢索：用小塊找、用大塊給</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：用<b>小塊</b>（一句）去比對，找到之後把它所在的<b>大塊</b>（整節）交給模型——
+    小塊找得準、大塊講得完整，兩個都要。又叫 small-to-big retrieval。
+  </div>
+  <p>
+    切塊是 RAG 的第一個兩難。切小，向量只講一件事、對上了就很「尖」，但步驟題只撈到零碎幾句；
+    切大，步驟湊齊了，可是一塊裡混著好幾個主題，向量變成它們的平均，找單點答案反而失準，prompt 還一路變胖。
+    開場第 ① 題就是切小的代價——天真版撈到的 3 句都在除垢那一節，偏偏漏了第一步，模型的回答是：
+  </p>
+  <div class="quote">1.  <b>準備</b>：除垢液流完後，先沖洗水箱並裝滿清水。
+2.  <b>啟動</b>：按一次沖煮鍵，讓機器跑完清水循環。 …</div>
+  <p>
+    <b>整個流程沒叫你加除垢劑。</b>語氣篤定、格式漂亮，照做卻等於白做。實驗場 2️⃣ 把考卷上的數字攤開（取前 3 名）：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>切法</th><th>步驟題：步驟全進 prompt</th><th>prompt 平均長度</th></tr>
+    <tr><td>一句一塊（天真版）</td><td class="n">1/8</td><td class="n">94 字</td></tr>
+    <tr><td>固定 300 字一塊</td><td class="n">7/8</td><td class="n">859 字</td></tr>
+    <tr><td>固定 600 字一塊</td><td class="n">7/8</td><td class="n">1,734 字（全手冊 2,890 字的六成）</td></tr>
+    <tr class="best"><td>父子檢索</td><td class="n">8/8</td><td class="n">327 字</td></tr>
+  </table></div>
+  <p class="src">實測：jina-embed 向量、41 題考卷，2026-09。固定大小＝整句依序裝箱、裝滿就換下一塊（常見的預設切法）。</p>
+  <p>
+    做法樸素得驚人：子塊記住自己屬於哪一節，檢索照常用子塊，最後一步換成父塊、<b>去重</b>。
+    LangChain 的 <span class="kbd">ParentDocumentRetriever</span>（1.x 版起移到 <span class="kbd">langchain-classic</span> 套件）、
+    LlamaIndex 的 <span class="kbd">AutoMergingRetriever</span> 都是這個概念。用 sentence-transformers 手寫只要十來行（參考程式，不在課內執行）：
+  </p>
+  <div class="codeblock">import torch
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("jinaai/jina-embeddings-v5-text-small-retrieval",
+                            trust_remote_code=True,
+                            model_kwargs={"dtype": torch.float32})  # CPU 上用 fp32：預設 bf16 實測慢 5 倍多
+
+children, parent_of = [], []                 # 子塊＝一句；記住它屬於哪一節
+for sec_id, (title, sentences) in enumerate(sections):
+    for s in sentences:
+        children.append(s)
+        parent_of.append(sec_id)
+child_vecs = model.encode(children, prompt_name="document", normalize_embeddings=True)
+
+def small_to_big(question, k=3):
+    q = model.encode([question], prompt_name="query", normalize_embeddings=True)[0]
+    top = (child_vecs @ q).argsort()[::-1][:k]                  # 用子塊找
+    parents = list(dict.fromkeys(parent_of[i] for i in top))   # 換成父塊：去重、保留名次
+    return [section_text[p] for p in parents]                  # 用父塊給</div>
+  <p>
+    但它不是萬靈丹。開場第 ② 題只開父子檢索，模型拿到的是三整節、十幾個長得很像的故障碼，
+    2B 小模型直接回「手冊中沒有提到。」——<b>對單點題來說，展開的整節就是雜訊</b>。
+    這也是考卷存在的意義：它會告訴你這招對哪一型題目划算。
+  </p>
+  <button class="golab" data-nb="2️⃣">到實驗場 2️⃣ 拉 top-k，看切塊兩難和父子檢索</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · HYBRID SEARCH</span>
+  <h2>混合搜尋：向量懂意思，BM25 認字</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：向量檢索懂「意思」、BM25 認「字」；兩張排名用 <b>RRF</b> 按名次融合——
+    型號、錯誤碼、料號這種「差一個字就不同」的查詢，靠 BM25 撐住。
+  </div>
+  <p>
+    問「螢幕顯示 E07 怎麼辦？」，向量檢索的前 3 名是 <b>E17</b>（cosine 0.656）、<b>E11</b>（0.528）、
+    最後才是 <b>E07</b>（0.526）。在向量眼裡，E07 和 E17 幾乎是同一個東西。
+    這次模型還從第 3 句把答案撿了回來；可是只取第 1 名時，模型拿到的是 E17 那句，實測回答
+    「手冊中沒有提到。（註：您提供的段落僅針對 E17 錯誤…）」——同樣設定換成混合搜尋，第 1 名就是 E07，答對。
+  </p>
+  <p>
+    <b>BM25</b> 是搜尋引擎用了幾十年的關鍵字排序：一個詞在這句出現越多、在全手冊越稀有，分數越高。
+    <span class="kbd">e07</span> 只出現在一句裡，所以一命中就排第一。中文沒有空格，常見做法是切<b>字元 bigram</b>
+    （「除垢燈」→「除垢」「垢燈」，Lucene 的 CJK 分析器就是這樣切），英數代碼整個當一個詞。
+    兩張排名用 <b>RRF（Reciprocal Rank Fusion）</b>合併：每張清單的第 r 名得 <span class="kbd">1/(60+r)</span> 分，加總再排——
+    只看名次、不看分數，因為 cosine 落在 0–1、BM25 可以到十幾，直接相加會被 BM25 綁架。
+  </p>
+  <div class="codeblock">import re
+import bm25s
+
+def tokenize(text):                              # 英數整詞 ＋ 中文字元 bigram
+    toks = []
+    for m in re.findall(r"[a-z0-9]+(?:[-.][a-z0-9]+)*|[一-鿿]+", text.lower()):
+        if "一" <= m[0] <= "鿿" and len(m) > 1:
+            toks += [m[i:i + 2] for i in range(len(m) - 1)]
+        else:
+            toks.append(m)
+    return toks
+
+bm25 = bm25s.BM25(method="lucene")
+bm25.index([tokenize(c) for c in children])
+scores = bm25.get_scores(tokenize(question))
+bm25_rank = [i for i in scores.argsort()[::-1] if scores[i] > 0]   # 沒命中任何詞的不算
+
+def rrf(*ranked_lists, k=60):                    # Reciprocal Rank Fusion
+    score = {}
+    for lst in ranked_lists:
+        for rank, doc in enumerate(lst, 1):
+            score[doc] = score.get(doc, 0) + 1 / (k + rank)
+    return sorted(score, key=score.get, reverse=True)
+
+hybrid_rank = rrf(dense_rank, bm25_rank)</div>
+  <p>
+    考卷的結果很誠實（實驗場 3️⃣ 可以自己拉權重）：型號題從 13/15 變成 <b>15/15</b>，
+    但換句話說題從 9/10 掉到 <b>5/10</b>——「摔到地上」跟手冊的「摔落」bigram 一個都對不上，
+    BM25 只撈得到共用「可以」這種虛詞的句子，還把向量原本排對的答案往下拖。
+    全部 41 題：純向量 35、純 BM25 27、<b>混合 33</b>。把 BM25 的權重降到 0.25，型號題保住 15/15、總分回到 35——
+    <b>在這份手冊上，單靠混合搜尋並沒有比純向量好</b>，只是把錯誤從一型搬到另一型。
+  </p>
+  <p>
+    那為什麼業界還是標配混合？因為它真正的角色是<b>第一階段「撈得全」</b>，排序交給下一節的 reranker。
+    Anthropic 在 2024-09 的 Contextual Retrieval 報告裡量過：在他們的評測語料上，（加了上下文的）向量＋BM25
+    讓前 20 名的漏撈率降了 49%、再加 rerank 降了 67%。你的語料會落在哪一邊，只有你的考卷知道。
+    Qdrant、Elasticsearch 都內建混合搜尋與 RRF——想在真的向量庫上做，接本站的
+    <a href="/qdrant-basics/">Qdrant 課</a>。
+  </p>
+  <button class="golab" data-nb="3️⃣">到實驗場 3️⃣ 拉 BM25 權重，還有 BM25 試打區</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · RERANK</span>
+  <h2>Rerank：讓 cross-encoder 把前 N 名重排</h2>
+  <div class="tldr" style="--tc:var(--c5)">
+    <b>一句話重點</b>：第一階段（向量／混合）快速撈前 N 名，<b>cross-encoder</b> 把「問題＋每一句」<b>一起讀</b>、
+    重新排序——慢但準，所以只對少數候選做。
+  </div>
+  <p>
+    到目前為止的向量檢索都是 <b>bi-encoder</b>：問題和句子各自變成向量再比，句子向量可以事先算好，查詢只算一次問題——快，
+    代價是兩邊從頭到尾沒「見過面」。<b>cross-encoder</b> 把問題和一句話拼在一起丟進模型，直接輸出相關度，
+    能看出「問的是 WF-21、這句講的是 WF-12」這種細節。
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th></th><th>bi-encoder（向量檢索）</th><th>cross-encoder（reranker）</th></tr>
+    <tr><td>怎麼讀</td><td>問題、文件各自編碼成向量</td><td>問題＋文件一起讀</td></tr>
+    <tr><td>能不能事先算</td><td>能——文件向量存進向量庫</td><td>不能——每個問題都要重跑每一對</td></tr>
+    <tr><td>速度</td><td>百萬筆也是毫秒級</td><td>本機 CPU 實測約 45 ms 一對</td></tr>
+    <tr><td>用在哪</td><td>第一階段：從全部文件撈前 N 名</td><td>第二階段：只重排這 N 個</td></tr>
+  </table></div>
+  <p>
+    考卷結果（bge-reranker-v2-m3，實驗場 4️⃣）：向量 → rerank 前 20 名，第一名就對 35 → <b>37</b>，
+    E07、WF-21 兩題型號題都救回來了；但「出國兩個月不在家」原本排第一，被 reranker 排到第 5——<b>它也會犯錯</b>。
+    有趣的是 N 不是越大越好：只重排前 <b>3</b> 名反而拿到 <b>38/41</b>（MRR 0.955），
+    候選越多，reranker 越有機會把干擾句排上來。還有一條硬限制：<b>它只能重排撈到的 N 個</b>，
+    答案不在前 N 名，它無能為力——這正是第一階段要混合搜尋「撈得全」的理由。
+  </p>
+  <div class="codeblock">from sentence_transformers import CrossEncoder
+
+reranker = CrossEncoder("BAAI/bge-reranker-v2-m3")      # 約 5.7 億參數，CPU 跑得動
+cands = hybrid_rank[:20]                                # 第一階段的前 N 名
+scores = reranker.predict([(question, children[i]) for i in cands])
+reranked = [cands[j] for j in scores.argsort()[::-1]]</div>
+  <p class="src">
+    時間成本（本機 CPU、14 執行緒實測）：一對約 45 ms，20 個候選約 0.9 秒／每次查詢；有 GPU 會快一兩個數量級。
+    reranker 還有別的選擇，例如 jina-reranker-v3、Qwen3-Reranker——一樣先用考卷量過再換。
+  </p>
+  <button class="golab" data-nb="4️⃣">到實驗場 4️⃣ 拉候選數 N，看分數和代價</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 組起來</span>
+  <h2>三招疊起來，再認識幾個兄弟</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：檢索撈候選 → rerank 排序 → 父子展開，用同一份考卷量每一個開關；
+    分數沒變好的招式就別留。
+  </div>
+  <p>
+    實驗場 5️⃣ 讓你把所有開關組起來、跟天真版並排比。spike 對 2,050 種組合做了格點搜尋，
+    這份手冊上最好的一組長這樣（怎麼組？那是 LEVEL 3 的挑戰）：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>管線</th><th>第一名就對</th><th>步驟題全進</th><th>其他題全進</th><th>prompt 長度</th></tr>
+    <tr><td>天真版：向量、一句一塊、k=3</td><td class="n">35/41</td><td class="n">1/8</td><td class="n">31/33</td><td class="n">94 字</td></tr>
+    <tr class="best"><td>格點搜尋的最佳組合（LEVEL 3 的答案）</td><td class="n">38/41</td><td class="n">8/8</td><td class="n">32/33</td><td class="n">237 字</td></tr>
+  </table></div>
+  <p>
+    多花約 140 字，換來每一題的步驟都完整、第一名多對 3 題。先透露一點：最佳組合裡沒有 BM25——
+    在這份 90 句的手冊上，向量的前 20 名已經撈到 98% 的標準答案句，BM25 沒東西可以救；
+    換成幾萬句、型號滿天飛的真實文件，結論可能反過來。<b>招式是固定的，最佳組合是量出來的。</b>
+  </p>
+  <p>還有幾招常跟這三招一起出現，知道有就好：</p>
+  <div class="tw"><table class="cmp">
+    <tr><th>手法</th><th>做什麼</th><th>本課實測</th></tr>
+    <tr><td>子塊加章節標題</td><td>算向量前把「除垢｜」這種章節名貼在每句前面，讓「最後裝回濾水芯」知道自己在講除垢</td>
+        <td>有測（5️⃣ 的開關）：第一名就對 35 → 36，步驟題 5 → 7，但型號題 13 → 12——有得有失</td></tr>
+    <tr><td>Contextual Retrieval</td><td>Anthropic 2024-09 提出：請 LLM 替每一塊寫 50–100 token 的上下文再貼上去，向量與 BM25 都用</td>
+        <td>沒測（每塊要呼叫一次 LLM）；上面那招是它最省的簡化版</td></tr>
+    <tr><td>Query 改寫／Multi-query</td><td>讓 LLM 把問題改寫成幾種說法分別檢索，再用 RRF 合併</td><td>沒測</td></tr>
+    <tr><td>HyDE</td><td>讓 LLM 先「假裝回答」，拿假答案的向量去找真段落——假答案的用詞更像手冊</td><td>沒測</td></tr>
+    <tr><td>Query／Document 前綴</td><td>jina v5、e5、bge 這類模型要求問題與文件加不同前綴（sentence-transformers 的 <span class="kbd">prompt_name</span>）</td>
+        <td>有測：忘了加，第一名就對 35 → 30、換句話說 9 → 6——最便宜的一招，最常被漏掉</td></tr>
+  </table></div>
+  <button class="golab" data-nb="5️⃣">到實驗場 5️⃣ 組你自己的管線</button>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 帶回家</span>
+  <h2>自己跑一遍：免費 CPU 就夠</h2>
+  <p>
+    本課每個數字都來自同一支腳本：
+    <a href="https://github.com/skmygo/agentclass/blob/main/content/genai-intro/_spikes/spike_genai_rag_advanced.py" target="_blank" rel="noopener">spike_genai_rag_advanced.py</a>。
+    它的 <span class="kbd">--local</span> 模式不需要任何服務：在 CPU 上載入跟本課一樣的開源模型——
+    向量用 jina-embeddings-v5-text-small-retrieval（CC BY-NC 4.0，非商用免費，商用要找 Jina 授權）、
+    rerank 用 bge-reranker-v2-m3（Apache-2.0）——把切塊、BM25、融合、rerank、考卷全部重跑一次。
+    Colab 或 Kaggle 的免費 CPU notebook 裡三格就好：
+  </p>
+  <div class="codeblock">!pip install -q bm25s==0.3.11 sentence-transformers==6.1.0
+!wget -q https://raw.githubusercontent.com/skmygo/agentclass/main/content/genai-intro/_spikes/spike_genai_rag_advanced.py
+!python spike_genai_rag_advanced.py --local --part embed,bm25,rerank,eval,grid --out out</div>
+  <p class="src" id="freepath-note">
+    驗證範圍（2026-09）：這三步用同樣的套件、在本機 CPU 限 2 執行緒（模擬免費機器）實跑過——
+    不含第一次下載模型（約 3.5 GB）全程約 7.5 分鐘、記憶體峰值 4.7 GB，考卷分數跟本課<b>完全一致</b>
+    （35/41、33/41、38/41、最佳組合 237 字）。Colab／Kaggle 本身沒有實跑。
+    開場的 LLM 回答需要一個 OpenAI 相容的端點（設 <span class="kbd">LLM_URL</span>，例如本機 Ollama），
+    那段只用 qwen3.5-2b 驗證過，換模型回答會不同。
+  </p>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 速查</span>
+  <h2>本課名詞速查卡</h2>
+  <table class="cheat">
+    <tr><td class="t" style="color:var(--c3)">父子檢索</td>
+        <td>Parent-child／small-to-big：用小塊（一句）找、把它所在的大塊（整節）交給模型；記得<b>去重</b>。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">BM25</td>
+        <td>關鍵字排序：詞在這篇出現越多、在全部文件越稀有，分數越高；認字不認意思，型號／錯誤碼的救星。</td></tr>
+    <tr><td class="t" style="color:var(--c4)">混合搜尋＋RRF</td>
+        <td>向量＋BM25 兩張排名，用 Reciprocal Rank Fusion 按<b>名次</b>融合（第 r 名得 1/(k+r)，k 常用 60）。</td></tr>
+    <tr><td class="t" style="color:var(--c1)">bi-encoder</td>
+        <td>問題、文件各自編碼成向量再比——可以事先算、快，是第一階段檢索的主力。</td></tr>
+    <tr><td class="t" style="color:var(--c5)">cross-encoder／rerank</td>
+        <td>問題＋文件一起讀、直接打相關度——慢但準，只重排第一階段的前 N 名。</td></tr>
+    <tr><td class="t">hit@1／recall@k／MRR</td>
+        <td>第一名就對嗎／答案有幾成進了前 k 名／第一個對的排第 r 名得 1/r 分——考卷的三把尺。</td></tr>
+  </table>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在實驗場 2️⃣ 把 top-k 拉到 <span class="kbd">1</span>：「其他題：答案全進 prompt」哪一種切法最高？固定 300 字掉到多少？為什麼切大塊反而讓單點的答案找不準？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>在 3️⃣ 把 BM25 權重從 1 往下拉，找出「型號題還保得住 15/15」的最低權重。這時 41 題第一名就對幾題？跟純向量比贏了嗎？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>在 5️⃣ 組一條管線：第一名就對 ≥ 38/41、步驟題 8/8 全進、其他題 ≥ 31/33，而且 prompt 平均字數越少越好。你能壓到幾個字？</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">三題在實驗場最後一格都有折疊解答——先自己拉，再打開對照。</p>
+  <button class="golab" data-nb="6️⃣">到實驗場 6️⃣ 對解答</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">09 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你的客服 RAG 一句一塊、取前 3 名。使用者抱怨：問「怎麼更換濾芯」「怎麼除垢」時，回答常常少一兩個步驟。最該先做的是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把切塊改成固定 600 字一塊——塊夠大，同一節的步驟自然就湊齊了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. top-k 從 3 拉到 10——多撈幾句，漏掉的步驟總會被撈進來</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 改用父子檢索：一句一塊去比對，交給模型時換成整節（記得去重）</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 換一個更大、更聰明的 LLM，讓它自己把漏掉的步驟補齊</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>步驟題的問題是「答案散在同一節好幾句」，父子檢索正好對症：比對用小塊（找得準），交出去用整節（步驟齊）。本課考卷上它把步驟全進的比例從 1/8 拉到 8/8，prompt 平均只要 327 字。A 也能湊齊步驟（7/8），但 prompt 膨脹到 1,734 字、單點題準度下降——大塊的向量被多個主題稀釋。B 會塞進一堆不相關的句子，而且 top-10 仍可能漏掉同一節的某一步。D 最危險：手冊沒給的步驟，更大的模型只會「補」得更像真的——開場第 ① 題的回答就是自信地漏掉加除垢劑那一步。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事實作了父子檢索，印出送給模型的 prompt 開頭（實測輸出）如下，prompt 長度 573 字。最可能的問題是？</h3>
+      <div class="codeblock">手冊段落：
+【段落1】【除垢】有裝濾水芯時，除垢週期可以從 3 個…
+【段落2】【除垢】有裝濾水芯時，除垢週期可以從 3 個…
+【段落3】【除垢】有裝濾水芯時，除垢週期可以從 3 個…</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 向量檢索壞了，前三名都回傳同一句</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 前 3 個子塊剛好都在「除垢」這一節，換成父塊時沒有去重，同一節被塞了三次</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 父塊切得太大，應該改回一句一塊</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 這是正常現象，重複三次可以加強模型對這段的注意力</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>這段是實測輸出：問「除垢的完整步驟」時，向量檢索的前 3 名是除垢那一節的三句不同的話（所以 A 不對，子塊層級是正常的），但每一句都被換成同一個父塊。去重之後只剩一段、191 字——現在是 573 字，三倍的 token 費用、零新資訊，還把其他可能有用的節擠掉了。修法是換成父塊時按名次去重（例如 <code>list(dict.fromkeys(...))</code>），LangChain 的 ParentDocumentRetriever 也是這樣做的。C 是因噎廢食；D 是常見誤解——重複內容不會讓模型更準，只會更貴、更擠。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>維修 App 的使用者常只打故障碼，例如「E07」。你發現向量檢索常把 E17、E11 排在 E07 前面。下列做法哪個最好？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 加 BM25 混合搜尋（RRF）、後接 reranker，再用含兩種題型的考卷確認沒退步</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 換一個維度更高、參數更大的 embedding 模型，E07 和 E17 就分得開了</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 全面改用 BM25——故障碼要的就是逐字精準，向量檢索可以拿掉</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 在 system prompt 裡提醒模型「故障碼必須完全相符，不相符就別回答」</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>代碼是「認字」的問題，BM25 天生擅長：本課考卷上它讓型號題從 13/15 變 15/15。但只加 BM25 會把換句話說題從 9/10 拖到 5/10，所以要配 reranker（向量或混合 → rerank 後型號題 15/15、換句話說 8/10），並且用同時含兩型題目的考卷把關。B 不保證有用——向量本來就是在比「意思」，E07 與 E17 的意思本來就很像。C 把換句話說題整個丟掉（純 BM25 在考卷上只有 3/10）。D 救不了檢索：E07 那句根本沒進 prompt 時，提醒模型也生不出來。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>同事這樣做混合搜尋：<code>hybrid = cos_scores + bm25_scores</code>。上線後發現「混合」的排名跟純 BM25 幾乎一樣，換句話說題大量答錯。下面是實測輸出，根本原因是？</h3>
+      <div class="codeblock">cosine range 0.00–0.89；BM25 range 0.00–16.95
+BM25 有命中的 40 題裡：直接相加的第一名與純 BM25 相同 36/40
+第一名就對：向量 35/41 → 直接相加 30/41（RRF 33/41）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. BM25 的 k1、b 參數沒調好，文件長度的懲罰太重</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 向量模型太弱、分數太低，應該換一個更強的 embedding 模型</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 相加前應該先把兩種分數都乘以 100，讓小數點後的差距不被忽略</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 兩種分數尺度差一個數量級，BM25 主宰排序；改用 RRF 或先各自正規化再加權</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>cosine 最多 0.89、BM25 可以到 17，相加等於「BM25 排序、cosine 只當小數點後的 tie-breaker」——實測 40 題裡 36 題的第一名跟純 BM25 一模一樣，總分從向量的 35 掉到 30，比兩者都差。RRF 只用名次，天生不怕尺度不同；要用分數就得先各自正規化（例如 min-max）再加權。A 調 BM25 參數改不了尺度差；B 看錯方向，向量本身是 35/41 的最好單項；C 兩邊同乘 100，比例完全不變。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>公司知識庫有 5,000 段。同事說：「cross-encoder 最準，那就每次查詢都把 5,000 段全部 rerank 一遍。」在 CPU 上（實測約 45 ms 一對），你的建議是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 可以——準確度最重要，使用者多等一下沒關係</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 兩段式：向量或混合先撈前 20–50 名，只 rerank 這些，N 用考卷調</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 不要用 reranker，直接把 top-k 拉大，讓 LLM 自己從一堆段落裡挑</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 把 5,000 段的 cross-encoder 分數事先算好存起來，查詢時直接查表</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>5,000 × 45 ms ≈ 225 秒——每問一題要等快四分鐘，A 不可行。兩段式是標準做法：bi-encoder／BM25 快速縮小範圍，cross-encoder 只精排少數候選（本課 20 個候選約 0.9 秒）。而且 N 大不一定好：本課考卷上只重排前 3 名拿到 38/41，前 20 名反而 37/41。D 做不到——cross-encoder 的分數取決於「問題＋文件」這一對，問題事先不知道就沒得算，這正是它跟 bi-encoder 的根本差別。C 把排序責任丟給 LLM，prompt 變長變貴，干擾句也更多。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/genai-finetune/">
+    <span class="tag">下一課 · 補充 B</span>
+    <b>微調工具實戰：Unsloth、TRL 與託管微調 →</b>
+  </a>
+  <a href="/genai-intro/">
+    <span class="tag">主題</span>
+    <b>‹ 回「生成式 AI 導論」課程列表</b>
+  </a>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /lesson -->
+
+<!-- ══════════════ 右：實驗場 ══════════════ -->
+<div id="lab">
+  <div id="nb-status"><span class="dot"></span><span id="nb-status-text">Python 環境載入中（首次約 30–60 秒）…讀完第 1 節它就好了</span></div>
+  <iframe id="nb-frame" data-src="nb/index.html" title="marimo 互動 notebook 實驗場"></iframe>
+</div>
+</main>
+
+<script>
+/* ═══ hero 互動：管線開關板（實測紀錄：qwen3.5-2b，temp=0，2026-09）═══
+   3 題 × 父子／混合／rerank 8 種組合，每種組合的 top-3 與回答都真的跑過；資料由 spike 注入。 */
+(function () {
+  /* HERO_DATA_BEGIN */
+  const HERO = [{"q": "除垢的完整步驟是什麼？", "facts": ["加一包 DC-300＋1 公升水", "長按沖煮鍵 5 秒進除垢模式", "除垢後跑清水循環", "裝回濾水芯"], "combos": {"000": {"gin": 3, "gn": 4, "miss": ["先取下濾水芯，再把一包 DC-300 除垢劑與 1 公升清水混合倒入水箱。"], "top3": [["除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。", true, "除垢"], ["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"]], "secs": ["除垢"], "chars": 94, "ans": "根據手冊段落，除垢的完整步驟如下：\n\n1.  **準備**：除垢液流完後，先沖洗水箱並裝滿清水。\n2.  **啟動**：按一次沖煮鍵，讓機器跑完清水循環。\n3.  **裝填**：最後裝回濾水芯。\n4.  **完成**：除垢燈熄滅即表示除垢完成。\n\n*(註：此過程全程約 20 分鐘，且除垢途中請勿關機。)*", "facts": [false, false, true, true], "hedge": false, "stable": false}, "001": {"gin": 3, "gn": 4, "miss": ["先取下濾水芯，再把一包 DC-300 除垢劑與 1 公升清水混合倒入水箱。"], "top3": [["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"], ["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。", true, "除垢"]], "secs": ["除垢"], "chars": 94, "ans": "除垢的完整步驟如下：\n\n1.  **進入除垢模式**：長按沖煮鍵 5 秒。\n2.  **等待除垢液流出**：機器會分段流出除垢液，全程約 20 分鐘。\n3.  **完成除垢**：最後裝回濾水芯，除垢燈熄滅即表示完成。\n4.  **沖洗水箱**：除垢液流完後，沖洗水箱並裝滿清水。\n5.  **完成循環**：再按一次沖煮鍵，讓機器跑完清水循環。", "facts": [false, true, true, true], "hedge": false, "stable": false}, "010": {"gin": 2, "gn": 4, "miss": ["先取下濾水芯，再把一包 DC-300 除垢劑與 1 公升清水混合倒入水箱。", "除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。"], "top3": [["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["E05：除垢程序被中斷，請重新長按沖煮鍵 5 秒完成除垢。", false, "故障碼 E01–E05：水路"], ["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"]], "secs": ["除垢", "故障碼 E01–E05：水路"], "chars": 92, "ans": "根據手冊段落，除垢的完整步驟如下：\n\n1.  **啟動除垢模式**：長按沖煮鍵 5 秒，機器會進入除垢模式。\n2.  **觀察除垢過程**：機器會分段流出除垢液，全程約 20 分鐘。\n3.  **完成除垢**：最後裝回濾水芯，除垢燈熄滅即完成。\n\n**注意**：除垢途中請勿關機。", "facts": [false, true, false, true], "hedge": false, "stable": true}, "011": {"gin": 3, "gn": 4, "miss": ["先取下濾水芯，再把一包 DC-300 除垢劑與 1 公升清水混合倒入水箱。"], "top3": [["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"], ["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。", true, "除垢"]], "secs": ["除垢"], "chars": 94, "ans": "除垢的完整步驟如下：\n\n1.  **進入除垢模式**：長按沖煮鍵 5 秒。\n2.  **等待除垢液流出**：機器會分段流出除垢液，全程約 20 分鐘。\n3.  **完成除垢**：最後裝回濾水芯，除垢燈熄滅即表示完成。\n4.  **沖洗水箱**：除垢液流完後，沖洗水箱並裝滿清水。\n5.  **完成循環**：再按一次沖煮鍵，讓機器跑完清水循環。", "facts": [false, true, true, true], "hedge": false, "stable": false}, "100": {"gin": 4, "gn": 4, "miss": [], "top3": [["除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。", true, "除垢"], ["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"]], "secs": ["除垢"], "chars": 191, "ans": "除垢的完整步驟如下：\n\n1.  **準備除垢劑**：將一包 DC-300 除垢劑與 1 公升清水混合。\n2.  **裝入機器**：將混合液倒入水箱。\n3.  **啟動除垢模式**：長按沖煮鍵 5 秒，機器會分段流出除垢液，全程約 20 分鐘。\n4.  **沖洗與裝填**：除垢液流完後，先沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。\n5.  **裝回濾水芯**：最後裝回濾水芯，除垢燈熄滅即完成。\n\n*注意：除垢途中請勿關機。*", "facts": [true, true, true, true], "hedge": false, "stable": true}, "101": {"gin": 4, "gn": 4, "miss": [], "top3": [["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"], ["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。", true, "除垢"]], "secs": ["除垢"], "chars": 191, "ans": "除垢的完整步驟如下：\n\n1.  **準備除垢劑**：將一包 DC-300 除垢劑與 1 公升清水混合。\n2.  **裝入機器**：將混合液倒入水箱。\n3.  **啟動除垢模式**：長按沖煮鍵 5 秒，機器會分段流出除垢液，全程約 20 分鐘。\n4.  **沖洗與裝填**：除垢液流完後，先沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。\n5.  **裝回濾水芯**：最後裝回濾水芯，除垢燈熄滅即完成。\n\n*注意：除垢途中請勿關機。*", "facts": [true, true, true, true], "hedge": false, "stable": true}, "110": {"gin": 4, "gn": 4, "miss": [], "top3": [["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["E05：除垢程序被中斷，請重新長按沖煮鍵 5 秒完成除垢。", false, "故障碼 E01–E05：水路"], ["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"]], "secs": ["除垢", "故障碼 E01–E05：水路"], "chars": 351, "ans": "根據手冊段落【除垢】，除垢的完整步驟如下：\n\n1.  **準備除垢劑**：將一包 DC-300 除垢劑與 1 公升清水混合。\n2.  **裝入機器**：將混合液倒入水箱。\n3.  **啟動除垢模式**：長按沖煮鍵 5 秒，機器會分段流出除垢液，全程約 20 分鐘。\n4.  **沖洗與裝填**：\n    *   除垢液流完後，先沖洗水箱。\n    *   裝滿清水。\n    *   再按一次沖煮鍵，讓機器跑完清水循環。\n5.  **完成檢查**：最後裝回濾水芯，除垢燈熄滅即表示除垢完成。\n\n**注意**：除垢途中請勿關機。", "facts": [true, true, true, true], "hedge": false, "stable": false}, "111": {"gin": 4, "gn": 4, "miss": [], "top3": [["長按沖煮鍵 5 秒進入除垢模式，機器會分段流出除垢液，全程約 20 分鐘。", true, "除垢"], ["最後裝回濾水芯，除垢燈熄滅即完成；除垢途中請勿關機。", true, "除垢"], ["除垢液流完後，沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。", true, "除垢"]], "secs": ["除垢"], "chars": 191, "ans": "除垢的完整步驟如下：\n\n1.  **準備除垢劑**：將一包 DC-300 除垢劑與 1 公升清水混合。\n2.  **裝入機器**：將混合液倒入水箱。\n3.  **啟動除垢模式**：長按沖煮鍵 5 秒，機器會分段流出除垢液，全程約 20 分鐘。\n4.  **沖洗與裝填**：除垢液流完後，先沖洗水箱並裝滿清水，再按一次沖煮鍵跑完清水循環。\n5.  **裝回濾水芯**：最後裝回濾水芯，除垢燈熄滅即完成。\n\n*注意：除垢途中請勿關機。*", "facts": [true, true, true, true], "hedge": false, "stable": true}}}, {"q": "螢幕顯示 E07 怎麼辦？", "facts": ["E07＝研磨室堵塞", "拔插頭、用刷子清粉塊"], "combos": {"000": {"gin": 1, "gn": 1, "miss": [], "top3": [["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"], ["E11：溫度感測器異常，請關機 10 分鐘後重開，持續出現請送修。", false, "故障碼 E11–E15：溫度與蒸氣"], ["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"]], "secs": ["故障碼 E16–E20：電子與連線", "故障碼 E11–E15：溫度與蒸氣", "故障碼 E06–E10：研磨與沖煮"], "chars": 95, "ans": "研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", "facts": [true, true], "hedge": false, "stable": true}, "001": {"gin": 1, "gn": 1, "miss": [], "top3": [["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"], ["機器完全沒反應：確認電源線兩端插緊、插座有電，再按下機身背面的過熱保護復位鈕。", false, "常見問題"], ["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"]], "secs": ["故障碼 E06–E10：研磨與沖煮", "常見問題", "故障碼 E16–E20：電子與連線"], "chars": 101, "ans": "根據手冊段落，當螢幕顯示 E07（研磨室堵塞）時，請執行以下步驟：\n1. 關機並拔插頭。\n2. 取下豆槽。\n3. 使用附贈的刷子清出卡住的粉塊。", "facts": [true, true], "hedge": false, "stable": true}, "010": {"gin": 1, "gn": 1, "miss": [], "top3": [["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"], ["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"], ["E11：溫度感測器異常，請關機 10 分鐘後重開，持續出現請送修。", false, "故障碼 E11–E15：溫度與蒸氣"]], "secs": ["故障碼 E06–E10：研磨與沖煮", "故障碼 E16–E20：電子與連線", "故障碼 E11–E15：溫度與蒸氣"], "chars": 95, "ans": "根據手冊段落，當螢幕顯示 E07（研磨室堵塞）時，請先關機並拔下電源插頭，然後取下豆槽，使用附贈的刷子清出卡住的粉塊。", "facts": [true, true], "hedge": false, "stable": true}, "011": {"gin": 1, "gn": 1, "miss": [], "top3": [["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"], ["機器完全沒反應：確認電源線兩端插緊、插座有電，再按下機身背面的過熱保護復位鈕。", false, "常見問題"], ["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"]], "secs": ["故障碼 E06–E10：研磨與沖煮", "常見問題", "故障碼 E16–E20：電子與連線"], "chars": 101, "ans": "根據手冊段落，當螢幕顯示 E07（研磨室堵塞）時，請執行以下步驟：\n1. 關機並拔插頭。\n2. 取下豆槽。\n3. 使用附贈的刷子清出卡住的粉塊。", "facts": [true, true], "hedge": false, "stable": true}, "100": {"gin": 1, "gn": 1, "miss": [], "top3": [["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"], ["E11：溫度感測器異常，請關機 10 分鐘後重開，持續出現請送修。", false, "故障碼 E11–E15：溫度與蒸氣"], ["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"]], "secs": ["故障碼 E16–E20：電子與連線", "故障碼 E11–E15：溫度與蒸氣", "故障碼 E06–E10：研磨與沖煮"], "chars": 484, "ans": "手冊中沒有提到。", "facts": [false, false], "hedge": true, "stable": true}, "101": {"gin": 1, "gn": 1, "miss": [], "top3": [["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"], ["機器完全沒反應：確認電源線兩端插緊、插座有電，再按下機身背面的過熱保護復位鈕。", false, "常見問題"], ["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"]], "secs": ["故障碼 E06–E10：研磨與沖煮", "常見問題", "故障碼 E16–E20：電子與連線"], "chars": 482, "ans": "根據手冊段落【段落 1】中關於故障碼 E07 的說明，當螢幕顯示 E07 時，請執行以下步驟：\n\n1.  **關機**：按下機身背面的過熱保護復位鈕。\n2.  **拔插頭**：拔掉咖啡機電源線。\n3.  **取下豆槽**：將豆槽取下。\n4.  **清出粉塊**：使用附贈的刷子清出卡住的粉塊。\n5.  **重新裝回**：將豆槽裝回並重新裝好。\n\n完成上述步驟後，請再試一次。", "facts": [false, true], "hedge": false, "stable": true}, "110": {"gin": 1, "gn": 1, "miss": [], "top3": [["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"], ["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"], ["E11：溫度感測器異常，請關機 10 分鐘後重開，持續出現請送修。", false, "故障碼 E11–E15：溫度與蒸氣"]], "secs": ["故障碼 E06–E10：研磨與沖煮", "故障碼 E16–E20：電子與連線", "故障碼 E11–E15：溫度與蒸氣"], "chars": 484, "ans": "手冊中沒有提到。\n\n手冊中提到的故障碼 E07 對應的是「研磨室堵塞」，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", "facts": [true, true], "hedge": true, "stable": true}, "111": {"gin": 1, "gn": 1, "miss": [], "top3": [["E07：研磨室堵塞，請關機拔插頭，取下豆槽後用附贈的刷子清出卡住的粉塊。", true, "故障碼 E06–E10：研磨與沖煮"], ["機器完全沒反應：確認電源線兩端插緊、插座有電，再按下機身背面的過熱保護復位鈕。", false, "常見問題"], ["E17：觸控面板沒有回應，請用乾布擦乾面板後重開機。", false, "故障碼 E16–E20：電子與連線"]], "secs": ["故障碼 E06–E10：研磨與沖煮", "常見問題", "故障碼 E16–E20：電子與連線"], "chars": 482, "ans": "根據手冊段落【段落 1】中關於故障碼 E07 的說明，當螢幕顯示 E07 時，請執行以下步驟：\n\n1.  **關機**：按下機身背面的過熱保護復位鈕。\n2.  **拔插頭**：拔掉咖啡機電源線。\n3.  **取下豆槽**：將豆槽取下。\n4.  **清出粉塊**：使用附贈的刷子清出卡住的粉塊。\n5.  **重新裝回**：將豆槽裝回並重新裝好。\n\n完成上述步驟後，請再試一次。", "facts": [false, true], "hedge": false, "stable": true}}}, {"q": "摔到地上壞掉可以免費修嗎？", "facts": ["摔落不在保固範圍"], "combos": {"000": {"gin": 1, "gn": 1, "miss": [], "top3": [["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。", true, "保固與送修"], ["保固期外的維修收取檢測費 500 元，維修報價經你同意後才會施工。", false, "保固與送修"], ["本產品自購買日起提供 2 年保固，送修時需出示發票或電子保卡。", false, "保固與送修"]], "secs": ["保固與送修"], "chars": 95, "ans": "手冊中沒有提到。\n\n根據【段落 1】，人為損壞、摔落造成的水垢堵塞不在保固範圍內，因此摔到地上壞掉無法免費維修。", "facts": [true], "hedge": true, "stable": true}, "001": {"gin": 1, "gn": 1, "miss": [], "top3": [["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。", true, "保固與送修"], ["保固期外的維修收取檢測費 500 元，維修報價經你同意後才會施工。", false, "保固與送修"], ["本產品自購買日起提供 2 年保固，送修時需出示發票或電子保卡。", false, "保固與送修"]], "secs": ["保固與送修"], "chars": 95, "ans": "手冊中沒有提到。\n\n根據【段落 1】，人為損壞、摔落造成的水垢堵塞不在保固範圍內，因此摔到地上壞掉無法免費維修。", "facts": [true], "hedge": true, "stable": true}, "010": {"gin": 0, "gn": 1, "miss": ["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。"], "top3": [["有裝濾水芯時，除垢週期可以從 3 個月延長到 6 個月。", false, "除垢"], ["預設沖煮溫度為 92°C，可以 1°C 為單位調整，範圍 88 到 96°C。", false, "沖煮溫度"], ["LM-700 是雙鍋爐機型，可以一邊萃取一邊打奶泡。", false, "機型差異"]], "secs": ["除垢", "沖煮溫度", "機型差異"], "chars": 93, "ans": "手冊中沒有提到摔到地上壞掉可以免費修。", "facts": [false], "hedge": true, "stable": true}, "011": {"gin": 1, "gn": 1, "miss": [], "top3": [["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。", true, "保固與送修"], ["保固期外的維修收取檢測費 500 元，維修報價經你同意後才會施工。", false, "保固與送修"], ["本產品自購買日起提供 2 年保固，送修時需出示發票或電子保卡。", false, "保固與送修"]], "secs": ["保固與送修"], "chars": 95, "ans": "手冊中沒有提到。\n\n根據【段落 1】，人為損壞、摔落造成的水垢堵塞不在保固範圍內，因此摔到地上壞掉無法免費維修。", "facts": [true], "hedge": true, "stable": true}, "100": {"gin": 1, "gn": 1, "miss": [], "top3": [["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。", true, "保固與送修"], ["保固期外的維修收取檢測費 500 元，維修報價經你同意後才會施工。", false, "保固與送修"], ["本產品自購買日起提供 2 年保固，送修時需出示發票或電子保卡。", false, "保固與送修"]], "secs": ["保固與送修"], "chars": 132, "ans": "摔到地上壞掉不在保固範圍內，因此無法免費修。", "facts": [true], "hedge": false, "stable": true}, "101": {"gin": 1, "gn": 1, "miss": [], "top3": [["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。", true, "保固與送修"], ["保固期外的維修收取檢測費 500 元，維修報價經你同意後才會施工。", false, "保固與送修"], ["本產品自購買日起提供 2 年保固，送修時需出示發票或電子保卡。", false, "保固與送修"]], "secs": ["保固與送修"], "chars": 132, "ans": "摔到地上壞掉不在保固範圍內，因此無法免費修。", "facts": [true], "hedge": false, "stable": true}, "110": {"gin": 0, "gn": 1, "miss": ["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。"], "top3": [["有裝濾水芯時，除垢週期可以從 3 個月延長到 6 個月。", false, "除垢"], ["預設沖煮溫度為 92°C，可以 1°C 為單位調整，範圍 88 到 96°C。", false, "沖煮溫度"], ["LM-700 是雙鍋爐機型，可以一邊萃取一邊打奶泡。", false, "機型差異"]], "secs": ["除垢", "沖煮溫度", "機型差異"], "chars": 480, "ans": "手冊中沒有提到摔到地上壞掉可以免費修。", "facts": [false], "hedge": true, "stable": true}, "111": {"gin": 1, "gn": 1, "miss": [], "top3": [["人為損壞、摔落，以及未定期除垢造成的水垢堵塞，不在保固範圍內。", true, "保固與送修"], ["保固期外的維修收取檢測費 500 元，維修報價經你同意後才會施工。", false, "保固與送修"], ["本產品自購買日起提供 2 年保固，送修時需出示發票或電子保卡。", false, "保固與送修"]], "secs": ["保固與送修"], "chars": 132, "ans": "摔到地上壞掉不在保固範圍內，因此無法免費修。", "facts": [true], "hedge": false, "stable": true}}}];
+  /* HERO_DATA_END */
+  const root = document.getElementById("sw-demo");
+  if (!root || !HERO.length) return;
+  const qBox = root.querySelector(".qs");
+  const swBox = root.querySelector(".sws");
+  const ctxBox = root.querySelector(".ctx");
+  const ansBox = root.querySelector(".ans");
+  const board = root.querySelector(".board");
+  const QLABEL = ["① 除垢的完整步驟？", "② 螢幕顯示 E07？", "③ 摔到地上能免費修？"];
+  const SW = [["p", "父子檢索", "var(--c3)"], ["h", "混合搜尋（＋BM25）", "var(--c4)"], ["r", "Rerank", "var(--c5)"]];
+  const st = { q: 0, p: 0, h: 0, r: 0 };
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const md = (s) => esc(s).replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/\*([^*\n]+)\*/g, "<i>$1</i>");
+  const key = () => `${st.p}${st.h}${st.r}`;
+  const perfect = (c) => c.facts.every(Boolean) && !c.hedge;
+
+  HERO.forEach((h, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pick";
+    b.textContent = QLABEL[i] || h.q;
+    b.addEventListener("click", () => { st.q = i; render(); });
+    qBox.appendChild(b);
+  });
+  SW.forEach(([k, label, color]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "sw";
+    b.dataset.k = k;
+    b.style.setProperty("--sc", color);
+    b.textContent = label;
+    b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { st[k] = st[k] ? 0 : 1; render(); });
+    swBox.appendChild(b);
+  });
+
+  function render() {
+    const h = HERO[st.q];
+    const c = h.combos[key()];
+    qBox.querySelectorAll(".pick").forEach((el, i) => el.classList.toggle("on", i === st.q));
+    swBox.querySelectorAll(".sw").forEach((el) => {
+      const on = !!st[el.dataset.k];
+      el.classList.toggle("on", on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    const steps = ["向量"];
+    if (st.h) steps[0] = "向量＋BM25（RRF）";
+    if (st.r) steps.push("rerank 前 20 名");
+    const hits = c.top3.map(([t, g, sec], i) =>
+      `<li class="${g ? "g" : ""}">${g ? "✅ " : ""}${esc(t)} <span class="sec">〔${esc(sec)}〕</span></li>`).join("");
+    let html = `<div class="hd">送進 prompt 的內容（${steps.join(" → ")}，取前 3 名）</div><ol class="hits">${hits}</ol>`;
+    if (st.p) {
+      html += `<div class="expand">父子檢索：把這 3 句換成它們所在的整節 → ${c.secs.map((s) => "【" + esc(s) + "】").join("")}（${c.secs.length} 節）</div>`;
+    }
+    if (c.miss.length) {
+      html += `<div class="miss">✗ 沒進 prompt 的標準答案句：${c.miss.map(esc).join("／")}</div>`;
+    }
+    html += `<div class="stat">標準答案句 <b>${c.gin}/${c.gn}</b> 進了 prompt · prompt 共 ${c.chars} 字</div>`;
+    ctxBox.innerHTML = html;
+    const facts = h.facts.map((f, i) =>
+      `<span class="fact ${c.facts[i] ? "y" : "n"}">${c.facts[i] ? "✓" : "✗"} ${esc(f)}</span>`).join("");
+    const hedge = c.hedge ? `<span class="fact w">⚠ 開頭先說「手冊中沒有提到」</span>` : "";
+    const unstable = c.stable ? "" : `<div class="stat">（這組連問兩次、措辭不同——temperature=0 也會有的小飄動；這裡是第一次的回答）</div>`;
+    ansBox.innerHTML = `<div class="hd">qwen3.5-2b 的回答（實測原文）</div><div class="bd">${md(c.ans)}</div>` +
+      `<div class="facts">${facts}${hedge}</div>${unstable}`;
+    const marks = HERO.map((hh, i) => {
+      const cc = hh.combos[key()];
+      const n = cc.facts.filter(Boolean).length;
+      return `${["①", "②", "③"][i]} ${perfect(cc) ? "✅" : "❌"} ${n}/${cc.facts.length}`;
+    }).join("　");
+    const wins = ["000", "001", "010", "011", "100", "101", "110", "111"]
+      .filter((k) => HERO.every((hh) => perfect(hh.combos[k]))).length;
+    board.innerHTML = `這組開關在三題的關鍵事實：${marks}<br>` +
+      `8 種開關組合裡，三題都拿滿（關鍵事實全對、沒有先說「沒提到」）的有 <b>${wins}</b> 種——` +
+      (wins ? "" : "每一招都有副作用。這就是第 1 節要出考卷的原因。");
+  }
+  render();
+})();
+</script>
+<script src="/shared/lesson.js" defer></script>
+<script src="/shared/quiz.js" defer></script>
+<script src="/shared/splitter.js" defer></script>
+</body>
+</html>

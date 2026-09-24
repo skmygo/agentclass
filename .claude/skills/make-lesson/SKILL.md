@@ -129,6 +129,8 @@ python3 .claude/skills/make-lesson/scripts/page-fill.py content/<topic>/<id>
      （CPython 全 cell）→ `bash .claude/skills/make-lesson/scripts/smoke-all.sh --build`（WASM 冒煙）
    - 外部軌課：`bash .claude/skills/make-lesson/scripts/verify-ext.sh <topic> <id> [關鍵字...]`
      （sandbox 全 cell ＋ 渲染輸出掃描，關鍵字給了就印出左頁要引用的數字）→ `smoke-all.sh --build`
+   - **平行寫多課時的單課驗證**：`bash .claude/skills/make-lesson/scripts/mini-dist.sh <topic> <id> <outdir>`
+     → 自起 http.server → 跑該課 `smoke-test.mjs`（WASM＋教學頁＋quiz＋手機段），不必等全站 build
    - **手機檢查已內建**：smoke-all 自動接 390×844 全課結構檢查＋抽樣全載；
      單課 smoke-test 模板也含手機段——手機不過＝不上線（準則見 engineering.md「手機 viewport 驗證」）
    - wiring 自檢：`grep -o '/<id>/' dist/<topic-slug>/index.html` 有中、首頁課數已更新

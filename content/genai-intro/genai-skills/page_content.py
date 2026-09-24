@@ -1,0 +1,520 @@
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/genai-intro/genai-skills
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。
+hero 的實測資料（SCRIPT 裡 HERO:BEGIN／HERO:END 之間）由 _spikes/spike_genai_skills.py inject 寫入，不要手改。"""
+
+TITLE = "Agent Skills：把 SOP 打包成 AI 的技能"
+DESCRIPTION = (
+    "Skill 就是一個資料夾加一份 SKILL.md：平常只露兩行說明、用到才整份讀進來。"
+    "拆開本站自己在用的 skill 量 token、看 description 一句話怎麼決定 Claude 叫不叫得到它（實測紀錄重播），"
+    "再學會把會算錯的步驟交給腳本、寫出能跨 agent 通用的 SKILL.md。"
+)
+
+STYLE = r"""
+  /* 語義色：藍＝Level 1（一直在）、橘＝Level 2（觸發才讀）、綠＝Level 3／腳本、紫＝description／觸發、紅＝誤觸發／超預算 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --c4: #8172B2; --cut: #C44E52; }
+
+  .tldr { border-left: 4px solid var(--tc, var(--c1)); background: var(--chip-bg);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 12px 0 16px;
+    font-size: 14.5px; line-height: 1.7; }
+  .tldr b { color: var(--tc, var(--c1)); }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
+  .tw { overflow-x: auto; margin: 14px 0; }
+  table.cmp { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13.5px; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 7px 9px; text-align: left; vertical-align: top; line-height: 1.6; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); font-weight: 800; white-space: nowrap; text-align: right; }
+  .l1 { color: var(--c1); font-weight: 800; } .l2 { color: var(--c2); font-weight: 800; }
+  .l3 { color: var(--c3); font-weight: 800; } .dsc { color: var(--c4); font-weight: 800; }
+  .bad { color: var(--cut); font-weight: 800; }
+
+  table.cheat { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  table.cheat td { border-bottom: 1px solid var(--grid); padding: 10px 12px; vertical-align: top; line-height: 1.7; }
+  table.cheat td.t { font-weight: 800; width: 9.5em; }
+
+  details.pick { border: 1.5px solid var(--grid); border-radius: 10px; padding: 8px 12px; margin: 8px 0; font-size: 14px; line-height: 1.7; }
+  details.pick summary { cursor: pointer; font-weight: 700; }
+  details.pick[open] summary { margin-bottom: 6px; }
+
+  /* hero：觸發紀錄重播 */
+  #trig-demo .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+  #trig-demo .bar .lab { font-size: 12px; font-weight: 800; color: var(--ink-soft); margin-right: 2px; }
+  #trig-demo .pill { font: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--grid); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  #trig-demo .pill.on { border-color: var(--c4); background: var(--chip-bg); color: var(--c4); }
+  #trig-demo .fm { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
+    overflow-wrap: anywhere; background: var(--chip-bg); border-radius: 10px; padding: 8px 12px; margin: 6px 0 10px; }
+  #trig-demo .fm .d { color: var(--c4); font-weight: 700; }
+  #trig-demo .grp { font-size: 12px; font-weight: 800; letter-spacing: .04em; margin: 10px 0 4px; }
+  #trig-demo .row { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
+    font: inherit; font-size: 13.5px; line-height: 1.5; color: var(--ink); background: var(--panel);
+    border: 1.5px solid var(--grid); border-radius: 9px; padding: 6px 10px; margin: 4px 0; cursor: pointer; }
+  #trig-demo .row.sel { border-color: var(--c4); }
+  #trig-demo .dots { flex: 0 0 auto; font-size: 15px; letter-spacing: 2px; line-height: 1.3; }
+  #trig-demo .q { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  #trig-demo .det { border: 2px solid var(--c4); border-radius: 10px; padding: 8px 12px; margin: 8px 0;
+    font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+  #trig-demo .det .rep { margin: 3px 0; }
+  #trig-demo .det code { font-family: var(--mono); font-size: 12px; }
+  #trig-demo .score { font-size: 14px; font-weight: 700; margin: 10px 0 2px; }
+  #trig-demo .srcnote { font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+"""
+
+WRAP = r'''
+<section id="hero">
+  <span class="eyebrow">GENAI 進階補充 · E · AGENT SKILLS</span>
+  <h1>Agent Skills：<br>把 SOP 打包成 AI 的技能</h1>
+  <p style="margin-top:18px">
+    主線〈AI Agent 與 MCP〉的生態系那一節，Agent Skills 只佔了一段：一份 <span class="kbd">SKILL.md</span>，
+    平常只露 <span class="kbd">name</span> 和 <span class="kbd">description</span> 兩行。這一課把它拆開來量、拿去實測。
+    先玩一個真的實驗——<b>同一個 skill、同一份 SOP，只改 description 那一句話</b>，模型還叫不叫得到它？
+  </p>
+
+  <div class="hero-demo" id="trig-demo">
+    <div class="bar"><span class="lab">模型</span><span id="td-model"></span></div>
+    <div class="bar"><span class="lab">description</span><span id="td-var"></span></div>
+    <div class="fm" id="td-fm"></div>
+    <div id="td-rows"></div>
+    <div class="score" id="td-score"></div>
+    <div class="det" id="td-det"></div>
+    <div class="srcnote">實測紀錄，2026-09-24：每句 prompt 跑 3 次，● 載入了 skill、○ 沒載入。點任一句看那 3 次各自做了什麼。
+      Claude 那組是 claude-haiku-4-5 在 Claude Code 2.1.281 裡跑；qwen 那組是本課的最小 skill loader（開源小模型）。</div>
+  </div>
+
+  <p class="note">
+    實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西，也不用任何帳號或金鑰）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。每個實驗都有選單與滑桿可以拉，拉完立刻重算。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 解剖</span>
+  <h2>Skill 就是一個資料夾</h2>
+  <div class="tldr" style="--tc:var(--c1)">
+    <b>一句話重點</b>：Skill ＝ 一個資料夾，裡面一份 <b>SKILL.md</b>——開頭幾行 frontmatter 寫
+    <span class="kbd">name</span> 與 <span class="kbd">description</span>，下面是寫給 AI 看的 SOP；
+    需要的話再附 <span class="kbd">scripts/</span>、<span class="kbd">references/</span>、<span class="kbd">assets/</span>。
+  </div>
+  <p>
+    沒有 SDK、沒有伺服器、沒有要註冊的 API——就是檔案。下面是本課實驗用的玩具 skill：
+    幫一個四人小團隊寫週報，工時要從 <span class="kbd">timesheet.csv</span> 加總（description 是節錄，全文在實驗場 3️⃣）。
+  </p>
+  <div class="codeblock">weekly-report/
+├── SKILL.md              ← 必要：frontmatter ＋ SOP
+├── scripts/hours.py      ← 加總工時（會算錯的事交給程式）
+├── assets/template.md    ← 週報固定格式
+└── references/style-guide.md   ← 「給主管看」才需要讀的文風規則</div>
+  <div class="codeblock">---
+name: weekly-report
+description: 產生 ACME 團隊的每週工作週報：用 scripts/hours.py 精確加總
+  timesheet.csv 的工時，套公司固定的週報格式。當使用者要寫週報、本週工作摘要、
+  status report、進度彙整…時使用——即使他沒說出「週報」兩個字。
+  不用於修改或檢查工時資料、一般書信、寫程式。
+---
+
+# ACME 週報 SOP
+1. 先執行 python3 &lt;本 skill 目錄&gt;/scripts/hours.py timesheet.csv。
+   工時數字一律照抄腳本輸出，不要自己加總。
+2. 讀 timesheet.csv 的 note 欄，每個專案歸納 2–4 條「本週完成」。
+3. 套 assets/template.md 的格式輸出。
+4. 使用者說要給主管看時，再讀 references/style-guide.md 的「主管版」規則。</div>
+  <p>
+    frontmatter 的規則是<b>開放標準</b>（agentskills.io 規格，2026-09-24 查）：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>欄位</th><th>必填</th><th>規則</th></tr>
+    <tr><td><span class="kbd">name</span></td><td>是</td><td>1–64 字；小寫英數與連字號；不能以連字號開頭／結尾、不能連續兩個連字號；<b>要跟資料夾同名</b></td></tr>
+    <tr><td><span class="kbd">description</span></td><td>是</td><td>1–1,024 字；要寫「做什麼」和「什麼時候用」</td></tr>
+    <tr><td><span class="kbd">license</span></td><td>否</td><td>授權名稱或附帶的授權檔</td></tr>
+    <tr><td><span class="kbd">compatibility</span></td><td>否</td><td>≤500 字；需要什麼環境（產品、系統套件、網路）</td></tr>
+    <tr><td><span class="kbd">metadata</span></td><td>否</td><td>任意字串鍵值（作者、版本…）</td></tr>
+    <tr><td><span class="kbd">allowed-tools</span></td><td>否</td><td>預先核准的工具清單（實驗性，各家支援程度不同）</td></tr>
+  </table></div>
+  <p>
+    真實世界的 skill 長什麼樣？做出這堂課的就是一個：本站 repo 裡的 <span class="kbd">make-lesson</span>，
+    SKILL.md 之外還有 2 份 references（工程底線、網站規範）、9 支 scripts、8 個範本。
+    實驗場 1️⃣ 把它和另外 8 個 skill 一個檔一個檔攤開，量給你看每層多少 token。
+  </p>
+  <button class="golab" data-nb="1️⃣">到實驗場 1️⃣ 拆開 make-lesson</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 漸進揭露</span>
+  <h2>三層載入：用到才付錢</h2>
+  <div class="tldr" style="--tc:var(--c2)">
+    <b>一句話重點</b>：Agent 啟動時只讀每個 skill 的 name＋description（<span class="l1">Level 1</span>）；
+    判斷用得上才讀 SKILL.md 全文（<span class="l2">Level 2</span>）；做到那一步才讀參考檔、跑腳本（<span class="l3">Level 3</span>）。
+    這叫<b>漸進揭露</b>（progressive disclosure）。
+  </div>
+  <p>
+    為什麼要這麼麻煩？回想主線講過的兩件事：上下文有上限，而且 API 是無狀態的——<b>每一輪都要把整包上下文重送一次</b>。
+    塞進 system prompt 的每一個字，整場對話每一輪都在付錢。用本 repo 的 skill 實際量一次（token 用 tiktoken
+    <span class="kbd">o200k_base</span>，2026-09-24 的檔案快照）：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>層級</th><th>什麼時候進上下文</th><th>規格建議</th><th>make-lesson 實測</th><th>本 repo 9 個 skill 合計</th></tr>
+    <tr><td class="l1">Level 1</td><td>一直都在（啟動就載入）</td><td>約 100 tokens／個</td><td class="n">156</td><td class="n">561</td></tr>
+    <tr><td class="l2">Level 2</td><td>判斷用得上才讀 SKILL.md</td><td>&lt; 5,000 tokens、&lt; 500 行</td><td class="n">4,189</td><td class="n">20,695</td></tr>
+    <tr><td class="l3">Level 3</td><td>做到那一步才讀／跑</td><td>不限（沒讀就不花）</td><td class="n">42,028</td><td class="n">51,717</td></tr>
+  </table></div>
+  <p class="src">Level 1 的 561 只算 8 個能被模型自己叫的 skill（第 9 個 <span class="kbd">grill-me</span> 設成只能手動叫，不進清單）。</p>
+  <p>
+    換成 Claude 自己的 tokenizer 呢？我們在一個玩具專案裡用 Claude Code 2.1.281＋claude-haiku-4-5 實測，
+    只改 <span class="kbd">.claude/skills/</span> 裝了什麼，讀 API 回報的 input tokens：
+    沒裝 skill 時每輪 21,012；裝進 make-lesson <b>+198</b>、publish-videos <b>+212</b>、九個全裝 <b>+468</b>；
+    而一旦真的叫了 make-lesson，下一輪一口氣 <b>+5,376</b>——那就是 Level 2 進場。
+  </p>
+  <p>
+    便宜不等於免費。Claude Code 把所有 skill 的描述排成一張清單，這張清單有<b>字元預算</b>（文件寫「context window 的 1%」）。
+    九個全裝那一次，debug log 當場跳出：
+  </p>
+  <div class="codeblock">[WARN] Skill listing over budget: 21 skills, 8210 chars &gt; 8000 budget
+— descriptions will be truncated.</div>
+  <p>
+    21 個＝Claude Code 內建的 13 個＋我們 8 個。超過預算，最少用的 skill 描述會被截短、甚至只剩名字——
+    而描述正是模型決定要不要叫它的唯一依據（下一節）。<b>skill 不是裝越多越好</b>，用不到的就關掉。
+  </p>
+  <button class="golab" data-nb="2️⃣">到實驗場 2️⃣ 拉一場對話的 token 帳</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 觸發</span>
+  <h2>description 是 skill 唯一的招牌</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：模型打開 SKILL.md 之前，對這個 skill 的全部認識就是 <b>description</b>。
+    寫太模糊，該用的時候叫不到；寫太寬，不該用的時候亂叫——而且<b>換個模型，結果可能完全不同</b>。
+  </div>
+  <p>
+    開場那個實驗的設計照 agentskills.io 的建議：12 句 prompt，6 句該觸發（有直說「週報」的、沒說的、英文的），
+    6 句是「差一點」——跟 timesheet 或主管沾邊、但要的不是週報（改一筆工時、寫請假信、寫轉 Excel 的程式）。
+    每句跑 3 次，看模型有沒有載入 skill。Claude 那組結果（claude-haiku-4-5，2026-09-24，每格 18 次）：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>description</th><th>該觸發（18 次）</th><th>誤觸發（18 次）</th><th>觀察</th></tr>
+    <tr><td><b>模糊版</b>「協助處理報告。」</td><td class="n">12</td><td class="n">0</td>
+        <td>英文的 status update 3 次全沒叫到；「主管要本週工作摘要」只叫到 1 次——另外兩次它自己讀 CSV、自己寫</td></tr>
+    <tr><td><b>精準版</b>（上一節那段）</td><td class="n">18</td><td class="n">0</td><td>每一句該觸發的都是第一步就叫 skill</td></tr>
+    <tr><td><b>太寬版</b>「跟 timesheet、工時、主管或撰寫文件有任何關係就用」</td><td class="n">18</td><td class="n bad">1</td>
+        <td>請假信那句被叫了 1 次；Claude 其實很保守</td></tr>
+  </table></div>
+  <p>
+    沒叫到 skill 的那幾次，haiku 自己寫的週報裡「總工時」分別寫了 <b class="bad">128.5</b>、141、<b class="bad">138</b> 小時——
+    正確答案是 141。格式也每次都不一樣。skill 沒被叫到的代價不只是「沒用到」，而是<b>SOP 整個沒發生</b>。
+  </p>
+  <p>
+    把開場 hero 的模型切到 <b>qwen3.5-2b</b>（開源 2B 小模型，接在本課的最小 skill loader 上）：
+    同樣 12 句，模糊版和太寬版是<b>每一句都叫</b>，連「什麼是 OKR」都 3/3；精準版也還有 10/18 次誤觸發。
+    觸發品質是 description 和模型能力一起決定的——<b>換 agent、換模型，觸發測試要重跑</b>。
+  </p>
+  <p>寫 description 的四條原則（agentskills.io〈Optimizing skill descriptions〉）：</p>
+  <ol class="rules">
+    <li><b>用祈使句告訴 agent 何時動手</b>：「當使用者…時使用」，而不是「這個技能可以…」。</li>
+    <li><b>寫使用者想達成什麼</b>，不是內部怎麼實作。</li>
+    <li><b>主動一點</b>：把沒說出關鍵字的說法也列進去（「即使他沒說出『週報』兩個字」、status report、進度彙整）。</li>
+    <li><b>畫邊界</b>：加一句「不用於…」，擋掉差一點的請求；總長守在 1,024 字內、重點放最前面（清單超預算時後面會被截掉）。</li>
+  </ol>
+  <p class="src">
+    另一個實測細節：「timesheet.csv 每個欄位代表什麼意思？」三個版本都沒觸發——agent 通常只在任務需要額外知識或流程時才去翻 skill，
+    自己讀一下檔就能答的事，description 寫得再像也不會叫。
+  </p>
+  <button class="golab" data-nb="3️⃣">到實驗場 3️⃣ 看熱圖、重播每一次</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 腳本</span>
+  <h2>確定性的工作交給程式，不靠模型</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：會算錯、要每次都一樣的步驟（加總、轉檔、檢查格式），寫成 <span class="kbd">scripts/</span> 讓 agent 去執行——
+    腳本的程式碼<b>不進上下文</b>，只有輸出進來。
+  </div>
+  <p>
+    週報 SOP 第 1 步寫「工時一律照抄腳本輸出，<b>不要自己加總</b>」。為什麼要這麼兇？我們把 36 筆 timesheet 直接貼給模型、
+    不准用工具，要它加總四個專案的工時（實測，2026-09-24）：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>誰來加總</th><th>次數</th><th>四個專案全對</th></tr>
+    <tr><td>qwen3.5-2b 心算（12／24／36 筆各 5 次）</td><td class="n">15</td><td class="n bad">0</td></tr>
+    <tr><td>claude-haiku-4-5 心算（36 筆）</td><td class="n">5</td><td class="n">3</td></tr>
+    <tr><td><span class="kbd">scripts/hours.py</span>（15 行 Python）</td><td class="n">每次</td><td class="n">每次</td></tr>
+  </table></div>
+  <p>
+    重點不是「模型不會加法」——大模型多數時候是對的。重點是 SOP 要的是<b>每次都對、而且查得到為什麼對</b>。
+    寫成腳本還順便省 token：本 repo 的 <span class="kbd">publish-videos</span> skill 帶了 3 支腳本、共 7,037 tokens 的程式碼，
+    它的 SKILL.md 開宗明義：「格式由程式與 video/config.json 決定，不由對話決定」——那 7 千 tokens 從來不必進上下文。
+  </p>
+  <p>
+    實驗場 4️⃣ 有兩段<b>載入了 skill</b> 的完整執行紀錄可以重播。haiku 照 SOP 叫 skill → 跑 hours.py → 讀 timesheet → 讀範本 → 交件，
+    工時表一字不差是腳本輸出；但第 4 步「要給主管看就讀文風規則」它沒做——Level 3 讀不讀，<b>是模型判斷的</b>。
+    2B 小模型也照做跑了腳本、工時全對，卻跳過「讀 note 欄」，完成事項寫成空話：
+    <b>交給腳本的部分穩如泰山，靠模型自律的部分看模型本事</b>。
+  </p>
+  <button class="golab" data-nb="4️⃣">到實驗場 4️⃣ 比心算和腳本</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · 選型</span>
+  <h2>Skill、MCP、CLAUDE.md、subagent、slash command：什麼時候用哪個？</h2>
+  <div class="tldr" style="--tc:var(--c1)">
+    <b>一句話重點</b>：<b>永遠要遵守</b>的寫進專案記憶（CLAUDE.md）；<b>特定任務的做法</b>包成 Skill；
+    <b>要連外部系統</b>用 MCP；<b>要乾淨的獨立上下文</b>開 subagent；<b>只准人決定何時跑</b>用 slash command。
+  </div>
+  <div class="tw"><table class="cmp" style="min-width:600px">
+    <tr><th>機制</th><th>什麼時候進上下文</th><th>適合放什麼</th><th>本站 repo 的真實例子</th></tr>
+    <tr><td><b>CLAUDE.md</b>（專案記憶）</td><td>每次對話開頭整份載入</td><td>每一件事都要守的規則、專案地圖</td>
+        <td>「course id 全站唯一」「marimo 全站釘同一版」這類硬性約束</td></tr>
+    <tr><td><b>Skill</b></td><td>description 常駐，全文用到才讀</td><td>某類任務的 SOP＋腳本＋範本</td>
+        <td><span class="kbd">make-lesson</span>（建課）、<span class="kbd">publish-videos</span>（上傳影片）</td></tr>
+    <tr><td><b>MCP server</b></td><td>工具說明進上下文，呼叫時才執行</td><td>連外部系統、拿即時資料（程式跑在另一個行程）</td>
+        <td>本站 <a href="/mcp-servers/">MCP 系列課</a>；新版協定見<a href="/genai-mcp-fastmcp/">補充 D</a></td></tr>
+    <tr><td><b>Subagent</b></td><td>自己一份獨立上下文</td><td>大量探索、平行工作、不想污染主對話</td>
+        <td>這個補充系列 6 課，就是 6 個 subagent 平行各寫一課</td></tr>
+    <tr><td><b>Slash command</b></td><td>人打 <span class="kbd">/名稱</span> 才跑</td><td>何時執行要由人決定的固定流程</td>
+        <td><span class="kbd">grill-me</span>：設了 <span class="kbd">disable-model-invocation: true</span>，模型不會自己叫</td></tr>
+  </table></div>
+  <p>
+    它們不是五選一，常常疊著用：本 repo 的 CLAUDE.md 有一節的標題就是「建課一律走 make-lesson skill」——
+    <b>記憶負責指路、skill 負責做法</b>。在 Claude Code 裡，自訂 slash command 已經併進 skill（同一個資料夾格式），
+    skill 也能設定在 subagent 裡執行、能叫 MCP 工具。用程式呼叫這一整套（Agent SDK）是<a href="/genai-agent-sdk/">補充 C</a> 的主題。
+  </p>
+  <p>先自己判斷，再展開看答案：</p>
+  <details class="pick"><summary>「所有回覆都要用繁體中文、金額一律加千分位」</summary>
+    <b>CLAUDE.md</b>。每一次對話、每一件事都要守的規則，本來就該一直在上下文裡；做成 skill 反而要等模型「判斷用得上」才讀。</details>
+  <details class="pick"><summary>「每月初照 12 步流程做月結報表，其中金額加總常出錯」</summary>
+    <b>Skill＋scripts/</b>。只在月結時需要（description 寫清楚何時用），加總交給腳本；平常只佔幾十個 tokens。</details>
+  <details class="pick"><summary>「查公司 CRM 裡某客戶的最新訂單」</summary>
+    <b>MCP server</b>（或一般的工具呼叫）。資料在外部系統、每次都要即時查，這是「工具」不是「做法」。
+    若查完還有固定的整理 SOP，可以再包一個 skill 來指揮怎麼用這個工具。</details>
+  <details class="pick"><summary>「翻完整個 repo 的 300 個檔案，找出所有用到舊 API 的地方」</summary>
+    <b>Subagent</b>。大量讀檔會把主對話的上下文塞爆；讓分身在自己的上下文裡找，只把結論交回來。</details>
+  <details class="pick"><summary>「正式部署到 production」</summary>
+    <b>Slash command</b>（或 skill 加上 <span class="kbd">disable-model-invocation: true</span>）。流程可以寫好，
+    但「什麼時候部署」要由人決定，不能讓模型覺得時機到了就自己跑。</details>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 開放標準</span>
+  <h2>一份 SKILL.md，幾十個 agent 讀得懂</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：Agent Skills 由 Anthropic 發起、以開放標準釋出（agentskills.io）——同一個資料夾，
+    Claude Code、Codex、GitHub Copilot、Cursor、Goose、OpenCode… 都能讀。但<b>各家的擴充欄位不通用</b>。
+  </div>
+  <p>
+    agentskills.io 的支援名單在 2026-09-24 列了 46 個產品，包括 Claude（網頁版與 API）、Claude Code、OpenAI Codex／ChatGPT、
+    GitHub Copilot、VS Code、Cursor、JetBrains Junie、Gemini CLI、Kiro、Roo Code，以及開源的 Goose、OpenCode、OpenHands 等。
+    各家放 skill 的位置不同：Claude Code 讀 <span class="kbd">.claude/skills/</span>，Gemini CLI 讀
+    <span class="kbd">.gemini/skills/</span> 或別名 <span class="kbd">.agents/skills/</span>。本站 repo 的做法是
+    <span class="kbd">grill-me</span> 本體放在 <span class="kbd">.agents/skills/</span>、從 <span class="kbd">.claude/skills/</span>
+    建一個符號連結過去——一份檔案，兩邊都讀得到；旁邊的 <span class="kbd">agents/openai.yaml</span> 是 Codex 自己的擴充設定。
+  </p>
+  <p>可攜性有兩個真實的坑，都是這一課實測撞到的：</p>
+  <ol class="rules">
+    <li><b>擴充欄位</b>：用官方參考驗證器（skills-ref 0.1.1）掃本 repo 的 9 個 skill，8 個通過，
+      <span class="kbd">grill-me</span> 被擋下——它用了 Claude Code 專屬的 <span class="kbd">disable-model-invocation</span>。</li>
+    <li><b>寬容的解析器會藏錯</b>：description 裡寫了半形冒號（<span class="kbd">用途: 產生週報</span>），官方驗證器判 YAML 壞掉；
+      同一份檔案放進 Claude Code，它照樣把整串字當 description 讀進清單。在這家能跑，不代表換一家也能。</li>
+  </ol>
+  <p>分享 skill 之前，跑一次官方驗證器（免費）：</p>
+  <div class="codeblock">uvx --from skills-ref agentskills validate ./weekly-report
+# 文件寫的指令是 skills-ref validate，但 PyPI 上的 skills-ref 0.1.1
+# 裝好的執行檔叫 agentskills（2026-09-24 實測）</div>
+  <p><b>不花錢、不用任何服務，自己動手的路徑：</b></p>
+  <ul>
+    <li><b>寫與驗</b>：skill 只是文字檔，任何編輯器都能寫；實驗場 5️⃣ 的驗證器逐條照官方規則，
+      上面那行 <span class="kbd">uvx</span> 是官方工具本身（本課實測過）。</li>
+    <li><b>自己當 agent</b>：本課的<a href="https://github.com/skmygo/agentclass/blob/main/content/genai-intro/_spikes/spike_genai_skills.py" target="_blank" rel="noopener">實測腳本</a>
+      裡有一支約 60 行的最小 skill loader——清單放 system prompt、模型要求才塞 SKILL.md、要求才跑腳本，
+      接任何 OpenAI 相容端點（預設是本機 Ollama 的 <span class="kbd">http://localhost:11434/v1</span>）。
+      我們用 qwen3.5-2b 跑通過（就是 hero 裡 qwen 那組）；<b>Ollama 本身沒有實測</b>，走的是同一個介面。</li>
+    <li><b>用現成的開源 agent</b>：Goose、OpenCode 等都在 agentskills.io 的支援名單上、也能接本機模型——本課沒有逐一實測。</li>
+    <li>注意：網路上「用免費的 Gemini CLI 玩 skill」的舊教學已不適用——Google 公告 Gemini CLI 的免費使用在 2026-06-18 停止服務、改由 Antigravity CLI 接手。</li>
+  </ul>
+  <button class="golab" data-nb="5️⃣">到實驗場 5️⃣ 驗證你的 SKILL.md</button>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 速查</span>
+  <h2>本課名詞速查卡</h2>
+  <table class="cheat">
+    <tr><td class="t" style="color:var(--c1)">Agent Skill</td>
+        <td>一個資料夾＋一份 SKILL.md（frontmatter＋SOP），可附 scripts／references／assets——<b>把做法打包給 agent</b>。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">漸進揭露</td>
+        <td>三層載入：name＋description 常駐 → 用得上才讀 SKILL.md → 做到才讀檔／跑腳本。<b>用到才付 token</b>。</td></tr>
+    <tr><td class="t" style="color:var(--c4)">description</td>
+        <td>模型決定叫不叫 skill 的唯一依據：寫「何時用」、列沒講關鍵字的說法、畫「不用於」的邊界；換模型要重測。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">scripts/</td>
+        <td>確定性步驟交給程式：<b>程式碼不進上下文，只有輸出進</b>；每次都對、查得到為什麼對。</td></tr>
+    <tr><td class="t" style="color:var(--c1)">CLAUDE.md vs Skill</td>
+        <td>永遠要守的進記憶（每次都載入）；特定任務的做法進 skill（用到才載入）。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">agentskills.io</td>
+        <td>開放標準：name ≤64 小寫英數連字號且同資料夾名、description ≤1,024；各家擴充欄位不通用，分享前先跑官方驗證器。</td></tr>
+  </table>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在實驗場 2️⃣ 把 skill 數拉到 60、用到 1 個、20 輪、SKILL.md 選 make-lesson：全塞 system prompt 的方案每輪要多少 tokens？
+      塞得進 200K context 的模型嗎？下面那行 listing 字元數又超過 8,000 預算多少？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>在實驗場 3️⃣ 選 Claude，重播「s4（英文的 status update）」的模糊版與精準版：兩者的第一步各是什麼？
+      精準版 description 裡是哪幾個字讓它對上這句英文？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>挑一個你工作上每週都做的 SOP，在實驗場 5️⃣ 寫出它的 SKILL.md：通過驗證、description 講清楚做什麼／何時用／不用於什麼，
+      再替它想 3 句該觸發、3 句「差一點」不該觸發的 prompt。</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？三題在實驗場 6️⃣ 都有折疊解答——先自己做，再打開對照。</p>
+  <button class="golab" data-nb="6️⃣">到實驗場 6️⃣ 對答案</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">09 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>團隊整理出 30 份作業 SOP（發版檢查、月結、客訴回覆…），每份 2–4 千 tokens。有人提議：「全部貼進 CLAUDE.md，AI 就什麼都會了。」你會怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 照做——CLAUDE.md 每次都載入，最保險</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 合併成一個大 skill，description 寫「公司所有作業流程」</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 每份 SOP 各做一個 skill，description 寫清楚何時用；只有「每件事都要守」的規則留在 CLAUDE.md</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 每份 SOP 各包成一個 MCP server</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>30 份 × 3 千 tokens ≈ 9 萬 tokens，放進 CLAUDE.md 等於<b>每一輪</b>都重送 9 萬——對話越長越貴，還會擠壓真正的工作空間（實驗場 2️⃣ 可以拉給自己看）。拆成 30 個 skill，平常只有 30 段描述常駐（本 repo 實測一個約 30–170 tokens），真的要做月結才把月結那份讀進來。B 只是換個地方塞：一個大 skill 一觸發就是 9 萬 tokens，而且「公司所有作業流程」這種描述什麼都像、什麼都不準。D 搞錯層次：SOP 是「做法」，MCP 是連外部系統的「工具」；需要查外部資料時，skill 可以指揮模型去用 MCP 工具，兩者是搭配關係。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你的 weekly-report skill 在 Claude Code 裡用得好好的。同事要拿去別的 agent 用，先跑了官方驗證器，卻得到下面的錯誤。最可能的原因與修法是？</h3>
+      <div class="codeblock">$ cat weekly-report/SKILL.md
+---
+name: weekly-report
+description: 用途: 產生週報: 每週五用
+---
+
+$ uvx --from skills-ref agentskills validate ./weekly-report
+Validation failed for weekly-report:
+  - Invalid YAML in frontmatter: mapping values are not allowed here
+  in "&lt;unicode string&gt;", line 3, column 16:
+    description: 用途: 產生週報: 每週五用
+                   ^ (line: 3)</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 官方驗證器不支援中文，description 要改寫成英文</button>
+        <button type="button" class="quiz-opt" data-k="B">B. YAML 裡沒加引號的值不能再出現「冒號＋空格」，會被當成另一組鍵值——把整段 description 用引號包起來（或改用全形冒號、區塊寫法）</button>
+        <button type="button" class="quiz-opt" data-k="C">C. Claude Code 能跑就代表檔案沒問題，是同事的驗證器版本太舊</button>
+        <button type="button" class="quiz-opt" data-k="D">D. description 太短了，要超過 50 字才合法</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>錯誤訊息的箭頭指在第 3 行第 16 欄——「用途:」後面那個冒號。YAML 看到沒加引號的值裡又出現「冒號＋空格」，會以為你要開始另一組鍵值，於是判定格式錯誤。修法：<code>description: "用途: 產生週報: 每週五用"</code>，或用全形「：」、或改成 <code>description: &gt;</code> 的區塊寫法。為什麼 Claude Code 沒事？我們實測（2.1.281）它的解析很寬容，照樣把整串字當 description——<b>寬容的 agent 會把錯藏起來</b>，換到嚴格的解析器才爆，所以 C 正好說反。A 不對：官方驗證器對中文 description 完全沒意見（同一份檔換成全形冒號就通過）；D 是無中生有，規格只要求 1–1,024 字。英文使用者最常撞的版本是 <code>description: Use when: ...</code>，原因一模一樣。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="A">
+      <p class="quiz-tag">Q3 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>專案裝了下面這個 skill。使用者說「write up this week's status update for the team lead from timesheet.csv」，實測 3 次 Claude 都是先讀 CSV 就自己寫，從沒叫 skill，交出來的總工時還一次 141、一次 138。最該先改哪裡？</h3>
+      <div class="codeblock">---
+name: weekly-report
+description: 協助處理報告。
+---
+# ACME 週報 SOP
+1. 先執行 scripts/hours.py 加總工時，不要自己加總
+...
+
+（實測紀錄，claude-haiku-4-5，2026-09-24：3 次的動作都是
+ Read(timesheet.csv) → 自己寫報告；沒有任何一次呼叫 Skill）</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. description 太模糊：改寫成「做什麼＋何時用」，列出 status report、本週工作摘要等沒講「週報」的說法，再加一句不用於什麼</button>
+        <button type="button" class="quiz-opt" data-k="B">B. skill 沒裝好——Claude Code 讀不到這個資料夾</button>
+        <button type="button" class="quiz-opt" data-k="C">C. SKILL.md 本文太短，要把 SOP 寫得更詳細模型才會用</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 在 frontmatter 加 allowed-tools，讓它有權限執行 hours.py</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>模型決定要不要叫 skill 時，只看得到 name 和 description——本文寫得再好，沒被叫到就等於不存在（所以 C 不對）。「協助處理報告。」沒說何時用、沒有任何跟 status update 對得上的字，英文請求自然對不上。我們實測把同一個 skill 的 description 換成精準版（寫明週報、本週工作摘要、status report、進度彙整，「即使沒說出『週報』兩個字」，以及不用於什麼），同一句英文 3 次都是第一步就叫 skill。B 可以排除：同一個模糊版，「幫我寫這週的週報」3 次都有叫到——skill 在清單上，只是描述沒涵蓋這種說法。D 解的是「叫了之後能不能跑腳本」，但這裡根本沒叫。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="D">
+      <p class="quiz-tag">Q4 <span class="qtype">情境題</span></p>
+      <h3>你想讓 agent 在「使用者說要發新版」時照 12 步流程做：跑測試、比對三個檔案裡的版本號一致、產 changelog。其中版本號比對很容易看走眼。最合適的包法是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 把 12 步寫進 CLAUDE.md，確保它永遠記得</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 把 12 步寫成一個 skill，版本號比對也寫在步驟裡請模型仔細核對</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 開一個 subagent 專門負責發版</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 寫成一個 skill：description 寫明「要發版、release、出新版時使用」，版本號比對寫成 scripts/ 裡的腳本，SOP 叫模型去跑它</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>「只在發版時需要」＝skill 的主場（平常只佔描述那幾十個 tokens）；「很容易看走眼」＝交給腳本（每次都對、程式碼不進上下文）。B 是部分正確：包成 skill 對了，但把確定性的比對交給模型「仔細核對」——實驗場 4️⃣ 的心算實測就是答案：大模型多數時候對，但不是每次。A 讓 12 步在每一輪都佔上下文，跟發版無關的對話也在付錢。C 解的是「上下文要隔離」，發版流程的問題不在這裡；而且 subagent 裡要照什麼 SOP 做，最後還是得寫成 skill 或指令。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/genai-vibecoding/">
+    <span class="tag">下一課</span>
+    <b>補充 F · Vibe Coding 進階：讓測試當 AI 的眼睛 →</b>
+  </a>
+  <a href="/genai-intro/">
+    <span class="tag">主題</span>
+    <b>‹ 回「生成式 AI 導論」課程列表</b>
+  </a>
+</div>
+'''
+
+SCRIPT = r"""
+/* ═══ hero：觸發紀錄重播（實測紀錄，2026-09-24；資料由 _spikes/spike_genai_skills.py inject 寫入）═══ */
+(function () {
+  /* HERO:BEGIN */const HERO = {"q":[["s1",true,"幫我寫這週的週報"],["s2",true,"主管說週五前要交本週工作摘要，幫我根據 timesheet 整理一份"],["s3",true,"這週各專案花了多少時間、做了什麼，整理成可以直接貼給老闆的東西"],["s4",true,"write up this week's status update for the team lead from timesheet.csv"],["s5",true,"週會要用，幫我彙整一下這週大家的進度"],["s6",true,"下週一要跟 PM 報告，先把本週的工作整理成固定格式給我"],["n1",false,"timesheet.csv 裡 9/17 小林那筆憑證更新的工時打錯了，應該是 1.5，幫我改"],["n2",false,"幫我寫一封信給主管，說我下週三要請假一天"],["n3",false,"寫一個 Python 腳本把 timesheet.csv 轉成 Excel 檔"],["n4",false,"timesheet.csv 每個欄位代表什麼意思？"],["n5",false,"什麼是 OKR？跟 KPI 差在哪？"],["n6",false,"幫我檢查 timesheet.csv 有沒有重複或格式錯誤的紀錄"]],"desc":{"vague":"協助處理報告。","precise":"產生 ACME 團隊的每週工作週報：用 scripts/hours.py 精確加總 timesheet.csv 的工時，套公司固定的週報格式。當使用者要寫週報、本週工作摘要、status report、進度彙整，或要把本週做了什麼整理成給主管／週會看的報告時使用——即使他沒說出「週報」兩個字。不用於修改或檢查工時資料、一般書信、寫程式。","broad":"只要任務跟 timesheet.csv、工時、主管或撰寫文件有任何關係，就使用這個技能。"},"m":{"claude":{"label":"claude-haiku-4-5 × Claude Code 2.1.281","runs":{"vague|s1":[[1,"Skill(weekly-report) → Bash() → Read(timesheet.csv)"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Read(timesheet.csv) → Bash(hours.py)"]],"vague|s2":[[1,"Read(timesheet.csv) → Skill(weekly-report)"],[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"]],"vague|s3":[[1,"Read(timesheet.csv) → Bash(git log --oneline --sinc) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report) → Bash()"]],"vague|s4":[[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv) → Write(?)"]],"vague|s5":[[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"]],"vague|s6":[[1,"Skill(weekly-report) → Bash(hours.py)"],[0,"Bash(git log --oneline -20) → Read(vague-s6-1) → Bash(ls -la)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"]],"vague|n1":[[0,"Read(timesheet.csv) → Edit(timesheet.csv)"],[0,"Read(timesheet.csv) → Edit(timesheet.csv)"],[0,"Read(timesheet.csv) → Edit(timesheet.csv)"]],"vague|n2":[[0,"直接回答：「我来帮你写一封请假信。下周三是9月30日。  ---  …」"],[0,"Write(leave_request.txt)"],[0,"直接回答：「以下是一封给主管的请假信供您参考：  ---  尊敬的【…」"]],"vague|n3":[[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"]],"vague|n4":[[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"]],"vague|n5":[[0,"直接回答：「# OKR vs KPI  ## OKR（Objecti…」"],[0,"直接回答：「# OKR vs KPI  两者都是成果衡量工具，但侧重…」"],[0,"直接回答：「## OKR vs KPI  **OKR（目标与关键结果…」"]],"vague|n6":[[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"]],"precise|s1":[[1,"Skill(weekly-report) → Bash()"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash(hours.py)"]],"precise|s2":[[1,"Skill(weekly-report) → Bash() → Read(timesheet.csv)"],[1,"Skill(weekly-report) → Read(timesheet.csv) → Bash()"],[1,"Skill(weekly-report) → Bash()"]],"precise|s3":[[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash()"],[1,"Skill(weekly-report) → Bash()"]],"precise|s4":[[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash()"]],"precise|s5":[[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash(ls -la ) → Bash(ls -la .claude/skills/we)"],[1,"Skill(weekly-report) → Bash()"]],"precise|s6":[[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash() → Read(timesheet.csv)"]],"precise|n1":[[0,"Read(timesheet.csv) → Edit(timesheet.csv)"],[0,"Read(timesheet.csv) → Edit(timesheet.csv)"],[0,"Read(timesheet.csv) → Edit(timesheet.csv)"]],"precise|n2":[[0,"直接回答：「我为您起草一封请假信：  ---  尊敬的[主管名字]，…」"],[0,"直接回答：「我帮您写一封请假信。根据今天的日期（2026年9月24日…」"],[0,"直接回答：「我幫你寫一封請假信。這是一個範例，你可以根據需要調整： …」"]],"precise|n3":[[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"]],"precise|n4":[[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"]],"precise|n5":[[0,"直接回答：「## OKR vs KPI  **OKR (目標與關鍵成…」"],[0,"直接回答：「# OKR vs KPI  ## OKR（目標與關鍵成果…」"],[0,"直接回答：「# OKR vs KPI  ## **OKR** (Ob…」"]],"precise|n6":[[0,"Read(timesheet.csv) → Bash()"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv) → Bash()"]],"broad|s1":[[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash()"],[1,"Skill(weekly-report) → Read(timesheet.csv) → Read(template.md)"]],"broad|s2":[[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Skill(weekly-report) → Read(timesheet.csv) → Bash()"]],"broad|s3":[[1,"Skill(weekly-report) → Bash()"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash(hours.py)"]],"broad|s4":[[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"],[1,"Read(timesheet.csv) → Skill(weekly-report) → Bash(hours.py)"]],"broad|s5":[[1,"Skill(weekly-report) → Read(timesheet.csv) → Read(template.md)"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Skill(weekly-report) → Bash()"]],"broad|s6":[[1,"Read(timesheet.csv) → Skill(weekly-report) → Bash()"],[1,"Skill(weekly-report) → Bash(hours.py)"],[1,"Read(timesheet.csv) → Skill(weekly-report)"]],"broad|n1":[[0,"Read(timesheet.csv) → Edit(timesheet.csv)"],[0,"Read(timesheet.csv) → Edit(timesheet.csv)"],[0,"Read(timesheet.csv) → Edit(timesheet.csv)"]],"broad|n2":[[0,"Write(请假信_20261001.txt) → Write(请假信.txt)"],[1,"Skill(weekly-report)"],[0,"直接回答：「我幫你寫一封簡潔專業的請假信。根據今天的日期（2026-…」"]],"broad|n3":[[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"],[0,"Read(timesheet.csv) → Write(?)"]],"broad|n4":[[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"]],"broad|n5":[[0,"直接回答：「# OKR vs KPI  ## OKR (目标与关键成…」"],[0,"直接回答：「**OKR** 和 **KPI** 都是管理目标的工具，…」"],[0,"直接回答：「## OKR（目标与关键结果）  **OKR** 是一套…」"]],"broad|n6":[[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"],[0,"Read(timesheet.csv)"]]}},"qwen":{"label":"qwen3.5-2b × 本課最小 loader","runs":{"vague|s1":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{   \"load_skill\": \"weekly-report\" }"]],"vague|s2":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|s3":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|s4":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|s5":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|s6":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|n1":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|n2":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|n3":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|n4":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|n5":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"vague|n6":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|s1":[[1,"{\"load_skill\": \"weekly-report\"}"],[0,"應使用技能：weekly-report"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|s2":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|s3":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|s4":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|s5":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|s6":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|n1":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|n2":[[1,"{\"load_skill\": \"weekly-report\"}"],[0,"## 週報  這是本週的工作摘要： 1. 完成專案進度彙整與文件整理 2. 協助…"],[0,"{\"load_skill\": None}  ---  **主旨：请假申请 - […"]],"precise|n3":[[1,"{\"load_skill\": \"weekly-report\"}"],[0,"{\"load_skill\": \"none\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"precise|n4":[[1,"{\"load_skill\": \"weekly-report\"}"],[0,"{\"load_skill\": \"none\"}"],[0,"我没有读取到 `timesheet.csv` 文件的具体内容，因此无法直接解释该…"]],"precise|n5":[[0,"{\"load_skill\": \"none\"}"],[0,"{\"load_skill\": \"none\"}"],[0,"OKR 是目標與關鍵結果（Objectives and Key Results）…"]],"precise|n6":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|s1":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|s2":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|s3":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|s4":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|s5":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|s6":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|n1":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|n2":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|n3":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|n4":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"```json {\"load_skill\": \"weekly-report\"} …"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|n5":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]],"broad|n6":[[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"],[1,"{\"load_skill\": \"weekly-report\"}"]]}}}};/* HERO:END */
+  const $ = (id) => document.getElementById(id);
+  if (!$("trig-demo") || !HERO.q) return;
+  const VL = { vague: "模糊版", precise: "精準版", broad: "太寬版" };
+  const ML = { claude: "Claude haiku-4-5", qwen: "qwen3.5-2b" };
+  let model = "claude", variant = "vague", sel = "s4";
+  const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  function pills(host, map, cur, onPick) {
+    host.innerHTML = "";
+    Object.keys(map).forEach((k) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pill" + (k === cur ? " on" : "");
+      b.textContent = map[k];
+      b.addEventListener("click", () => onPick(k));
+      host.appendChild(b);
+    });
+  }
+  function dots(runs, should) {
+    const on = should ? "#55A868" : "#C44E52";
+    return runs.map((r) => `<span style="color:${r[0] ? on : "#b8bec3"}">${r[0] ? "●" : "○"}</span>`).join("");
+  }
+  function render() {
+    pills($("td-model"), ML, model, (k) => { model = k; render(); });
+    pills($("td-var"), VL, variant, (k) => { variant = k; render(); });
+    $("td-fm").innerHTML = "---\nname: weekly-report\n<span class=\"d\">description: " + esc(HERO.desc[variant]) + "</span>\n---";
+    const runs = HERO.m[model].runs;
+    let html = "", hit = 0, fp = 0;
+    [["該觸發（要的就是週報）", true], ["不該觸發（沾邊，但要的不是週報）", false]].forEach(([title, should]) => {
+      html += `<div class="grp" style="color:${should ? "#55A868" : "#C44E52"}">${title}</div>`;
+      HERO.q.filter((q) => q[1] === should).forEach((q) => {
+        const r = runs[variant + "|" + q[0]] || [];
+        const n = r.reduce((a, x) => a + x[0], 0);
+        if (should) hit += n; else fp += n;
+        html += `<button type="button" class="row${sel === q[0] ? " sel" : ""}" data-q="${q[0]}">` +
+          `<span class="dots">${dots(r, should)}</span><span class="q">${esc(q[2])}</span></button>`;
+      });
+    });
+    $("td-rows").innerHTML = html;
+    $("td-rows").querySelectorAll(".row").forEach((b) => b.addEventListener("click", () => { sel = b.dataset.q; render(); }));
+    $("td-score").innerHTML = `該觸發 18 次中載入 <span style="color:#55A868">${hit}</span> 次 · ` +
+      `不該觸發 18 次中誤載入 <span style="color:${fp ? "#C44E52" : "inherit"}">${fp}</span> 次`;
+    const q = HERO.q.find((x) => x[0] === sel);
+    const r = runs[variant + "|" + sel] || [];
+    $("td-det").innerHTML = `<b>「${esc(q[2])}」</b>（${ML[model]} × ${VL[variant]}）` +
+      r.map((x, i) => `<div class="rep">第 ${i + 1} 次 ${x[0] ? "● 載入 skill" : "○ 沒載入"}：<code>${esc(x[1])}</code></div>`).join("");
+  }
+  render();
+})();
+"""

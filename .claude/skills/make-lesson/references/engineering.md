@@ -47,6 +47,7 @@ bash .claude/skills/make-lesson/scripts/new-lesson.sh <id> "<課名>" <topic> "<
 | `nb-outputs.py` | 印出 export 後的渲染輸出／錯誤（讀 `__marimo__/session/*.json`） | export 的 HTML 只嵌程式碼，看不到輸出 |
 | `verify-ext.sh` | 從 repo 根跑 sandbox export ＋ nb-outputs 掃描，有錯 exit 1 | 背景工作 cwd 跑掉會 `Failed to spawn: marimo` 默默失敗 |
 | `smoke-all.sh` | 起 dist server → 自動發現每課 smoke-test.mjs 用正確 URL 跑 → 接手機冒煙 → 收 server；`--base` 打線上 | 手動起 server／殺 server／逐課跑 URL 每輪都重做 |
+| `mini-dist.sh` | 單一純瀏覽器課的迷你 dist（WASM export＋教學頁＋shared），配 http.server 跑該課 `smoke-test.mjs`（含 quiz／手機段） | 平行寫課時全站 build 要 10 分鐘以上且會被 `.wip`／半成品牽連；子代理各自單課驗證不互踩（2026-09-24 genai-intro 補充系列） |
 | `mobile-smoke.mjs` | 390×844 逐課結構檢查＋app/edit 抽樣全載（smoke-all 自動呼叫，也可單獨跑） | 桌機冒煙測不到窄螢幕版面與 lazy load |
 | `preview-shots.mjs` | 截圖；`path@selector` 先點再截；`--vp WxH` 換 viewport（手機 390x844） | hero 互動要看「按下去之後」；手機版面要能目視 |
 | `pyodide-spike.mjs` | 套件裝不裝得進 Pyodide | 定軌依據 |
@@ -213,7 +214,7 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
   起背景 server 再接著跑 node 不可靠**——工具呼叫結束 server 會被收掉，改用
   run_in_background 另起，`curl` 確認 200 再跑 Playwright。
 - **純瀏覽器課「零錯誤＋圖數」最快驗法**：讀 `content/<topic>/<id>/__marimo__/session/lesson.py.json`
-  數 `cells[].outputs`（複數）裡的 `image/png`；`nb-outputs.py` 走的是 `--sandbox` 的路徑，
+  數 `cells[].outputs`（複數）裡的 `image/png`——**圖包在 `application/vnd.marimo+mimebundle` 底下**（`image/png` 是字串內容不是 data 的 key），要對 `json.dumps(output)` 搜字串，查 key 會數成 0（2026-09 兩課踩到）；`nb-outputs.py` 走的是 `--sandbox` 的路徑，
   對純瀏覽器課的 export 位置不適用。要看圖的真實構圖就把 base64 解出來看
   （element screenshot 會被 viewport 裁切造成假警報）。
 - **課程頁自訂節內小標要加 class**（如 `h3.sub`）：`#lesson h3` 裸標籤選擇器以 ID 特異度
@@ -234,6 +235,40 @@ course id 重複與「一課兩版」防呆、Pages 上限檢核。`<id>_gpu.py`
 - **嵌真實 LLM 逐字稿當 hero**：模型輸出常含 `$x$`、`$$…$$`（LaTeX 記號）——進 `mo.md`
   會被吃掉，hero 用純 JS `white-space:pre-wrap` 原文呈現最穩（也最誠實）。
 - **大 payload（如 int8 向量 b64）不要手抄**：spike 印出 → 佔位符 → python 腳本注入 lesson.py。
+
+### Workflow 六課平行＋「實測錄製、瀏覽器重播」（genai-intro 進階補充 A–F，2026-09-24）
+
+- **分工**：主代理 scaffold 六課＋`.wip`＋接線（主題頁、首頁課數、前一課 endnav），Workflow 派 6 個 xhigh agent 各寫一課
+  （只准動自己的課程目錄＋自己的 `_spikes/spike_genai_<slug>*.py`），單課驗證用 `scripts/mini-dist.sh`，主代理最後全站 build／冒煙／部署。
+  牆鐘約 72 分鐘、六課單課冒煙全過，全站 build 一次過。
+- **「學員零服務」但主題是跑不進 Pyodide 的工具（MCP server、Agent SDK、微調、reranker）**：不必走外部軌——spike 在本機
+  **真的跑**、錄成 JSON 嵌進 lesson.py，瀏覽器端重播／重算（封包檢視、trace 播放器、loss 曲線、指標現算）。
+  協定類課的錄法：server 前面掛一層只記錄的 ASGI 中介層（method／path／關鍵 header／req-resp body／status）。
+  教學頁標「實測紀錄（模型／版本，日期）」；「帶回家」連 GitHub 上的 spike（端點一律從 env 讀，不寫內網預設值）。
+- **大 payload 注入的佔位標記要錨定在賦值上**（`const ERAS = /*ERAS_BEGIN*/`），且**標記原文不可出現在 docstring／註解**：
+  非貪婪 regex 會先吃到說明文字裡的標記，JSON 被塞進 docstring、`SCRIPT` 變 `const ERAS = ;`，page-fill 不報錯（兩課各踩一次）。
+  打包格式：向量 int8＋b64、相似度矩陣 int16（×10000）＋b64、cross-encoder 分數存 logit×1000（sigmoid 擠在 0 附近，四捨五入會產生並列）；
+  spike 解碼後 assert 指標／排序不變才注入。
+- **trace 會洩漏本機資訊**：agent 的 `ls -la`、pytest traceback、Claude Code 的 API 錯誤訊息（會印 `ANTHROPIC_BASE_URL` 的 host:port）
+  都會帶出帳號名、`/home/<user>`、內網 IP。打包時用 `getpass.getuser()` 動態替換＋遮 env 端點的 netloc，**b64／zlib payload 要解碼後再掃一次**（grep 掃不到編碼後的內容）。
+- **在 Claude Code session 裡跑 claude CLI／claude-agent-sdk 當 spike**：子行程會繼承 `CLAUDECODE`、`CLAUDE_CODE_*` 環境變數與使用者的
+  settings／plugins／MCP／skills → 用 `env -i HOME="$HOME" PATH=... uv run --script` 起乾淨環境，SDK 設 `setting_sources=[]`、`strict_mcp_config=True`；
+  CLI 用 `--setting-sources project --strict-mcp-config --no-session-persistence --max-turns N`。每次 run 的 `total_cost_usd` 拿來控預算
+  （haiku 4.5 錄完一課約 US$1–3.5）。逐則 AssistantMessage 的 usage 是 message_start 值（output_tokens 多半是 1），花費以 ResultMessage 為準。
+- **共用 GPU 上做 benchmark**：峰值 VRAM 量一次就準；時間每次飄（同組比值 1.6–3.3 倍）→ 至少 3 次、文案寫範圍、hero 重播居中那次。
+  `torch.cuda.set_per_process_memory_fraction` 的額度**不含 CUDA context（約 0.5 GiB）**。unsloth 2026.9 釘 trl ≤0.24／transformers ≤5.5／torch <2.13，
+  與最新 TRL 裝不進同一環境 → 對照組分兩支 PEP 723 腳本。T4 判斷 bf16 要看 `get_device_capability(0)[0] >= 8`（`is_bf16_supported()` 含模擬會回 True）。
+- **區網 jina-embed（jina-embeddings-v5-text-small-retrieval）不會自動加任務前綴**：client 要自己加 `Query: `／`Document: `，
+  沒加時 41 題 hit@1 35→30。主線 genai-rag（2026-08）沒加，重驗時一併修。
+- **平行 agent 的輸出檔會互踩**：`smoke-test.mjs` 在 cwd 寫 `smoke-screenshot.png`、`preview-shots.mjs` 在 cwd 建 `preview-shots/`
+  → 子代理以自己的 scratchpad 當 cwd 跑（腳本用絕對路徑）。Unsloth 會在 cwd 建 `unsloth_compiled_cache/`（repo 根出現就刪）。
+- **marimo run 模式的 Playwright 操作**：dropdown 在 shadow DOM，`document.querySelectorAll('select')` 抓不到，用 `page.locator('select').selectOption({label})`；
+  radio 用 `page.locator('label', { hasText })` 點（`getByText` 會先命中同名表格文字）。驗 WASM 與 CPython 算出同一組數字：
+  圖渲染完讀 notebook 的 `document.body.innerText` 找 session JSON 裡的關鍵數字。
+- **本機沒有全域 ruff**：用 `uvx ruff check`（0.16.x 比 ruff.toml 撰寫時多抓 C408、BLE001、FURB167、PLW1510 等，lesson.py 另可能被 S102／RUF007 擋）。
+- 在 Pyodide 重跑錄下來的 LLM 程式（vibecoding 課）：import 白名單要放行 `_` 開頭的標準庫內部模組（`datetime.strptime` 會延遲 import `_strptime`），
+  打包時用同一套判定逐測試案例對照 pytest，不一致就中止注入。
+- 研究數字回原文查證：二手文章常把論文數字寫錯（slopsquatting 的「223 萬個套件引用」被寫成「223 萬份樣本」）。
 
 ### 平行寫課時的 `.wip` 標記（2026-09-04 mlops 系列補充）
 

@@ -1,0 +1,621 @@
+"""課程頁內容區（純常數）。改完跑：python3 .claude/skills/make-lesson/scripts/page-fill.py content/genai-intro/genai-finetune
+build.sh 不會部署這個檔；它是 index.html 內容區的正本。
+hero 的訓練紀錄（SCRIPT 裡 HERO 標記之間）由 _spikes/spike_genai_finetune_collect.py --inject 寫入，請勿手改。"""
+
+TITLE = "微調工具實戰：Unsloth、TRL 與託管微調"
+DESCRIPTION = "同一份資料、同一組超參數，TRL＋PEFT 與 Unsloth 在 RTX 4090 上各跑一次 QLoRA：loss 曲線幾乎疊在一起，差的是 VRAM 與時間。再看 2026 年 9 月的微調工具怎麼選、資料格式怎麼寫、卡裝不裝得下、託管要花多少——全部來自實測紀錄。"
+
+STYLE = r"""
+  /* 語義色：藍＝TRL＋PEFT、橘＝Unsloth、綠＝算 loss／正確、紫＝託管與生態、紅＝代價與錯誤 */
+  :root { --c1: #4C72B0; --c2: #DD8452; --c3: #55A868; --c4: #8172B2; --cut: #C44E52; }
+
+  .tldr { border-left: 4px solid var(--tc, var(--c1)); background: var(--chip-bg);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 12px 0 16px;
+    font-size: 14.5px; line-height: 1.7; }
+  .tldr b { color: var(--tc, var(--c1)); }
+
+  /* hero：兩個工具的訓練重播 */
+  #ft-race .scn { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  #ft-race .scn button { font: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 2px solid var(--grid); border-radius: 999px;
+    padding: 6px 12px; cursor: pointer; }
+  #ft-race .scn button.on { border-color: var(--ink); background: var(--chip-bg); }
+  #ft-race .lanes { display: flex; flex-wrap: wrap; gap: 10px; }
+  #ft-race .lane { flex: 1; min-width: 240px; border: 2px solid var(--lc); border-radius: 12px;
+    padding: 10px 12px; background: var(--panel); }
+  #ft-race .lane .nm { font-weight: 800; font-size: 14px; color: var(--lc); }
+  #ft-race .lane .ver { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); }
+  #ft-race .lane svg { display: block; width: 100%; height: auto; margin: 6px 0 4px;
+    background: #FAFBF8; border-radius: 8px; }
+  #ft-race .lane .st { font-family: var(--mono); font-size: 12.5px; display: flex;
+    justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  #ft-race .lane .st b { color: var(--lc); }
+  #ft-race .vram { margin-top: 6px; font-size: 12px; color: var(--ink-soft); }
+  #ft-race .vram .bar { height: 10px; border-radius: 5px; background: var(--grid); overflow: hidden; margin-top: 3px; }
+  #ft-race .vram .fill { height: 100%; width: 0; background: var(--lc); transition: width .35s ease; }
+  #ft-race .go { font: inherit; font-size: 14px; font-weight: 800; color: #fff; background: var(--ink);
+    border: 2px solid var(--ink); border-radius: 10px; padding: 7px 18px; cursor: pointer; margin-top: 10px; }
+  #ft-race .go:disabled { opacity: .45; cursor: default; }
+  #ft-race .spd { font-size: 12px; color: var(--ink-soft); margin-left: 8px; }
+  #ft-race .verdict { margin-top: 10px; font-size: 13.5px; line-height: 1.75; min-height: 3.4em; font-weight: 400;
+    border-left: 3px solid var(--ink); padding-left: 10px; }
+  #ft-race .verdict b { font-weight: 800; }
+  #ft-race .src { font-size: 12px; color: var(--ink-soft); margin-top: 8px; }
+
+  .tw { overflow-x: auto; margin: 14px 0; }
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .tw table.cmp { min-width: 560px; }
+  table.cmp th, table.cmp td { border-bottom: 1px solid var(--grid); padding: 8px 10px; text-align: left; vertical-align: top; }
+  table.cmp th { font-size: 12px; letter-spacing: .04em; color: var(--ink-soft); }
+  table.cmp td.n { font-family: var(--mono); font-weight: 800; white-space: nowrap; }
+  table.cmp tr.dead td { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--cut); }
+  table.cmp tr.dead td:last-child { text-decoration: none; color: var(--cut); font-weight: 700; }
+  .kbd { font-family: var(--mono); background: var(--chip-bg); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  .src { font-size: 12.5px; color: var(--ink-soft); margin-top: -6px; }
+
+  /* 訓練前後對照卡 */
+  .ba { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  .ba > div { flex: 1; min-width: 230px; border: 2px solid var(--bc); border-radius: 12px; padding: 9px 12px; }
+  .ba .hd { font-size: 12px; font-weight: 800; color: var(--bc); letter-spacing: .04em; }
+  .ba pre { margin: 6px 0 0; font-family: var(--mono); font-size: 12px; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word; }
+  .ba .sc { font-size: 12px; margin-top: 6px; color: var(--ink-soft); }
+
+  /* loss masking 著色 */
+  .mask { font-family: var(--mono); font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word;
+    border: 1.5px solid var(--grid); border-radius: 10px; padding: 10px 12px; margin: 10px 0; background: var(--panel); }
+  .mask .off { background: #EEF0F2; color: #7A8791; }
+  .mask .on { background: #E4F2E7; color: #1E5C30; font-weight: 700; }
+
+  table.cheat { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+  table.cheat td { border-bottom: 1px solid var(--grid); padding: 10px 12px; vertical-align: top; line-height: 1.7; }
+  table.cheat td.t { font-weight: 800; width: 9.5em; }
+"""
+
+WRAP = r"""
+<section id="hero">
+  <span class="eyebrow">GENAI 進階補充 · B · 微調工具</span>
+  <h1>微調工具實戰：<br>Unsloth、TRL 與託管微調</h1>
+  <p style="margin-top:18px">
+    主線<a href="/genai-training/">第 2 課</a>你算過 LoRA 的帳、知道 SFT 在教什麼。
+    這一課問實際動手的問題：<b>用哪個工具？</b>我們在一張 RTX 4090 上做了一個乾淨的對照——
+    同一份 480 筆資料、同一份 4-bit 權重、同一組超參數，<b>TRL＋PEFT</b> 和 <b>Unsloth</b> 各跑一次 QLoRA SFT。
+    選一種資料，按下開跑，重播那兩次訓練：
+  </p>
+
+  <div class="hero-demo" id="ft-race">
+    <div class="scn" id="ft-scn">
+      <button type="button" data-s="short" class="on">短訊息（每筆約 100 tokens）</button>
+      <button type="button" data-s="long">長對話紀錄（每筆約 1,180 tokens）</button>
+    </div>
+    <div class="lanes">
+      <div class="lane" style="--lc:var(--c1)" data-t="trl">
+        <div class="nm">TRL＋PEFT</div><div class="ver">trl 1.13.0 · peft 0.21.0</div>
+        <svg viewBox="0 0 300 110" aria-label="TRL loss curve"></svg>
+        <div class="st"><span>step <b class="k">0</b>/60</span><span><b class="t">0.0</b> s</span><span>loss <b class="l">—</b></span></div>
+        <div class="vram">峰值 VRAM <b class="v">—</b><div class="bar"><div class="fill"></div></div></div>
+      </div>
+      <div class="lane" style="--lc:var(--c2)" data-t="unsloth">
+        <div class="nm">Unsloth</div><div class="ver">unsloth 2026.9.11 · trl 0.24.0</div>
+        <svg viewBox="0 0 300 110" aria-label="Unsloth loss curve"></svg>
+        <div class="st"><span>step <b class="k">0</b>/60</span><span><b class="t">0.0</b> s</span><span>loss <b class="l">—</b></span></div>
+        <div class="vram">峰值 VRAM <b class="v">—</b><div class="bar"><div class="fill"></div></div></div>
+      </div>
+    </div>
+    <button type="button" class="go" id="ft-go">▶ 同時開跑</button><span class="spd" id="ft-spd"></span>
+    <div class="verdict" id="ft-verdict">兩條跑道吃的是同一份資料。先猜：哪一邊先到？loss 會差多少？</div>
+    <div class="src">實測紀錄：Qwen3-1.7B（4-bit）· 480 筆 · 60 步 · RTX 4090（主機同時跑其他服務）· 2026-09-24。每一步的 loss 與秒數都是實測值，快轉重播。</div>
+  </div>
+
+  <p class="note">
+    這一課的實驗場是真的 Python（在你的瀏覽器裡跑，不用安裝任何東西）。
+    首次載入約需 30–60 秒，正好夠你讀完第 1 節。訓練紀錄與模型的回答都是實測原文，
+    選單一拉就現場重算——玩壞了重新整理就復原。
+  </p>
+</section>
+
+<section id="s1">
+  <span class="eyebrow">01 · 工具地圖 2026-09</span>
+  <h2>先認人：五個工具、三種託管</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：自己有 GPU、會寫程式 → <b>Unsloth</b>（單卡最省最快）或 <b>TRL＋PEFT</b>（Hugging Face 官方、演算法最新）；
+    要設定檔與多卡 → <b>Axolotl</b>；不寫程式 → <b>LLaMA-Factory</b>／<b>Unsloth Studio</b>；
+    沒有 GPU → 免費的 Colab／Kaggle，或<b>按訓練 token 計費</b>的託管。
+  </div>
+  <p>
+    這些工具不是互相取代的關係，多數是<b>疊起來的</b>：PEFT 提供 LoRA、TRL 提供訓練器（SFT／DPO／GRPO…），
+    Unsloth 在 TRL 之上把核心運算換成自己的加速版，Axolotl 與 LLaMA-Factory 再把整套包成設定檔或網頁。
+    2026 年 9 月的現況：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>工具</th><th>它做什麼</th><th>版本（查證 2026-09-24）</th><th>適合</th></tr>
+    <tr><td class="n" style="color:var(--c1)">TRL＋PEFT</td><td>Hugging Face 官方：<span class="kbd">SFTTrainer</span>、<span class="kbd">DPOTrainer</span>、<span class="kbd">GRPOTrainer</span>、KTO、Reward…；PEFT 負責 LoRA</td><td>trl 1.13.0（09-10）· peft 0.21.0</td><td>要最新演算法、要客製流程</td></tr>
+    <tr><td class="n" style="color:var(--c2)">Unsloth</td><td>同一套 TRL 訓練器，底下換成自家 Triton 核心、梯度檢查點搬到 CPU、自動 padding-free；另有網頁版 Studio、桌面版 Desktop（2026-08 起 beta）</td><td>2026.9.11（09-23）</td><td>單卡、VRAM 吃緊、長序列</td></tr>
+    <tr><td class="n">Axolotl</td><td>一份 YAML 描述整個訓練；多卡、FSDP、DeepSpeed</td><td>0.19.0（09-10）</td><td>團隊、要可重現的設定</td></tr>
+    <tr><td class="n">LLaMA-Factory</td><td>WebUI 點選就能訓練，支援 100+ 種模型</td><td>0.9.5（05-30）</td><td>不寫程式</td></tr>
+    <tr class="dead"><td class="n">torchtune</td><td>PyTorch 官方的後訓練庫</td><td>README：2025 年起停止維護</td><td>別選了（舊教學還會提到它）</td></tr>
+    <tr><td class="n" style="color:var(--c4)">Together／Fireworks</td><td>上傳 JSONL，雲端幫你跑 LoRA／全參數，按訓練 token 計費</td><td>見第 6 節價目</td><td>沒有 GPU、不想管機器</td></tr>
+    <tr><td class="n" style="color:var(--c4)">Tinker</td><td>Thinking Machines 的訓練 API：你在本機寫訓練迴圈（<span class="kbd">forward_backward</span>、<span class="kbd">optim_step</span>、<span class="kbd">sample</span>），它出 GPU</td><td>按 token 計費</td><td>要自訂 SFT／RL 演算法、又沒有叢集</td></tr>
+    <tr class="dead"><td class="n">OpenAI fine-tuning</td><td>上傳資料、微調 OpenAI 的模型；RFT 只支援 o4-mini</td><td>官方文件：平台逐步收掉</td><td>不再開放新用戶</td></tr>
+  </table></div>
+  <p class="src">來源：PyPI／GitHub releases、各工具官方文件與價目頁，查證日 2026-09-24。</p>
+  <p>
+    四個問題就能選出起點：<b>手上有什麼 GPU、要不要寫程式、做哪種訓練、資料能不能離開公司</b>。
+  </p>
+  <button class="golab" data-nb="1️⃣">到實驗場 1️⃣ 選你的情況，看該用哪個工具</button>
+</section>
+
+<section id="s2">
+  <span class="eyebrow">02 · 實測對照</span>
+  <h2>同一份資料，兩個工具：差在哪？</h2>
+  <div class="tldr" style="--tc:var(--c2)">
+    <b>一句話重點</b>：<b>工具不改變模型學到什麼</b>——兩條 loss 曲線疊在一起；改變的是<b>代價</b>：
+    短資料差距小；資料一長，Unsloth 的峰值 VRAM 少約四成、總時間快 1.6–2.2 倍。
+  </div>
+  <p>實驗設定（兩邊完全相同，只換工具）：</p>
+  <div class="tw"><table class="cmp">
+    <tr><th>項目</th><th>設定</th></tr>
+    <tr><td>模型</td><td><span class="kbd">unsloth/Qwen3-1.7B-bnb-4bit</span>（兩邊載入同一份 NF4 權重）</td></tr>
+    <tr><td>資料</td><td>480 筆「客服訊息 → 工單 JSON」，腳本以固定 seed 產生（任務細節見第 3 節）</td></tr>
+    <tr><td>LoRA</td><td>r=16、α=16、掛 q/k/v/o＋gate/up/down 七個投影 → 可訓練 17,432,576 參數（約 1%）</td></tr>
+    <tr><td>訓練</td><td>學習率 2e-4、batch 8、1 epoch＝60 步、8-bit AdamW、梯度檢查點、只對回答算 loss</td></tr>
+    <tr><td>硬體</td><td>RTX 4090 24 GB；主機同時跑其他服務，本實驗每個行程限用 9.5 GB</td></tr>
+  </table></div>
+  <p>結果（每個情境各跑三次；峰值 VRAM 每次幾乎一樣，時間會飄，所以寫範圍）：</p>
+  <div class="tw"><table class="cmp">
+    <tr><th></th><th>短訊息（約 100 tokens／筆）</th><th>長對話紀錄（約 1,180 tokens／筆）</th></tr>
+    <tr><td>峰值 VRAM（TRL → Unsloth）</td><td class="n">2.18 → 2.00 GiB（−8%）</td><td class="n">4.09 → 2.49 GiB（−39%）</td></tr>
+    <tr><td>60 步總時間（TRL／Unsloth）</td><td class="n">21–23 s／18–21 s</td><td class="n">168–200 s／78–124 s</td></tr>
+    <tr><td>每步秒數中位數，TRL ÷ Unsloth</td><td class="n">1.3–1.4 倍</td><td class="n">1.6–3.3 倍</td></tr>
+    <tr><td>最後一步 loss</td><td class="n">0.004–0.005／0.0035</td><td class="n">0.003–0.004／0.003</td></tr>
+  </table></div>
+  <p>
+    換成大一點的 Qwen3-4B、同樣的長資料（跑 20 步量峰值），差距更明顯：<b>TRL 8.16 GiB、Unsloth 4.34 GiB</b>——省了將近一半。
+    這張 4090 同時還跑著別的服務（GPU 使用率約 45%），所以秒數只看比例與量級。
+  </p>
+  <p>
+    為什麼長資料才拉開差距？Unsloth 做了三件 TRL 預設沒做的事：<b>padding-free</b>（把一個 batch 的樣本接成一條，不浪費算力在填充符號上）、
+    <b>把梯度檢查點搬到 CPU</b>（log 裡那句 <i>smartly offload gradients</i>）、以及自己寫的 Triton 核心。
+    序列越長，活化值越大，這些優化越有地方發揮；每筆才 100 tokens 時活化值本來就小，沒什麼可省——
+    Unsloth 每步還是快約 1.3 倍，但它第一步要暖機（約 1–2.7 秒），60 步總時間只差 3–27%。
+    TRL 自己也有 <span class="kbd">padding_free</span> 選項，但實測直接打開會被擋下（要搭 packing，或拿掉 max_length），
+    還會警告只有 Flash Attention 系列的實作可靠支援——Unsloth 則是預設都幫你處理好了。
+  </p>
+  <p>
+    代價是<b>版本鎖</b>：Unsloth 2026.9.11 把 trl 釘在 ≤0.24.0、transformers 釘在 ≤5.5.0。
+    想同時要「最新的 TRL」和「Unsloth」，uv 當場拒絕（實測原文）：
+  </p>
+  <div class="codeblock">  × No solution found when resolving script dependencies:
+  ╰─▶ Because unsloth==2026.9.11 depends on one of:
+          trl>=0.18.2,<0.19.0
+          trl>0.19.0,<=0.24.0
+      and you require unsloth==2026.9.11, we can conclude that you require
+      one of:
+          trl>=0.18.2,<0.19.0
+          trl>0.19.0,<=0.24.0
+
+      And because you require trl==1.13.0, we can conclude that your
+      requirements are unsatisfiable.</div>
+  <p>所以這個實驗其實是兩個環境。兩邊的核心程式長這樣（參考程式，不在課內執行；完整版在文末連結）：</p>
+  <div class="codeblock"># ── TRL＋PEFT（trl 1.13）──────────────────────────
+from peft import LoraConfig
+from trl import SFTConfig, SFTTrainer
+
+trainer = SFTTrainer(
+    model=model,                  # AutoModelForCausalLM 載入的 4-bit 權重
+    train_dataset=ds,             # {"prompt": [...], "completion": [...]}
+    peft_config=LoraConfig(r=16, lora_alpha=16, target_modules=SEVEN_PROJ),
+    args=SFTConfig(per_device_train_batch_size=8, learning_rate=2e-4,
+                   optim="adamw_8bit", gradient_checkpointing=True, bf16=True),
+)
+trainer.train()
+
+# ── Unsloth（2026.9.11，底下是 trl 0.24）─────────────
+from unsloth import FastLanguageModel          # 一定要比 transformers／trl 先 import
+from unsloth.chat_templates import train_on_responses_only
+
+model, tok = FastLanguageModel.from_pretrained(
+    "unsloth/Qwen3-1.7B-bnb-4bit", max_seq_length=512, load_in_4bit=True)
+model = FastLanguageModel.get_peft_model(
+    model, r=16, lora_alpha=16, target_modules=SEVEN_PROJ,
+    use_gradient_checkpointing="unsloth")       # ← 梯度檢查點搬到 CPU
+trainer = SFTTrainer(model=model, processing_class=tok, train_dataset=ds_text,
+                     args=SFTConfig(dataset_text_field="text", ...))   # 其餘超參數同上
+trainer = train_on_responses_only(trainer,
+    instruction_part="<|im_start|>user\n", response_part="<|im_start|>assistant\n")
+trainer.train()</div>
+  <button class="golab" data-nb="2️⃣">到實驗場 2️⃣ 疊兩條 loss 曲線、比三次實測</button>
+</section>
+
+<section id="s3">
+  <span class="eyebrow">03 · 訓練前後</span>
+  <h2>60 步教會了它什麼</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：SFT 教的是<b>格式與行為</b>。40 則沒看過的訊息：底模只拿到一句話時全錯，
+    把規則寫滿 132 tokens 對 23 題，微調後只要一句話就對 39 題。
+  </div>
+  <p>
+    任務是客服最常見的苦工：把客人的一段話，轉成系統吃得下的<b>工單 JSON</b>——
+    類別（五選一）、產品型號、急不急、一句摘要。考題是訓練時<b>沒看過的句型</b>，一半的產品型號也是新的。
+    同一則訊息，三種做法的真實輸出：
+  </p>
+  <!--<BA>-->
+  <p style="font-size:13.5px"><b>客人說：</b>關於 FitBand 5：被重複扣款兩次，麻煩確認。麻煩了，謝謝。</p>
+  <div class="ba">
+    <div style="--bc:var(--cut)"><div class="hd">底模＋一句話 prompt</div><pre>```json
+{
+  &quot;工單類別&quot;: &quot;支付問題&quot;,
+  &quot;產品名稱&quot;: &quot;FitBand 5&quot;,
+  &quot;問題描述&quot;: &quot;被重複扣款兩次，麻煩確認。&quot;,
+  &quot;聯絡人&quot;: &quot;使用者&quot;,
+  &quot;聯絡方式&quot;: &quot;電話/郵件（請補充）&quot;,
+  &quot;狀態&quot;: &quot;待處理&quot;,
+  &quot;備註&quot;: &quot;請協助確認扣款情況，謝謝。&quot;
+}
+```</pre><div class="sc">✗ 整段是 JSON　✗ 欄位　✗ 類別　✗ 產品　✗ 急件</div></div>
+    <div style="--bc:var(--c4)"><div class="hd">底模＋寫滿規則的 prompt</div><pre>{&quot;category&quot;: &quot;billing&quot;, &quot;product&quot;: &quot;FitBand 5&quot;, &quot;urgent&quot;: true, &quot;summary&quot;: &quot;FitBand 5 被重複扣款兩次，請確認。&quot;}</pre><div class="sc">✓ 整段是 JSON　✓ 欄位　✓ 類別　✓ 產品　✗ 急件</div></div>
+    <div style="--bc:var(--c3)"><div class="hd">微調後＋一句話 prompt</div><pre>{&quot;category&quot;: &quot;billing&quot;, &quot;product&quot;: &quot;FitBand 5&quot;, &quot;urgent&quot;: false, &quot;summary&quot;: &quot;FitBand 5 被重複扣款兩次&quot;}</pre><div class="sc">✓ 整段是 JSON　✓ 欄位　✓ 類別　✓ 產品　✓ 急件</div></div>
+  </div>
+  <!--</BA>-->
+  <p class="src">實測紀錄（Qwen3-1.7B 4-bit、貪婪解碼、2026-09-24）；微調後 TRL 與 Unsloth 兩個模型對這題的輸出一字不差。</p>
+  <p>
+    40 題的總成績：底模＋一句話 <b>0 題</b>全對（它自己發明「工單類別」「處理人」「創建時間」這些欄位，還混進簡體字）；
+    寫滿規則 <b>23 題</b>（6 題把 JSON 包進 <span class="kbd">```json</span> 框、程式直接讀會失敗；
+    急件判錯 11 題，全是把不急的判成急）；微調後 <b>39 題</b>，而且每次呼叫的 system prompt 從 132 tokens 縮成 17 tokens。
+    兩個工具練出來的模型答對的題目<b>完全一樣</b>——它們學到的是同一件事。
+  </p>
+  <p>
+    唯一答錯的那題也很有教育意義：「請問 MeshLink AX 5G 訊號消失是正常的嗎？」——型號後面緊接著「5G」，
+    模型把它當成型號的一部分。<b>沒看過的產品＋模糊的邊界</b>，正是資料該補的地方。
+    也提醒一件主線課講過的事：微調教的是<b>行為</b>，要它記住你家的產品清單，還是交給 <a href="/genai-rag/">RAG</a>。
+  </p>
+  <button class="golab" data-nb="3️⃣">到實驗場 3️⃣ 逐題看四種做法的輸出與評分</button>
+</section>
+
+<section id="s4">
+  <span class="eyebrow">04 · 資料格式</span>
+  <h2>messages、chat template、loss masking</h2>
+  <div class="tldr" style="--tc:var(--c3)">
+    <b>一句話重點</b>：三個工具都吃<b>一行一筆的 messages JSONL</b>；工具用模型自己的 <b>chat template</b> 把它攤成一條字串，
+    並且只對<b>回答</b>的部分算 loss——問題只是題目，不是要背的東西。
+  </div>
+  <p>本課資料集的一筆長這樣（system＋user＋assistant，assistant 就是標準答案）：</p>
+  <div class="codeblock">{"messages": [
+  {"role": "system", "content": "你是客服工單助理。把使用者訊息轉成 JSON 工單。"},
+  {"role": "user", "content": "我的 ZoomPad 11 螢幕有一條綠線，可以幫忙修嗎？不急，有空再回覆就好。"},
+  {"role": "assistant", "content": "{\"category\": \"repair\", \"product\": \"ZoomPad 11\", \"urgent\": false, \"summary\": \"ZoomPad 11 螢幕有一條綠線\"}"}
+]}</div>
+  <p>
+    訓練前，工具會用 Qwen3 的 chat template 把它攤平，再決定哪些 token 算 loss。
+    下面是實測時 TRL 的資料整理器<b>真的吐出來</b>的第一筆（灰＝不算 loss 的 61 個 token，綠＝要學會寫出來的 45 個）：
+  </p>
+  <div class="mask"><!--<MASK>--><span class="off">&lt;|im_start|&gt;system
+你是客服工單助理。把使用者訊息轉成 JSON 工單。&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+我的 ZoomPad 11 螢幕有一條綠線，可以幫忙修嗎？不急，有空再回覆就好。&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+</span><span class="on">&lt;think&gt;
+
+&lt;/think&gt;
+
+{&quot;category&quot;: &quot;repair&quot;, &quot;product&quot;: &quot;ZoomPad 11&quot;, &quot;urgent&quot;: false, &quot;summary&quot;: &quot;ZoomPad 11 螢幕有一條綠線&quot;}&lt;|im_end|&gt;
+</span><!--</MASK>--></div>
+  <p>
+    注意那段 <span class="kbd">&lt;think&gt;…&lt;/think&gt;</span> 空殼：Qwen3 的 template 對最後一則回答自動補上，
+    推論時用 <span class="kbd">enable_thinking=False</span> 也會補同一段——<b>訓練與推論的字串要長得一樣</b>，模型才不會錯亂。
+    每個模型家族的標記都不同（Qwen 是 <span class="kbd">&lt;|im_start|&gt;assistant</span>，Llama 3 是
+    <span class="kbd">&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;</span>），抄錯就會出事。
+    TRL 1.13 的 <span class="kbd">assistant_only_loss=True</span> 對 Qwen3 可以直接用，換成 Llama 3.2 則在建立訓練器時就被擋下（實測）：
+  </p>
+  <div class="codeblock">ValueError: The chat template is not training-compatible (missing prefix-preservation
+or `{% generation %}` markers) and patching is not supported for this template.
+Please manually modify the chat template for training.</div>
+  <button class="golab" data-nb="4️⃣">到實驗場 4️⃣ 用驗證器檢查（也可以自己改）一行訓練資料</button>
+</section>
+
+<section id="s5">
+  <span class="eyebrow">05 · VRAM 帳</span>
+  <h2>裝得下嗎：權重＋訓練狀態＋活化值</h2>
+  <div class="tldr" style="--tc:var(--cut)">
+    <b>一句話重點</b>：峰值 VRAM ≈ 權重 ＋ 訓練狀態 ＋ 活化值。QLoRA 把<b>權重</b>壓到約四分之一、
+    LoRA 把<b>訓練狀態</b>壓到幾乎為零——剩下的<b>活化值</b>跟序列長度成正比，正是 Unsloth 省下來的那一塊。
+  </div>
+  <p>
+    主線課用公式算過 8B 模型「全參數 90 GB → LoRA 15 GB」。這次換成實測，同一台 4090 量到的峰值：
+  </p>
+  <div class="tw"><table class="cmp">
+    <tr><th>模型</th><th>做法</th><th>TRL＋PEFT</th><th>Unsloth</th></tr>
+    <!--<CAL>-->
+    <tr><td>Qwen3-0.6B</td><td>QLoRA（4-bit）</td><td class="n">1.31 GiB</td><td class="n">1.16 GiB</td></tr>
+    <tr><td>Qwen3-0.6B</td><td>QLoRA（4-bit），長資料</td><td class="n">2.22 GiB</td><td class="n">1.50 GiB</td></tr>
+    <tr><td>Qwen3-1.7B</td><td>QLoRA（4-bit）</td><td class="n">2.18 GiB</td><td class="n">2.00 GiB</td></tr>
+    <tr><td>Qwen3-1.7B</td><td>QLoRA（4-bit），長資料</td><td class="n">4.09 GiB</td><td class="n">2.49 GiB</td></tr>
+    <tr><td>Qwen3-4B</td><td>QLoRA（4-bit）</td><td class="n">3.60 GiB</td><td class="n">3.40 GiB</td></tr>
+    <tr><td>Qwen3-4B</td><td>QLoRA（4-bit），長資料</td><td class="n">8.16 GiB</td><td class="n">4.34 GiB</td></tr>
+    <tr><td>Qwen3-1.7B</td><td>LoRA（bf16 底模）</td><td class="n">4.26 GiB</td><td class="n">3.93 GiB</td></tr>
+    <tr><td>Qwen3-0.6B</td><td>全參數（bf16＋AdamW）</td><td class="n">6.26 GiB</td><td class="n">—</td></tr>
+    <!--</CAL>-->
+  </table></div>
+  <p class="src">PyTorch 峰值 reserved（GiB）；batch 8、每筆約 100 tokens，「長資料」每筆約 1,180 tokens；RTX 4090，2026-09-24。
+    另一個實測：Qwen3-1.7B <b>全參數</b>微調在 9.5 GB 的額度內直接 OOM。</p>
+  <p>
+    實驗場 5️⃣ 把這些實測點拿來<b>現場擬合</b>一個估算公式，推到 8B、14B、32B、70B，
+    並畫出 T4（16 GB）、RTX 4090（24 GB）、A100（80 GB）三條線——
+    還會拿沒參與擬合的 4B 實測點檢查估算準不準。租卡之前，先在這裡算一次。
+  </p>
+  <button class="golab" data-nb="5️⃣">到實驗場 5️⃣ 選模型與長度，看三種做法裝不裝得下</button>
+</section>
+
+<section id="s6">
+  <span class="eyebrow">06 · 託管與免費路徑</span>
+  <h2>沒有 GPU：免費的、付費的各一條路</h2>
+  <div class="tldr" style="--tc:var(--c4)">
+    <b>一句話重點</b>：<b>免費</b>：Colab／Kaggle 的 T4（不保證有卡、有時數上限）；
+    <b>付費</b>：Together、Fireworks、Tinker 按訓練 token 計費。OpenAI 的微調平台已不再開放新用戶。
+  </div>
+  <div class="tw"><table class="cmp">
+    <tr><th>服務</th><th>計費（≤16B 模型，查證 2026-09-24）</th><th>你要做的事</th></tr>
+    <tr><td class="n">Together AI</td><td>SFT 每百萬訓練 token $0.34–0.38、DPO $0.84–0.94；每個 job 有最低收費（$4 起）</td><td>上傳 JSONL、選模型、開訓</td></tr>
+    <tr><td class="n">Fireworks AI</td><td>LoRA SFT 每百萬訓練 token $0.50；全參數、DPO 另有價目</td><td>上傳 JSONL、選模型、開訓</td></tr>
+    <tr><td class="n">Tinker</td><td>Qwen3-8B 訓練每百萬 token $0.44（取樣、儲存另計）</td><td>自己寫訓練迴圈，呼叫它的 API</td></tr>
+    <tr class="dead"><td class="n">OpenAI</td><td>—</td><td>官方文件：不再開放新用戶</td></tr>
+    <tr><td class="n">Colab／Kaggle</td><td>免費（T4 16 GB；Colab 單次最長 12 小時、不保證有卡；Kaggle 每週有免費 GPU 時數）</td><td>開 notebook、按執行；資料會上傳到 Google</td></tr>
+  </table></div>
+  <p>
+    <b>帶回家自己跑（免費）</b>——兩條路，都不需要任何 API key 或自架服務：
+  </p>
+  <ol class="take">
+    <li><b>最穩：</b>Unsloth 官方維護的免費 notebook（<a href="https://unsloth.ai/docs/get-started/unsloth-notebooks" target="_blank" rel="noopener">unsloth.ai 的 notebook 列表</a>，
+      有 Colab 與 Kaggle 版），選 Qwen3 或 Llama 3.2，接上 T4 從頭按到尾——跟本課同一套 FastLanguageModel → SFTTrainer 流程。</li>
+    <li><b>重現本課實驗：</b>把這三支腳本放同一個資料夾，在有 NVIDIA GPU 的環境跑
+      （<a href="https://github.com/skmygo/agentclass/blob/main/content/genai-intro/_spikes/spike_genai_finetune_data.py" target="_blank" rel="noopener">資料產生器</a>、
+      <a href="https://github.com/skmygo/agentclass/blob/main/content/genai-intro/_spikes/spike_genai_finetune_unsloth.py" target="_blank" rel="noopener">Unsloth 版</a>、
+      <a href="https://github.com/skmygo/agentclass/blob/main/content/genai-intro/_spikes/spike_genai_finetune.py" target="_blank" rel="noopener">TRL＋PEFT 版</a>）：
+      <div class="codeblock">pip install uv
+uv run --script spike_genai_finetune_unsloth.py --out r_unsloth.json
+uv run --script spike_genai_finetune.py --eval-base --out r_trl.json</div></li>
+  </ol>
+  <p>
+    誠實說明驗證範圍：兩支腳本在 RTX 4090（驅動 580、CUDA 13）上完整跑通，也用 <span class="kbd">--fp16</span>
+    強制走 T4 的精度路徑各跑過一次（T4 是 Turing 架構，沒有原生 bf16；Ampere 以後的卡才有）——
+    TRL 版第一次走這條路就撞了一個精度錯誤（測驗 Q2 就是它），腳本已修正，修正後同樣 39/40；Unsloth 版一次就過。
+    <b>沒有</b>在 Colab／Kaggle 的 T4 上實跑：平台預裝的 torch 與驅動版本會變，腳本自建的環境裝不起來時，改走第 1 條路。
+    T4 的算力比 4090 低得多，秒數會慢好幾倍（沒實測，不給數字）。
+  </p>
+  <button class="golab" data-nb="6️⃣">到實驗場 6️⃣ 拉你的資料量，算託管要花多少</button>
+</section>
+
+<section id="s7">
+  <span class="eyebrow">07 · 速查</span>
+  <h2>本課名詞速查卡</h2>
+  <table class="cheat">
+    <tr><td class="t" style="color:var(--c1)">TRL＋PEFT</td><td>Hugging Face 官方的訓練器（SFT／DPO／GRPO…）＋ LoRA 實作——<b>演算法最新、最通用</b>的起點。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">Unsloth</td><td>同一套 TRL 訓練器換上加速核心——<b>單卡最省最快</b>；代價是版本被它釘住。</td></tr>
+    <tr><td class="t">Axolotl／LLaMA-Factory</td><td>把整套訓練包成 <b>YAML 設定檔</b>／<b>網頁介面</b>——要可重現、或不寫程式時用。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">chat template</td><td>把 messages 攤成一條字串的<b>模型專屬格式</b>；訓練與推論必須一致。</td></tr>
+    <tr><td class="t" style="color:var(--c3)">loss masking</td><td>只對<b>回答</b>算 loss（問題的 labels 設 -100）——TRL 的 prompt／completion、Unsloth 的 <span class="kbd">train_on_responses_only</span>。</td></tr>
+    <tr><td class="t" style="color:var(--c2)">padding-free</td><td>把一個 batch 的樣本<b>接成一條</b>，不在填充符號上浪費算力——長短不一的資料省最多。</td></tr>
+    <tr><td class="t" style="color:var(--cut)">峰值 VRAM</td><td>權重＋訓練狀態＋活化值；QLoRA 壓權重、LoRA 壓狀態、Unsloth 壓活化值。</td></tr>
+    <tr><td class="t" style="color:var(--c4)">託管微調</td><td>Together／Fireworks／Tinker <b>按訓練 token 計費</b>；資料會離開公司。</td></tr>
+  </table>
+</section>
+
+<section id="s8">
+  <span class="eyebrow">08 · 實戰</span>
+  <h2>換你動手</h2>
+  <div class="ex">
+    <span class="lv">LEVEL 1</span>
+    <p>在實驗場 2️⃣ 切到「長對話紀錄」，把三次實測輪流看一遍：Unsloth 每步快幾倍？
+      為什麼「峰值 VRAM」三次一模一樣，時間卻每次不同？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 2</span>
+    <p>在 5️⃣ 選 <span class="kbd">Qwen3-8B</span>、每筆 <span class="kbd">1024</span> tokens、batch <span class="kbd">8</span>：
+      免費的 T4（16 GB）用 QLoRA 裝得下嗎？把工具換成 Unsloth 呢？還是要用 TRL 的話，batch 要降到多少？</p>
+  </div>
+  <div class="ex">
+    <span class="lv">LEVEL 3</span>
+    <p>在 4️⃣ 選「Alpaca 舊格式」，直接在框裡把它改寫成 messages 格式，直到驗證器全綠。
+      再到 3️⃣ 找出微調後唯一答錯的那題：你會補什麼樣的訓練資料來修好它？</p>
+  </div>
+  <p style="font-size:13.5px;color:var(--ink-soft);margin-top:10px">卡住了？三題在實驗場最後都有折疊解答——先自己做，再打開對照。</p>
+  <button class="golab" data-nb="7️⃣">到實驗場 7️⃣ 看解答</button>
+</section>
+
+<section id="quiz">
+  <span class="eyebrow">09 · 驗收</span>
+  <h2>情境測驗</h2>
+  <p>離開前試試看：下面的情境都真的會遇到。每題選一個你認為的最佳做法，選了馬上看得到解釋。</p>
+  <div data-quiz>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q1 <span class="qtype">情境題</span></p>
+      <h3>你們要用 Qwen3-4B 微調客服模型，每筆訓練資料都帶著上千 tokens 的歷史對話；手上只有一張 24 GB 的卡，資料不能上雲。最務實的起點是？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. TRL＋PEFT 做全參數微調——資料這麼長，只有動全部參數才學得起來</button>
+        <button type="button" class="quiz-opt" data-k="B">B. Unsloth＋QLoRA——長序列正是它省 VRAM 的主場，24 GB 綽綽有餘</button>
+        <button type="button" class="quiz-opt" data-k="C">C. torchtune——PyTorch 官方出品，長期維護最有保障</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 上傳到 OpenAI fine-tuning，省得自己管 GPU</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>本課就量過這個組合：Qwen3-4B、每筆約 1,180 tokens 的長資料，QLoRA 峰值 TRL＋PEFT 8.16 GiB、Unsloth 4.34 GiB——單卡、長序列正是 Unsloth 的主場，而且它底下還是同一套 SFTTrainer，換回 TRL 的成本很低。A 的問題是記憶體：4B 全參數光權重加訓練狀態就要約 37 GiB（實驗場 5️⃣ 的估算），24 GB 裝不下；而且「資料長」跟「要動全部參數」沒有關係，LoRA 在格式與行為類的任務上夠用。C 是舊資訊：torchtune 的 README 已寫明 2025 年起停止維護。D 兩個問題：資料不能上雲，而且 OpenAI 官方文件寫著微調平台不再開放新用戶。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q2 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你把本課的 TRL＋PEFT QLoRA 腳本搬到免費 Colab 的 T4 上，因為 T4 沒有原生 bf16，就把 <span class="kbd">bf16=True</span> 改成 <span class="kbd">fp16=True</span>。訓練第一步就噴了這個（實測原文：在 4090 上強制 fp16 撞出來的）。最可能的原因與修法？</h3>
+      <div class="codeblock">  File ".../torch/amp/grad_scaler.py", line 294, in _unscale_grads_
+    torch._amp_foreach_non_finite_check_and_unscale_(
+NotImplementedError: "_amp_foreach_non_finite_check_and_unscale_cuda" not implemented for 'BFloat16'</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. T4 根本跑不動 QLoRA，只能換 A100</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 改回 bf16=True 就好——錯誤訊息裡明明寫著 BFloat16</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 可訓練的 LoRA 參數被建成了 bf16（預量化權重的設定寫著 bf16 運算），fp16 混合精度的 GradScaler 處理不了 bf16 梯度——把 4-bit 層的運算精度改成 fp16、LoRA 參數轉 fp32，或改用會自動處理的 Unsloth</button>
+        <button type="button" class="quiz-opt" data-k="D">D. batch 太大造成數值溢位，把 batch 降到 1</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>實測拆開來看：訓練器建好後，可訓練的 LoRA 張量全是 bfloat16——這份 <span class="kbd">unsloth/Qwen3-1.7B-bnb-4bit</span> 的量化設定寫著「用 bf16 運算」，LoRA 跟著建成 bf16。fp16 混合精度靠 GradScaler 放大、再縮回梯度，它只處理 fp32（主權重）的梯度，碰到 bf16 就報這個錯。修法是本課腳本現在的做法：4-bit 層的 <span class="kbd">compute_dtype</span> 改成 fp16、可訓練參數轉成 fp32——修好後同樣答對 39/40；Unsloth 版這兩件事自動做，<span class="kbd">--fp16</span> 一次就過。B 在 4090 上會過，在 T4 上是另一個坑：T4 沒有原生 bf16，只能靠模擬，慢又容易出錯——錯誤訊息裡的 BFloat16 是線索，不是答案。A 誤會了：QLoRA 就是為小卡設計的，本課 1.7B 峰值才約 2 GiB。D 是症狀相似但原因不同：這不是溢位，是型別對不上，第一步就會發生、跟 batch 無關。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q3 <span class="qtype">情境題</span></p>
+      <h3>同事看了本課的成績單說：「prompt 寫長一點就有 23 題，何必微調？」哪個回應最有根據？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 他說得對——prompt 做得到的事就不該微調，23/40 已經夠用了</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 微調一定比較好，任何任務都應該先微調</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 看用途：寫滿規則的 prompt 有 6 題把 JSON 包進 ```json 框、11 題把不急判成急；微調後 39/40、prompt 只剩 17 tokens。要接進生產管線、呼叫量大就值得微調；少量、有人複核的用途先用 prompt</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 兩者差不多，差別只是 prompt 長短</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>決策要看「錯誤的代價」與「呼叫量」。本課的工單要被程式直接 <span class="kbd">json.loads</span>，寫滿規則的 prompt 有 6 題因為包了 ```json 框直接讀不進去、11 題把客氣的「麻煩了，謝謝」判成急件——進生產管線就是 17 張錯單。微調後 39/40，而且每次呼叫少送 115 個 token，量一大就是錢。A 忽略了剩下 17 題錯在哪、錯了誰來收；B 太絕對：微調有資料、訓練、維護成本，量小或規則常變時 prompt 更划算，要記住公司知識則是 RAG 的工作；D 與數字不符（23 vs 39）。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="B">
+      <p class="quiz-tag">Q4 <span class="qtype dx">錯誤診斷</span></p>
+      <h3>你把網路上一份「Unsloth 微調 Llama 3」的範例改成訓練 Qwen3，只換了模型名稱，其餘照抄。建立訓練器時噴了這個（實測原文）。怎麼回事？</h3>
+      <div class="codeblock">trainer = train_on_responses_only(
+    trainer,
+    instruction_part="&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;\n\n",
+    response_part="&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;\n\n",
+)
+
+ValueError: Unsloth: train_on_responses_only masked every label to -100 in train_dataset,
+so there is nothing to train on. The response marker
+'&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;\n\n' was not found in any sample -
+check that instruction_part and response_part match your chat template.</div>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 訓練資料太少，多加一些樣本就好</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 標記是 Llama 3 的格式；Qwen3 的 chat template 用 &lt;|im_start|&gt;user\n／&lt;|im_start|&gt;assistant\n——找不到標記，所有 labels 都被設成 -100，沒東西可學。把兩個標記換成 Qwen3 的</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 把 train_on_responses_only 整行刪掉，讓模型對整段算 loss——反正就能跑了</button>
+        <button type="button" class="quiz-opt" data-k="D">D. Unsloth 不支援 Qwen3，要換回 Llama</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>loss masking 靠「在攤平的字串裡找到回答從哪裡開始」——那個位置就是模型 chat template 裡的 assistant 標記，而每個模型家族的標記都不一樣。Qwen3 的字串裡根本沒有 <span class="kbd">&lt;|start_header_id|&gt;</span>，於是每個 token 都被標成 -100（不算 loss），Unsloth 發現沒東西可學就直接擋下。修法是換成 <span class="kbd">instruction_part="&lt;|im_start|&gt;user\n"</span>、<span class="kbd">response_part="&lt;|im_start|&gt;assistant\n"</span>（本課的設定），或先用實驗場 4️⃣ 看清楚 template 長什麼樣再寫。C 能跑但有副作用：模型連使用者的問題與 system prompt 都要學著「寫出來」，力氣花在錯的地方；A 跟資料量無關，加多少筆都找不到標記；D 不成立——本課就是用 Unsloth 訓練 Qwen3。</p></div>
+    </div>
+
+    <div class="quiz-q" data-answer="C">
+      <p class="quiz-tag">Q5 <span class="qtype">情境題</span></p>
+      <h3>醫院要把病歷摘要整理成固定格式，資料不能離開院內網路。院內有一台 16 GB 的 T4 伺服器，想微調 Qwen3-8B，每筆約 1,000 tokens。怎麼做？</h3>
+      <div class="quiz-opts">
+        <button type="button" class="quiz-opt" data-k="A">A. 用免費的 Colab——一樣是 T4，還不用自己管機器</button>
+        <button type="button" class="quiz-opt" data-k="B">B. 上傳到 Together 做 LoRA，按 token 計費又便宜</button>
+        <button type="button" class="quiz-opt" data-k="C">C. 在院內 T4 上用 QLoRA（Unsloth 或 TRL＋PEFT）——估算 8B、每筆 1,024 tokens、batch 8 約 8–11 GiB，裝得下</button>
+        <button type="button" class="quiz-opt" data-k="D">D. 在院內 T4 上做全參數微調——病歷很重要，要改動全部參數才夠準</button>
+      </div>
+      <div class="quiz-fb" aria-live="polite"><p>先守住「資料不能離開院內」，再算記憶體：實驗場 5️⃣ 的估算，Qwen3-8B、每筆 1,024 tokens、batch 8，QLoRA 用 Unsloth 約 7.8 GiB、用 TRL＋PEFT 約 11.3 GiB，都在 T4 的 15 GiB 以內（8B 沒有實測點，這是估算——正式跑之前先用小 batch 跑幾步看峰值）。A 與 B 都是把病歷傳到別人的機器：免費 Colab 一樣是雲端，託管更不用說，價格再便宜都不該選。D 算一下就知道不可能：8B 全參數估算約 80 GiB，是 T4 的五倍；而且「整理成固定格式」是 LoRA 最擅長的行為類任務，不需要動全部參數。</p></div>
+    </div>
+
+    <div class="quiz-score" data-score></div>
+  </div>
+</section>
+
+<div class="endnav">
+  <a href="/genai-agent-sdk/">
+    <span class="tag">下一課 · 補充 C</span>
+    <b>Claude Agent SDK：把 Claude Code 裝進你的程式 →</b>
+  </a>
+  <a href="/genai-intro/">
+    <span class="tag">主題</span>
+    <b>‹ 回「生成式 AI 導論」課程列表</b>
+  </a>
+</div>
+"""
+
+SCRIPT = r"""
+/* ═══ hero：兩個工具的訓練重播（實測紀錄：RTX 4090，2026-09-24）═══
+   HERO 由 _spikes/spike_genai_finetune_collect.py --inject 寫入：每步 loss 與每步秒數都是實測值。 */
+(function () {
+  const HERO = /*<HERO>*/{"short":{"trl":{"loss":[2.8648,2.9606,2.9563,2.6216,2.0065,1.6488,1.0802,0.821,0.6676,0.3927,0.3483,0.3115,0.1999,0.2377,0.1464,0.0752,0.0909,0.1863,0.039,0.0648,0.0454,0.0389,0.0411,0.0483,0.0357,0.0384,0.0409,0.0407,0.0471,0.0214,0.0459,0.0173,0.0183,0.0108,0.0165,0.0126,0.0271,0.0131,0.0166,0.011,0.0227,0.0056,0.0082,0.0214,0.0113,0.0257,0.0027,0.004,0.0037,0.0039,0.0058,0.0038,0.0049,0.0029,0.0045,0.0077,0.0051,0.0025,0.0132,0.0042],"step":[0.9328,0.3692,0.3515,0.364,0.3272,0.3812,0.3567,0.355,0.3579,0.3629,0.3747,0.366,0.3383,0.3448,0.3185,0.3053,0.3568,0.3853,0.3377,0.3536,0.3539,0.3597,0.3522,0.4601,0.3431,0.3335,0.361,0.3564,0.3637,0.3217,0.3488,0.3566,0.3054,0.3135,0.3075,0.3636,0.3579,0.3626,0.3559,0.3552,0.3616,0.3551,0.3544,0.3674,0.3931,0.3669,0.355,0.3579,0.3643,0.4669,0.3732,0.3522,0.3715,0.37,0.3583,0.3468,0.3721,0.3548,0.3588,0.3501],"peak":2.188,"train":22.46,"run":3},"unsloth":{"loss":[2.6171,2.7177,2.7159,2.3801,1.8311,1.5905,1.0191,0.7867,0.6404,0.389,0.3394,0.3029,0.1994,0.2385,0.1555,0.0779,0.0898,0.1907,0.038,0.0636,0.0463,0.0405,0.0405,0.0491,0.0371,0.0391,0.0384,0.0414,0.0539,0.0244,0.045,0.0188,0.0169,0.01,0.0165,0.0111,0.0346,0.0143,0.0165,0.0102,0.0197,0.005,0.0067,0.0217,0.0128,0.0219,0.0033,0.0046,0.0044,0.0043,0.0053,0.0052,0.0046,0.0035,0.0041,0.0072,0.0045,0.0036,0.0137,0.0035],"step":[1.0333,0.263,0.2603,0.2713,0.2695,0.249,0.2864,0.2778,0.2505,0.2776,0.286,0.286,0.2846,0.2776,0.2959,0.2734,0.259,0.2788,0.2763,0.2743,0.2799,0.2828,0.2796,0.2682,0.3566,0.2726,0.2695,0.2781,0.2807,0.2772,0.2599,0.2736,0.2763,0.2648,0.2885,0.2845,0.2808,0.276,0.2727,0.2768,0.272,0.2686,0.2815,0.2762,0.2851,0.277,0.2654,0.2912,0.2745,0.2695,0.2763,0.2768,0.2715,0.2852,0.2736,0.2817,0.2799,0.2727,0.2668,0.263],"peak":2.0,"train":18.3,"run":3}},"long":{"trl":{"loss":[3.0147,2.9268,2.9163,2.7918,2.0751,1.8879,1.0823,0.8717,0.705,0.4382,0.3581,0.3629,0.2531,0.2698,0.176,0.0693,0.0825,0.1487,0.0609,0.0581,0.0625,0.05,0.0808,0.0439,0.0486,0.0804,0.0721,0.0394,0.0332,0.0206,0.0386,0.0156,0.0159,0.0161,0.0161,0.0246,0.0257,0.0134,0.0186,0.0164,0.0298,0.0173,0.0079,0.0203,0.0175,0.0148,0.0046,0.0046,0.0051,0.013,0.002,0.0038,0.0054,0.0039,0.005,0.0072,0.0025,0.0092,0.0087,0.0038],"step":[3.825,3.1639,3.201,3.2002,2.9897,2.9919,2.9777,3.0884,3.131,3.125,3.1594,3.1292,3.1166,3.0943,3.1552,2.9333,3.0423,3.0882,3.0638,3.0176,2.7817,3.1547,3.0953,3.0003,3.008,3.0138,2.9897,2.7001,2.9393,2.9278,3.0649,2.9811,2.9874,2.9614,2.8701,2.904,3.0183,3.0128,3.0318,3.0131,2.9597,2.9718,2.7027,2.8888,2.8395,2.9941,2.9504,2.9854,2.8403,2.982,2.3102,2.4864,2.829,2.8463,2.9294,2.8335,2.8953,2.9498,2.7616,2.6996],"peak":4.086,"train":178.96,"run":3},"unsloth":{"loss":[2.9002,2.7975,2.8101,2.7039,2.054,1.792,0.8923,0.8349,0.6716,0.4078,0.3267,0.3381,0.2199,0.2439,0.1515,0.0597,0.0749,0.1277,0.0576,0.0487,0.0582,0.0473,0.0757,0.0368,0.0499,0.0881,0.0783,0.035,0.0353,0.0179,0.0349,0.0158,0.0157,0.0228,0.0185,0.0249,0.0278,0.0141,0.0196,0.0184,0.0294,0.0152,0.009,0.0169,0.0182,0.0106,0.004,0.0059,0.0061,0.0102,0.0024,0.0062,0.0056,0.0039,0.0054,0.0061,0.0023,0.0085,0.0068,0.0028],"step":[2.4903,1.7509,1.7327,1.7483,1.6944,1.7783,1.8044,1.7538,1.695,1.6866,1.7754,1.2772,0.9424,0.9299,0.9062,0.9252,0.9322,0.9251,0.9076,0.9047,0.9247,0.9145,0.9244,0.9273,0.9347,0.9086,0.9351,0.9258,0.9073,0.9272,1.5307,1.8354,1.7918,1.7996,1.7655,1.9291,1.8489,1.9102,1.8124,1.7859,1.8636,1.8946,1.8339,1.841,1.8883,1.8561,1.8368,1.8502,1.8271,1.8561,1.8202,1.8456,1.8322,1.8666,1.8685,1.8144,1.8616,1.8775,1.8581,1.8232],"peak":2.492,"train":93.84,"run":3}},"tok":{"short":100,"long":1179}}/*</HERO>*/;
+  const root = document.getElementById("ft-race");
+  if (!root || !HERO.short) return;
+  const lanes = [...root.querySelectorAll(".lane")];
+  const go = document.getElementById("ft-go");
+  const spd = document.getElementById("ft-spd");
+  const verdict = document.getElementById("ft-verdict");
+  let scn = "short", raf = null;
+  const LMIN = Math.log10(0.002), LMAX = Math.log10(4);
+  const VMAX = 5; // GiB，VRAM 條的滿格
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const med = (a) => { const s = a.slice(3).sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+
+  const yOf = (loss) => 104 - ((Math.log10(Math.max(loss, 0.002)) - LMIN) / (LMAX - LMIN)) * 98;
+  function xy(i, loss) { return (26 + (i / 59) * 268).toFixed(1) + "," + yOf(loss).toFixed(1); }
+  function draw(lane, run, k, other, ko) {
+    // 細灰線＝另一個工具同一時刻的 loss：兩條幾乎疊在一起，就是本課的重點
+    const svg = lane.querySelector("svg");
+    const pts = run.loss.slice(0, k).map((l, i) => xy(i, l)).join(" ");
+    const gpts = other.loss.slice(0, ko).map((l, i) => xy(i, l)).join(" ");
+    let grid = "";
+    [[1, "1"], [0.1, "0.1"], [0.01, "0.01"]].forEach(([v, t]) => {
+      const y = yOf(v).toFixed(1);
+      grid += '<line x1="26" y1="' + y + '" x2="294" y2="' + y + '" stroke="#E4E9E2"/>' +
+        '<text x="23" y="' + (+y + 3) + '" font-size="8.5" text-anchor="end" fill="#7A8791">' + t + "</text>";
+    });
+    svg.innerHTML = grid +
+      '<text x="294" y="11" font-size="9" text-anchor="end" fill="#7A8791">loss (log)　灰線＝另一個工具</text>' +
+      '<polyline fill="none" stroke-width="1.4" stroke="#9AA6AE" points="' + gpts + '"/>' +
+      '<polyline fill="none" stroke-width="2.2" stroke="' + getComputedStyle(lane).getPropertyValue("--lc") +
+      '" points="' + pts + '"/>';
+  }
+  function reset() {
+    cancelAnimationFrame(raf);
+    lanes.forEach((ln, j) => {
+      draw(ln, HERO[scn][ln.dataset.t], 0, HERO[scn][lanes[1 - j].dataset.t], 0);
+      ln.querySelector(".k").textContent = "0";
+      ln.querySelector(".t").textContent = "0.0";
+      ln.querySelector(".l").textContent = "—";
+      ln.querySelector(".v").textContent = "—";
+      ln.querySelector(".fill").style.width = "0";
+    });
+    const tot = Math.max(...lanes.map((ln) => sum(HERO[scn][ln.dataset.t].step)));
+    spd.textContent = "（快轉 " + Math.round(tot / 7) + " 倍重播）";
+    verdict.innerHTML = scn === "short"
+      ? "短訊息：每筆約 " + HERO.tok.short + " tokens。先猜：哪一邊先到？"
+      : "長對話紀錄：每筆約 " + HERO.tok.long.toLocaleString("en-US") + " tokens——資料長了 10 倍多。這次呢？";
+    go.disabled = false;
+  }
+  function run() {
+    go.disabled = true;
+    const R = lanes.map((ln) => HERO[scn][ln.dataset.t]);
+    const cum = R.map((r) => { let c = 0; return r.step.map((s) => (c += s)); });
+    const tot = Math.max(...cum.map((c) => c[c.length - 1]));
+    const speed = tot / 7;
+    const t0 = performance.now();
+    function frame(now) {
+      const t = ((now - t0) / 1000) * speed;
+      const ks = cum.map((c) => { let k = 0; while (k < c.length && c[k] <= t) k++; return k; });
+      const done = ks.every((k, j) => k >= cum[j].length);
+      lanes.forEach((ln, j) => {
+        const c = cum[j];
+        const k = ks[j];
+        draw(ln, R[j], k, R[1 - j], ks[1 - j]);
+        ln.querySelector(".k").textContent = k;
+        ln.querySelector(".t").textContent = Math.min(t, c[c.length - 1]).toFixed(1);
+        ln.querySelector(".l").textContent = k ? R[j].loss[k - 1].toFixed(k > 30 ? 4 : 2) : "—";
+        if (k) {
+          ln.querySelector(".v").textContent = R[j].peak.toFixed(2) + " GiB";
+          ln.querySelector(".fill").style.width = Math.min(100, (R[j].peak / VMAX) * 100) + "%";
+        }
+      });
+      if (!done) { raf = requestAnimationFrame(frame); return; }
+      const a = R[0], b = R[1];
+      const ta = a.train, tb = b.train;  // 訓練器回報的 60 步總時間（含每步之外的零碎開銷）
+      lanes.forEach((ln, j) => { ln.querySelector(".t").textContent = R[j].train.toFixed(1); });
+      const ratio = med(a.step) / med(b.step);
+      const saved = Math.round((1 - b.peak / a.peak) * 100);
+      verdict.innerHTML = scn === "short"
+        ? "<b>差距不大</b>：TRL " + ta.toFixed(1) + " s、Unsloth " + tb.toFixed(1) + " s（Unsloth 第一步要暖機），峰值 VRAM " +
+          a.peak.toFixed(2) + " vs " + b.peak.toFixed(2) + " GiB。兩條 loss 都掉到 0.00x——" +
+          "每筆才 " + HERO.tok.short + " tokens，活化值本來就小，沒什麼可省。換長資料試試。"
+        : "<b>Unsloth 先到</b>：" + tb.toFixed(0) + " s vs " + ta.toFixed(0) + " s（每步中位數快 " + ratio.toFixed(1) +
+          " 倍），峰值 VRAM 少 " + saved + "%。但兩條 loss 還是疊在一起——<b>工具改變的是帳單，不是模型學到的東西</b>。" +
+          "（重播的是三次實測裡倍數居中的第 " + a.run + " 次；三次的範圍是 1.6–3.3 倍，在實驗場 2️⃣。）";
+      go.disabled = false;
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  root.querySelectorAll("#ft-scn button").forEach((b) => b.addEventListener("click", () => {
+    scn = b.dataset.s;
+    root.querySelectorAll("#ft-scn button").forEach((x) => x.classList.toggle("on", x === b));
+    reset();
+  }));
+  go.addEventListener("click", () => { reset(); run(); });
+  reset();
+})();
+"""

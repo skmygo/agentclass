@@ -62,3 +62,43 @@
 - 主體也補了兩個 UI（原本挑戰題要改常數才做得到）：genai-agents 的城市 dropdown、
   local-llm/speculative-decoding 的 `T_FLOP` 滑桿。
 - 左頁「換你動手」指向實驗區變數名的句子（`MY_Q`／`MY_K`／`knowledge`）一併改成拉桿講法。
+
+## 進階補充系列 A–F（2026-09-24 起）
+
+- 使用者需求：在 genai-intro 下加 6 堂「進階補充」，不重複主線 7 課；**觀看者不需要任何服務、
+  要直接可以運行或用免費資源**。
+- 定軌：六課全部**純瀏覽器 app 模式**（沿用主題層 `lesson-mode=app`）。真實素材（LLM 輸出、
+  向量、reranker 分數、訓練紀錄、agent trace、MCP 線路側錄、skill 觸發紀錄）由 `_spikes/` 在
+  主機 .113 上實測錄製（區網 qwen3.5-2b／jina-embed、本機 RTX 4090、已登入的 claude CLI），
+  嵌成常數在瀏覽器重播／重算；文案標「實測（模型名，日期）」。「帶回家自己跑」的路徑只能指向
+  免費資源（Colab／Kaggle 免費 GPU、molab 免費 CPU、本機 Ollama、免費 API 額度）。
+- 課表（主題頁「進階補充」區，順序即 endnav 鏈；主線 genai-rag → 補充 A）：
+
+  | 補充 | id | 延伸自主線 |
+  |---|---|---|
+  | A | `genai-rag-advanced` 進階 RAG：父子檢索、混合搜尋與 Rerank | genai-rag |
+  | B | `genai-finetune` 微調工具實戰：Unsloth、TRL 與託管微調 | genai-training |
+  | C | `genai-agent-sdk` Claude Agent SDK | genai-agents |
+  | D | `genai-mcp-fastmcp` MCP 新版協定與 FastMCP 4 | genai-agents（深入版在 llm-apps/fastmcp4*） |
+  | E | `genai-skills` Agent Skills | genai-agents |
+  | F | `genai-vibecoding` Vibe Coding 進階：讓測試當 AI 的眼睛 | genai-devstyle |
+
+- 寫法：主代理 scaffold＋`.wip`＋分配 port 段（A 9110–、B 9120–、C 9130–、D 9140–、E 9150–、F 9160–；
+  88xx 被主機其他服務占滿），六個 subagent 平行各寫一課（只動自己的課程目錄＋自己的 spike），
+  單課驗證用新工具 `scripts/mini-dist.sh`（不跑全站 build 也能做完整 WASM＋頁面＋手機冒煙）。
+  各課的坑與重驗方式在各自的 `content/genai-intro/<id>/NOTES.md`。
+
+### 補充系列完成紀錄（2026-09-24）
+
+- 六課皆純瀏覽器 app 課、單課 mini-dist 冒煙＋全站 build 通過。各課素材與「換模型／改版要重驗哪些句子」
+  寫在各自的 `content/genai-intro/<id>/NOTES.md`；spike 一覽：
+  - A `spike_genai_rag_advanced.py`（`--local` 無服務 CPU 模式可完整重現；jina v5 retrieval＋bge-reranker-v2-m3）
+  - B `spike_genai_finetune{,_unsloth,_data,_errors,_collect}.py`（4090 實測；Unsloth 與 TRL 1.13 分兩個 PEP 723 環境）
+  - C `spike_genai_agent_sdk{,_payload}.py`（claude-agent-sdk 0.2.159＋claude-haiku-4-5；錄影原檔不進 repo，重建要重跑）
+  - D `spike_genai_mcp_fastmcp.py`（fastmcp 4.0.8；`--inject` 直接寫回 lesson.py／page_content.py）
+  - E `spike_genai_skills.py`（tiktoken 量本 repo skill 三層 token；claude-haiku-4-5 觸發實驗）
+  - F `spike_genai_vibecoding{,_hint,_risks,_pack}.py`（qwen3.5-2b 12 題回饋迴圈；PyPI 查套件幻覺）
+- **主線 genai-rag 的已知問題**：spike 呼叫 jina-embed 沒加 `Query: `／`Document: ` 前綴（jina v5 retrieval 需要；
+  補充 A 實測少了前綴 hit@1 35→30）。主線數字尚未重驗，下次動 genai-rag 時一併修。
+- 補充 E 的 token 數字是 2026-09-24 的 repo 快照（make-lesson／publish-videos 等 9 個 skill）；skill 大改後
+  頁面手寫數字會與當下檔案不一致，重跑 spike tokens＋inject＋page-fill。
