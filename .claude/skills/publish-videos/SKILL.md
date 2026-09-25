@@ -88,7 +88,7 @@ commit <hash>，已部署並 push。影片隱私＝config 的 `privacy`（目前
 |---|---|---|
 | plan：`YouTube 授權不可用` | token 七天到期（OAuth 同意畫面停在測試）或被撤銷 | `uv run video/upload.py --login`（沒桌面加 `--no-browser`，README 有 ssh -L 說明）；登入要選 kuan9924501@gmail.com 的頻道。完成後從第 1 步重跑 |
 | plan：`不是任何課程目錄名` | 檔名打錯或課還沒建 | 請使用者改檔名；不要猜 |
-| plan：`沒有 page_content.py` | ml-basics 三堂舊式手寫頁 | 告知需先遷成 page_content.py（make-lesson skill），這次跳過 |
+| plan：`沒有 page_content.py` | 課程頁是舊式手寫頁（目前全站已無） | 告知需先遷成 page_content.py（make-lesson skill），這次跳過 |
 | plan：git 工作樹有改動 | 別的工作沒 commit | 請使用者處理，不要代為 stash／commit |
 | publish：HTTP 403 quota | videos.insert 每日 100 次 | 隔天（太平洋時間午夜後）重跑第 1 步 |
 | publish：HTTP 401/403 其他 | 帳號／頻道不符 | `uv run video/upload.py --check-auth` 看登入頻道 |

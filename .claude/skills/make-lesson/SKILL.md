@@ -55,7 +55,7 @@ build.sh 不會部署它，但它是之後「換模型／換資料重驗」的�
 沒有這個檔＝`edit`。scaffold 加 `--app` 會建好，主題已是 app 時新課自動跟著）：
 
 - **`edit`（程式碼可見可改）**——程式碼本身就是教材：這一課在教某個 Python 套件怎麼用，
-  學員要改的就是那幾行（ml-basics 用 scikit-learn 訓練模型）。
+  學員要改的就是那幾行（例如用 scikit-learn 訓練模型）。
 - **`app`（隱藏程式碼與編輯器，只留說明／互動元件／輸出）**——右欄是**教學模擬**：
   程式是把概念做成可玩的模型，不是要學員讀的東西（local-llm 的十六維玩具注意力層、
   genai-intro 的計費與取樣模擬）。build 走 `marimo export --mode run`。

@@ -72,7 +72,7 @@ content/<topic>/_spikes/       （不部署）       定軌用 PEP 723 腳本，
 - **外部軌課** `<id>_ext.py` → 只複製教學頁與 .py 原檔；notebook 在 molab 直讀 GitHub main 執行
 
 純瀏覽器課另有**互動模式**（`lesson-mode` 檔，課程層 > 主題層 > 預設 `edit`）：
-`edit`＝程式碼可見可改（程式碼本身是教材，如 ml-basics 教 scikit-learn）；
+`edit`＝程式碼可見可改（程式碼本身是教材，如教 scikit-learn 這類套件用法的課）；
 `app`＝隱藏程式碼只留互動（右欄是教學模擬，如 local-llm／genai-intro，走 `--mode run`）。
 app 模式課的教學頁要有 `<body data-nb-mode="app">`，兩邊不一致 build 會擋；
 **文案與挑戰題不能叫學員改程式碼**（判準與寫法見 make-lesson skill）。

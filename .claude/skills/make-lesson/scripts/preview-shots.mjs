@@ -1,7 +1,7 @@
 // 預覽截圖：headless 開頁面、課程頁等 notebook 全跑完（狀態列變綠）再截。
 // 用法（repo 根目錄執行；dist 的 server 要先開著）：
 //   node .claude/skills/make-lesson/scripts/preview-shots.mjs [base] [--vp WxH] <path...>
-//   node .claude/skills/make-lesson/scripts/preview-shots.mjs / /ml-basics/ /clustering/
+//   node .claude/skills/make-lesson/scripts/preview-shots.mjs / /local-llm/ /kv-cache/
 //   node .claude/skills/make-lesson/scripts/preview-shots.mjs --vp 390x844 /kv-cache/      # 手機版
 //   node .claude/skills/make-lesson/scripts/preview-shots.mjs "/litellm-basics/@#gw-burst"   # 截圖前先點 hero 的按鈕
 // base 省略時預設 http://127.0.0.1:8787。輸出到 ./preview-shots/<name>.png（自訂 --vp 會加尺寸後綴）。
@@ -26,7 +26,7 @@ if (vpIdx !== -1) {
   vpSuffix = `-${m[1]}x${m[2]}`;
 }
 if (!args.length) {
-  console.error("用法：node preview-shots.mjs [base] [--vp WxH] <path...>  例：/ /ml-basics/ /clustering/");
+  console.error("用法：node preview-shots.mjs [base] [--vp WxH] <path...>  例：/ /local-llm/ /kv-cache/");
   process.exit(1);
 }
 

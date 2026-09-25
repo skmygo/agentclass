@@ -88,7 +88,7 @@ for lesson_py in "$ROOT"/content/*/*/lesson.py; do
   id="$(basename "$dir")"
   [ -f "$dir/.wip" ] && { echo "⏭  $id：有 .wip 標記（寫作中），本次不建"; continue; }
   # 互動模式：課程層 lesson-mode > 主題層 lesson-mode > 預設 edit
-  #   edit＝程式碼可見可改（程式碼本身就是教材，例如 ml-basics 教 scikit-learn）
+  #   edit＝程式碼可見可改（程式碼本身就是教材，例如教 scikit-learn 這類套件用法的課）
   #   app ＝隱藏程式碼與編輯器，只留說明／互動元件／輸出（右欄是教學模擬的課）
   lesson_mode="edit"
   [ -f "$(dirname "$dir")/lesson-mode" ] && lesson_mode="$(tr -d '[:space:]' < "$(dirname "$dir")/lesson-mode")"

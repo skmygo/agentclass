@@ -20,10 +20,6 @@
     "genai-intro": [
       "生成式 AI",
       "LLM 入門"
-    ],
-    "ml-basics": [
-      "機器學習",
-      "scikit-learn"
     ]
   },
   "category": "27",

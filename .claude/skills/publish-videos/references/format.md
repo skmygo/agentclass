@@ -70,4 +70,4 @@ list 1）。一批十支影片約 600 點，遠低於上限。
 
 - 未通過 YouTube API 合規審核的專案，API 上傳的影片一律鎖私人（設 public 也沒用）。
 - OAuth 同意畫面停在「測試」→ refresh token 七天到期，plan 會提前偵測並要求 `--login`。
-- ml-basics 三堂舊式頁（無 page_content.py）不能自動嵌入。
+- 舊式手寫課程頁（無 page_content.py）不能自動嵌入（目前全站已無）。
