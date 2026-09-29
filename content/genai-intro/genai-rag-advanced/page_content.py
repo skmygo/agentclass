@@ -4,6 +4,7 @@ SCRIPT 裡 HERO_DATA_BEGIN/END 之間的資料由 _spikes/spike_genai_rag_advanc
 
 TITLE = "進階 RAG：父子檢索、混合搜尋與 Rerank"
 DESCRIPTION = "天真 RAG 教你除垢，卻忘了叫你加除垢劑。用 90 句的咖啡機手冊和 41 題有標準答案的考卷，實測父子檢索、BM25 混合搜尋、cross-encoder rerank 各修好什麼、又弄壞什麼——每個分數都在你的瀏覽器裡現場算。"
+VIDEO = "https://youtu.be/Dwbl9NJRK0Y"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝向量、橘＝BM25／關鍵字、綠＝標準答案／父子、紫＝混合、青＝rerank、紅＝出錯 */

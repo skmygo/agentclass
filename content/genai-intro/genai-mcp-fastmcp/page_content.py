@@ -5,6 +5,7 @@ content/genai-intro/_spikes/spike_genai_mcp_fastmcp.py --inject 寫入（別手�
 
 TITLE = "MCP 新版協定與 FastMCP 4：線路上的真相"
 DESCRIPTION = "MCP 兩年改了五版，2026-07-28 一口氣拿掉握手與 session。同一台 FastMCP 4.0.8 伺服器用五個年代各呼叫一次工具，真實 HTTP 封包逐發拆給你看；再站到負載平衡器的位置看無狀態解了什麼，最後是 FastMCP 4「遇到什麼問題用哪個功能」的地圖。"
+VIDEO = "https://youtu.be/0BIya1QE7Ks"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝新協定（無狀態）、橘＝握手年代、紫＝最早的 HTTP+SSE、紅＝session／錯誤、綠＝成功 */

@@ -8,6 +8,7 @@ DESCRIPTION = (
     "工具與 context，以及你剩下唯一要做的事：設邊界。含 hooks、can_use_tool、自訂工具、子代理、session，"
     "與接本機開源模型的免費跑法（全部是實測錄影）。"
 )
+VIDEO = "https://youtu.be/gCdPe6diR3U"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝你的程式／設定、橘＝模型、綠＝工具結果／放行、紫＝你的守門員（hook／審批函式）、紅＝被擋／錯誤 */

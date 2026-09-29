@@ -4,6 +4,7 @@ hero 的 `const HERO = ...;` 那一行由 _spikes/spike_genai_vibecoding_pack.py
 
 TITLE = "Vibe Coding 進階：讓測試當 AI 的眼睛"
 DESCRIPTION = "同一個 2B 模型、同一份沒過的第一版：只說「不對」、貼錯誤訊息、開新對話重抽、寫一句診斷，誰救得回來？12 題 × 8 次重跑的實測，加上測試寫太少時的「假綠燈」、幻覺套件與寫死金鑰——vibe coding 能不能成事，看的是回饋迴圈。"
+VIDEO = "https://youtu.be/zm1QCvuk9kk"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：紫＝重抽、灰＝只說不對、綠＝貼錯誤原文、紅＝弱測試／代價、藍＝人的診斷 */

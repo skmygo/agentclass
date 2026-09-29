@@ -4,6 +4,7 @@ hero 的訓練紀錄（SCRIPT 裡 HERO 標記之間）由 _spikes/spike_genai_fi
 
 TITLE = "微調工具實戰：Unsloth、TRL 與託管微調"
 DESCRIPTION = "同一份資料、同一組超參數，TRL＋PEFT 與 Unsloth 在 RTX 4090 上各跑一次 QLoRA：loss 曲線幾乎疊在一起，差的是 VRAM 與時間。再看 2026 年 9 月的微調工具怎麼選、資料格式怎麼寫、卡裝不裝得下、託管要花多少——全部來自實測紀錄。"
+VIDEO = "https://youtu.be/Y_zobySt-Ag"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝TRL＋PEFT、橘＝Unsloth、綠＝算 loss／正確、紫＝託管與生態、紅＝代價與錯誤 */

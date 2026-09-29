@@ -8,6 +8,7 @@ DESCRIPTION = (
     "拆開本站自己在用的 skill 量 token、看 description 一句話怎麼決定 Claude 叫不叫得到它（實測紀錄重播），"
     "再學會把會算錯的步驟交給腳本、寫出能跨 agent 通用的 SKILL.md。"
 )
+VIDEO = "https://youtu.be/7JHexx-ijwU"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：藍＝Level 1（一直在）、橘＝Level 2（觸發才讀）、綠＝Level 3／腳本、紫＝description／觸發、紅＝誤觸發／超預算 */
