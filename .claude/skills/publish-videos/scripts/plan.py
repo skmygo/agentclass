@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-"""publish-videos 第 1 步：掃 video/data/ 的影片 → 對到課程 → 依 video/config.json 產 metadata → 前置檢查 → 寫 video/.plan.json
+"""publish-videos 第 1 步：掃 video/ 的影片 → 對到課程 → 依 skill 的 config.json 產 metadata → 前置檢查 → 寫 video/.plan.json
 
 用法（repo 根執行）：
     python3 .claude/skills/publish-videos/scripts/plan.py                 # 建計畫＋前置檢查（git 乾淨、token 可用）
+    python3 .claude/skills/publish-videos/scripts/plan.py --topic <主題>  # 簡稱檔名（L00-why.mp4）只在這個主題裡找課
     python3 .claude/skills/publish-videos/scripts/plan.py --replace <id>  # 該課已有 VIDEO 也要重傳（重錄）
     python3 .claude/skills/publish-videos/scripts/plan.py --dry-run       # 測試管線用：不查 token，publish 會用假 id
     python3 .claude/skills/publish-videos/scripts/plan.py tags <id> <tag> [<tag>...]   # 寫入某課的 tags
     python3 .claude/skills/publish-videos/scripts/plan.py show            # 印出完整計畫表（給使用者確認）
+    python3 .claude/skills/publish-videos/scripts/plan.py uploader        # 印出上傳核心 upload.py 的路徑
 
-檔名規則：<課程id>.mp4 或 NN-<課程id>.mp4（前置數字＋分隔符會被去掉；NN 只用來排上傳順序）。
-去掉前綴後必須完全等於 content/<topic>/<id>/ 的目錄名，對不到就整批停下，什麼都不上傳。
+影片放 video/（video/data/ 也掃）。檔名規則：<課程id>.mp4、NN-<課程id>.mp4 或 LNN-<課程id>.mp4
+（前置的「一個字母＋數字＋分隔符」會被去掉；NN 只用來排上傳順序）。去掉前綴後：
+  1. 完全等於 content/<topic>/<id>/ 的目錄名 → 就是那一課；
+  2. 否則當成簡稱：剛好只有一課的 id 以「-<簡稱>」結尾（why → mlops-why）→ 就是那一課。
+對不到、或簡稱對到不只一課，就整批停下，什麼都不上傳——規則是確定性的，不做相似度猜測。
+
+上傳核心是 youtube-upload plugin 的 upload.py（憑證跟著它，在 ~/.config/youtube-upload/），repo 裡不再放一份。
 
 為什麼 tags 留空給人／模型填：標題與說明是課程正本（page_content.py）的固定轉換，tags 需要理解內容；
 但 tags 一定會出現在計畫表裡、經使用者確認才上傳，而且基底 tags（config 的 base_tags＋topic_tags）由程式補齊。
@@ -21,6 +28,7 @@ import argparse
 import ast
 import difflib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,16 +36,29 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-VIDEO_DIR = ROOT / "video"
-DATA_DIR = VIDEO_DIR / "data"
-CONFIG = VIDEO_DIR / "config.json"
+SKILL_DIR = Path(__file__).resolve().parents[1]
+VIDEO_DIR = ROOT / "video"  # 只放影片與本次流程的暫存：整個清空也不會弄丟設定
+SCAN_DIRS = (VIDEO_DIR, VIDEO_DIR / "data")
+CONFIG = SKILL_DIR / "config.json"
 PLAN = VIDEO_DIR / ".plan.json"
-UPLOAD = VIDEO_DIR / "upload.py"
+UPLOAD_GLOB = ".claude/plugins/cache/*/youtube-upload/*/skills/youtube-upload/scripts/upload.py"
 
 VIDEO_EXTS = (".mp4", ".mov", ".mkv", ".webm")
-FILENAME_RE = re.compile(r"^(?:\d+[-_ ]?)?(.+)$")
+FILENAME_RE = re.compile(r"^(?:[A-Za-z]?\d+[-_ ]?)?(.+)$")
 TITLE_MAX, DESC_MAX = 100, 5000
 TAG_MAX, TAGS_MIN, TAGS_MAX, TAGS_TOTAL_MAX = 30, 3, 8, 500
+
+
+def find_upload() -> Path | None:
+    """youtube-upload plugin 的 upload.py：YT_UPLOAD 指定的路徑，否則 plugin 快取裡版號最大的那份。"""
+    env = os.environ.get("YT_UPLOAD")
+    if env:
+        return Path(env) if Path(env).is_file() else None
+
+    def version(p: Path) -> tuple[int, ...]:
+        return tuple(int(x) if x.isdigit() else 0 for x in p.parents[3].name.split("."))
+
+    return max(Path.home().glob(UPLOAD_GLOB), key=version, default=None)
 
 
 def load_config() -> dict:
@@ -76,14 +97,24 @@ def page_consts(pc: Path) -> dict:
     return out
 
 
-def match_lesson(stem: str, lessons: dict) -> tuple[str | None, str]:
+def match_lesson(stem: str, lessons: dict, topic: str | None = None) -> tuple[str | None, str]:
+    """回傳（課程 id, 錯誤訊息）。topic 有給時只在那個主題裡找。"""
     stripped = FILENAME_RE.match(stem).group(1)
-    for cand in (stripped, stem):
+    for cand in (stem, stripped):
         if cand in lessons:
+            if topic and lessons[cand]["topic"] != topic:
+                return None, f"課程 {cand} 在主題 {lessons[cand]['topic']}，不在 --topic {topic}"
             return cand, ""
-    near = difflib.get_close_matches(stripped, lessons.keys(), n=3, cutoff=0.5)
+    pool = [lid for lid, info in lessons.items() if not topic or info["topic"] == topic]
+    where = f"主題 {topic} 的" if topic else "任何"
+    hits = [lid for lid in pool if lid.endswith("-" + stripped)]
+    if len(hits) == 1:
+        return hits[0], ""
+    if hits:
+        return None, f"簡稱 {stripped!r} 對到不只一課（{', '.join(sorted(hits))}）：檔名改用完整課程 id，或加 --topic 縮小範圍"
+    near = difflib.get_close_matches(stripped, pool, n=3, cutoff=0.5)
     hint = f"（相近的課程 id：{', '.join(near)}）" if near else ""
-    return None, f"檔名去掉前置數字後是 {stripped!r}，不是任何課程目錄名{hint}"
+    return None, f"檔名去掉前綴後是 {stripped!r}，不是{where}課程目錄名，也不是哪一課 id 的結尾{hint}"
 
 
 def probe_duration(path: Path) -> float | None:
@@ -97,7 +128,7 @@ def probe_duration(path: Path) -> float | None:
         return None
 
 
-def build_plan(replace: set[str], dry_run: bool, skip_auth: bool) -> dict:
+def build_plan(replace: set[str], dry_run: bool, skip_auth: bool, topic_filter: str | None = None) -> dict:
     cfg = load_config()
     lessons, topics = load_site()
     site, site_name = cfg["site_url"].rstrip("/"), cfg["site_name"]
@@ -105,12 +136,17 @@ def build_plan(replace: set[str], dry_run: bool, skip_auth: bool) -> dict:
     items: list[dict] = []
     seen: dict[str, str] = {}
 
-    files = sorted(p for p in DATA_DIR.glob("*") if p.suffix.lower() in VIDEO_EXTS) if DATA_DIR.exists() else []
+    if topic_filter and topic_filter not in topics:
+        sys.exit(f"✗ --topic {topic_filter}：沒有這個主題（有：{', '.join(topics)}）")
+    files = sorted(
+        (p for d in SCAN_DIRS if d.is_dir() for p in d.iterdir() if p.is_file() and p.suffix.lower() in VIDEO_EXTS),
+        key=lambda p: p.name,
+    )
     if not files:
-        errors.append(f"{DATA_DIR} 裡沒有影片檔（{'/'.join(VIDEO_EXTS)}）")
+        errors.append(f"{VIDEO_DIR} 裡沒有影片檔（{'/'.join(VIDEO_EXTS)}）")
 
     for f in files:
-        lid, why = match_lesson(f.stem, lessons)
+        lid, why = match_lesson(f.stem, lessons, topic_filter)
         if not lid:
             errors.append(f"{f.name}：{why}")
             continue
@@ -151,7 +187,8 @@ def build_plan(replace: set[str], dry_run: bool, skip_auth: bool) -> dict:
         else:
             status = "new"
         items.append({
-            "file": f.name, "lesson_id": lid, "topic": topic, "topic_name": tname,
+            "file": f.name, "path": str(f.relative_to(ROOT)), "short_name": lid not in (f.stem, FILENAME_RE.match(f.stem).group(1)),
+            "lesson_id": lid, "topic": topic, "topic_name": tname,
             "order_index": topics[topic]["order"].index(lid),
             "status": status, "existing_video": existing,
             "title": title, "description": description,
@@ -162,16 +199,20 @@ def build_plan(replace: set[str], dry_run: bool, skip_auth: bool) -> dict:
 
     for lid in replace:
         if lid not in seen:
-            errors.append(f"--replace {lid}：data/ 裡沒有這課的影片")
+            errors.append(f"--replace {lid}：video/ 裡沒有這課的影片")
 
     if not dry_run:
         dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT, capture_output=True, text=True, check=False).stdout.strip()
         if dirty:
             errors.append("git 工作樹有未 commit 的改動（會混進自動 commit）：先 commit 或 stash\n    " + dirty.replace("\n", "\n    "))
         if not skip_auth and any(i["status"] != "skip" for i in items):
-            r = subprocess.run(["uv", "run", str(UPLOAD), "--check-auth"], cwd=ROOT, capture_output=True, text=True, check=False)
-            if r.returncode != 0:
-                errors.append("YouTube 授權不可用：" + (r.stderr.strip().splitlines() or ["?"])[-1])
+            upload = find_upload()
+            if not upload:
+                errors.append("找不到 youtube-upload plugin 的 upload.py：先裝 sk-work-plugins 的 youtube-upload plugin，或用 YT_UPLOAD 指定路徑")
+            else:
+                r = subprocess.run(["uv", "run", str(upload), "--check-auth"], cwd=ROOT, capture_output=True, text=True, check=False)
+                if r.returncode != 0:
+                    errors.append("YouTube 授權不可用：" + (r.stderr.strip().splitlines() or ["?"])[-1])
 
     return {
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -190,7 +231,8 @@ def show(plan: dict, *, full: bool) -> None:
     print(f"計畫（{plan['created']}）{'【dry-run】' if plan['dry_run'] else ''}  隱私={plan['config']['privacy']}")
     for i, it in enumerate(plan["items"], 1):
         mark = {"new": "上傳", "replace": "重傳", "skip": "跳過（已有 VIDEO）"}[it["status"]]
-        print(f"\n{i:2d}. {it['file']}  →  {it['topic']}/{it['lesson_id']}  [{mark}]  {it['size_mb']} MB, {fmt_duration(it['duration_s'])}")
+        short = "（簡稱對應）" if it.get("short_name") else ""
+        print(f"\n{i:2d}. {it['file']}  →  {it['topic']}/{it['lesson_id']}{short}  [{mark}]  {it['size_mb']} MB, {fmt_duration(it['duration_s'])}")
         print(f"    標題：{it['title']}")
         if full:
             first = it["description"].split("\n")[0]
@@ -239,12 +281,14 @@ def main(argv: list[str] | None = None) -> None:
     sub = p.add_subparsers(dest="cmd")
     b = sub.add_parser("build", help="建計畫（預設）")
     b.add_argument("--replace", action="append", default=[], help="課程 id；已有 VIDEO 也要重傳，可重複")
+    b.add_argument("--topic", help="主題目錄名（如 mlops）：只在這個主題裡對課，簡稱檔名建議加")
     b.add_argument("--dry-run", action="store_true")
     b.add_argument("--no-auth-check", action="store_true")
     t = sub.add_parser("tags")
     t.add_argument("lesson_id")
     t.add_argument("tags", nargs="+")
     sub.add_parser("show")
+    sub.add_parser("uploader", help="印出上傳核心 upload.py 的路徑")
     # 沒給子命令＝build
     if argv is None:
         argv = sys.argv[1:]
@@ -252,9 +296,17 @@ def main(argv: list[str] | None = None) -> None:
         argv = ["build", *argv]
     a = p.parse_args(argv)
 
+    if a.cmd == "uploader":
+        upload = find_upload()
+        if not upload:
+            sys.exit("✗ 找不到 youtube-upload plugin 的 upload.py（裝 plugin，或用 YT_UPLOAD 指定路徑）")
+        print(upload)
+        return
+
     if a.cmd == "build":
         replace = {x.strip() for r in a.replace for x in r.split(",") if x.strip()}
-        plan = build_plan(replace, a.dry_run, a.no_auth_check)
+        plan = build_plan(replace, a.dry_run, a.no_auth_check, a.topic)
+        VIDEO_DIR.mkdir(exist_ok=True)
         PLAN.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
         show(plan, full=False)
         print(f"\n計畫已寫到 {PLAN}")

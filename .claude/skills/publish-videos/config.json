@@ -20,6 +20,10 @@
     "genai-intro": [
       "生成式 AI",
       "LLM 入門"
+    ],
+    "mlops": [
+      "MLOps",
+      "機器學習工程"
     ]
   },
   "category": "27",

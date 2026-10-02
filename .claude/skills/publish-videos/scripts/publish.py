@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""publish-videos 第 2 步：照 video/.plan.json 逐支上傳 → 寫入該課 page_content.py 的 VIDEO → 重跑 page-fill → 播放清單。
+"""publish-videos 第 2 步：照 video/.plan.json 逐支上傳 → 寫入該課 page_content.py 的 VIDEO → 重跑 page-fill → 播放清單 → 讀回隱私。
 
 用法（repo 根執行，先跑 plan.py 且 show 通過）：
     python3 .claude/skills/publish-videos/scripts/publish.py
@@ -20,13 +20,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 VIDEO_DIR = ROOT / "video"
-CONFIG = VIDEO_DIR / "config.json"
-PLAN = VIDEO_DIR / ".plan.json"
 RESULT = VIDEO_DIR / ".publish-result.json"
-UPLOAD = VIDEO_DIR / "upload.py"
 PAGE_FILL = ROOT / ".claude/skills/make-lesson/scripts/page-fill.py"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from plan import load_site, page_consts
+from plan import CONFIG, PLAN, find_upload, load_site, page_consts
 
 
 def set_video_constant(pc: Path, url: str) -> None:
@@ -82,6 +79,9 @@ def main() -> None:
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     lessons, topics = load_site()
     dry = plan["dry_run"]
+    upload = find_upload()
+    if not dry and not upload:
+        sys.exit("✗ 找不到 youtube-upload plugin 的 upload.py（裝 plugin，或用 YT_UPLOAD 指定路徑）")
     results: list[dict] = []
     if RESULT.exists():
         RESULT.unlink()
@@ -100,7 +100,7 @@ def main() -> None:
             playlist_title = cfg["playlist_title_template"].format(topic_name=it["topic_name"], site_name=cfg["site_name"])
             out = VIDEO_DIR / ".upload-result.json"
             cmd = [
-                "uv", "run", str(UPLOAD), str(VIDEO_DIR / "data" / it["file"]),
+                "uv", "run", str(upload), str(ROOT / it["path"]),
                 "--title", it["title"], "--description", it["description"], "--tags", ",".join(tags),
                 "--category", cfg["category"], "--language", cfg["language"], "--privacy", cfg["privacy"],
                 "--playlist-order", ",".join(course_order_ids(topic, lessons, topics, lid)),
@@ -141,7 +141,13 @@ def main() -> None:
             if not pid:
                 continue
             order = ",".join(v for v in course_order_ids(topic, lessons, topics, "") if v != "NEW")
-            subprocess.run(["uv", "run", str(UPLOAD), "--playlist-sort", "--playlist-id", pid, "--playlist-order", order, "--no-browser"], cwd=ROOT, check=False)
+            subprocess.run(["uv", "run", str(upload), "--playlist-sort", "--playlist-id", pid, "--playlist-order", order, "--no-browser"], cwd=ROOT, check=False)
+        # 讀回 YouTube 上的實際狀態：隱私跟設定不一樣＝被平台改掉（API 審核出問題），要讓人看到
+        r = subprocess.run(["uv", "run", str(upload), "--status", ",".join(x["video_id"] for x in results)], cwd=ROOT, capture_output=True, text=True, check=False)
+        print("\n── 讀回 YouTube 狀態\n" + r.stdout.rstrip())
+        off = [ln.split()[0] for ln in r.stdout.splitlines() if "privacy=" in ln and f"privacy={cfg['privacy']}" not in ln]
+        if r.returncode != 0 or off:
+            print(f"⚠ 讀回有異常（設定的隱私是 {cfg['privacy']}{'；不符：' + ', '.join(off) if off else ''}）{r.stderr.strip()}")
     write_result(plan, results)
     print(f"\n✓ 完成 {len(results)} 支。結果在 {RESULT}，接著跑 ship.sh。")
 

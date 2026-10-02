@@ -28,7 +28,12 @@ __marimo__/
 # node（冒煙測試 devDependencies）
 node_modules/
 
-# video/：YouTube 上傳工具。影片與 OAuth 憑證不進公開 repo（sidecar .json 與 uploaded.jsonl 可以）
+# video/：待上傳的課程錄影（publish-videos skill 掃這裡與 data/）。影片不進公開 repo；
+# 上傳工具與 OAuth 憑證在 youtube-upload plugin（~/.config/youtube-upload/），下面兩行憑證規則只是保險
+video/*.mp4
+video/*.mov
+video/*.mkv
+video/*.webm
 video/data/*.mp4
 video/data/*.mov
 video/data/*.mkv
@@ -42,6 +47,7 @@ video/audit/
 # publish-videos skill 的暫存計畫／結果
 video/.plan.json
 video/.publish-result.json
+video/.upload-result.json
 
 # 寫作中的課：build.sh／smoke-all.sh 跳過（subagent 平行寫課時避免半成品進 dist）
 content/*/*/.wip

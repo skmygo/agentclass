@@ -41,24 +41,18 @@ npx wrangler pages project list | grep agentclass    # 看得到才算成功
 
 ### 3. YouTube 上傳憑證（只有要發影片才需要）
 
-`video/client_secret.json`、`video/token.json` 已 gitignore，**永遠不要 commit 進這個 repo**——
-token 的 scope 是 `youtube`，拿到的人可以完整管理頻道（包含刪影片）。
-
-備份在**私人 repo `skmygo/sk-plugins` 的 `secrets/agentclass/video/`**：
+上傳工具與憑證都不在這個 repo：`publish-videos` skill 用的是**私人 marketplace `sk-work-plugins` 的 youtube-upload plugin**
+（`upload.py` ＋ 隨附的 OAuth 用戶端與 token）。裝好 plugin，第一次執行會把憑證複製到 `~/.config/youtube-upload/`（chmod 600）。
+**永遠不要把憑證放進這個 repo**——token 的 scope 是 `youtube`，拿到的人可以完整管理頻道（包含刪影片）。
 
 ```bash
-# 裝過 sk-plugins marketplace 的機器（先 claude plugin marketplace update sk-plugins 拉最新）
-cp ~/.claude/plugins/marketplaces/sk-plugins/secrets/agentclass/video/*.json video/
-# 或直接從私人 repo 拿
-gh repo clone skmygo/sk-plugins ~/sk-plugins && cp ~/sk-plugins/secrets/agentclass/video/*.json video/
-
-chmod 600 video/*.json
-uv run video/upload.py --check-auth    # exit 0＝可用；exit 3＝要重新登入
+UP="$(python3 .claude/skills/publish-videos/scripts/plan.py uploader)"   # plugin 裡的 upload.py
+uv run "$UP" --check-auth    # exit 0＝可用；exit 3＝要重新登入；exit 1＝網路／SSL 暫時錯誤，重跑
 ```
 
-- 2026-09-24 驗證過：`--check-auth` 通過，refresh token 從 09-10 用到現在沒過期（沒有測試模式的 7 天期限）。
-- token 失效時：刪掉 `video/token.json`，跑 `uv run video/upload.py --login`（沒桌面加 `--no-browser`，
-  並開 `ssh -L 8090:localhost:8090`，細節見 `video/README.md`），**再把新的 token.json 覆蓋回 sk-plugins 備份並 push**。
+- refresh token 沒有測試模式的 7 天期限（同意畫面已發佈）；2026-10-02 在 chtti 機器用這條路上傳 mlops 六支。
+- token 失效時：`uv run "$UP" --login`（沒桌面加 `--no-browser`，並開 `ssh -L 8090:localhost:8090`，細節見
+  youtube-upload skill），**再把新的 token.json 覆蓋回 sk-work-plugins 的 plugin credentials 並 sync**。
 
 ### 4. Claude Code 環境
 
@@ -90,8 +84,8 @@ bash .claude/skills/make-lesson/scripts/smoke-all.sh --base https://agentclass.p
 | 路徑 | 內容 | 要怎麼處理 |
 |---|---|---|
 | `ref_data/`（約 24 MB，gitignore） | 私人參考教材；`mcp/` 是 `mcp.itsmygo.uk` 的 server 程式正本（含 `.env` token）；`litellm/` 是 gateway 的 config 正本 | **目前沒有任何備份**。換機前用 scp／rsync 搬走，或放進私人 repo；絕不能進這個公開 repo |
-| `video/data/*.mp4`（約 192 MB） | 原始影片 | 已上傳 YouTube；要留原檔就另存 |
-| `video/client_secret.json`、`video/token.json` | YouTube 憑證 | 已備份到 sk-plugins（見上面第 3 步） |
+| `video/*.mp4`、`video/data/*.mp4` | 原始影片 | 已上傳 YouTube；要留原檔就另存 |
+| `~/.config/youtube-upload/` | YouTube 憑證與上傳紀錄 | 正本隨 youtube-upload plugin 發佈（見上面第 3 步），不用搬 |
 | `.venv/`、`node_modules/`、`dist/`、`.wrangler/`、`__marimo__/`、`.hypothesis/`、`preview-shots/` | 產物與快取 | 不用搬，重建即可 |
 
 ## 執行期依賴（網站上線之後）
@@ -107,7 +101,7 @@ bash .claude/skills/make-lesson/scripts/smoke-all.sh --base https://agentclass.p
 
 ## 如果連 Cloudflare 帳號也要換
 
-- 新帳號建 Pages project；名稱不是 `agentclass` 的話，要改 `video/config.json` 的 `pages_project`、
+- 新帳號建 Pages project；名稱不是 `agentclass` 的話，要改 `.claude/skills/publish-videos/config.json` 的 `pages_project`、
   CLAUDE.md 與 make-lesson skill 裡的 `--project-name`。
 - `class.itsmygo.uk` 要先從舊 project 移除，再加到新 project（`itsmygo.uk` 的 DNS zone 若也在舊帳號，要一起處理）。
 - `scripts/build.sh` 的 `ANALYTICS_TOKEN`（Web Analytics，公開值、不是秘密）要換成新帳號的。

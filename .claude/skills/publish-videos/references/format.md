@@ -2,13 +2,19 @@
 
 ## 檔名 → 課程
 
-- 放在 `video/data/`，副檔名 `.mp4`／`.mov`／`.mkv`／`.webm`。
-- 規則：`<課程id>.mp4` 或 `NN-<課程id>.mp4`（`NN<課程id>.mp4` 也接受）。前置數字只決定上傳順序。
-- 去掉前綴後必須**完全等於** `content/<topic>/<id>/` 目錄名（course id 全站唯一，所以不用寫主題）。
+- 放在 `video/`（`video/data/` 也掃），副檔名 `.mp4`／`.mov`／`.mkv`／`.webm`。
+- 前綴：`NN-`、`NN`、`LNN-`（一個字母＋數字＋可有可無的 `-`／`_`／空白）會被去掉，只決定上傳順序。
+- 去掉前綴後依序試：
+  1. **完全等於** `content/<topic>/<id>/` 目錄名（course id 全站唯一，所以不用寫主題）→ 那一課。
+  2. **簡稱**：剛好只有一課的 id 以 `-<簡稱>` 結尾 → 那一課（`L00-why` → `mlops-why`、`L03-assets` → `dagster-assets`）。
+     對到兩課以上就停（`basics` 同時是 `dvc-basics`／`litellm-basics`／…）。
+- `plan.py --topic <主題目錄名>`：兩條規則都只在該主題的課裡找；完整 id 屬於別的主題也算錯。
+- 規則是確定性的整段比對，不做相似度猜測：`genai-token` 不會對到 `genai-tokens`（只會在錯誤訊息裡提示相近 id）。
+- 計畫表會把靠簡稱對到的列標「（簡稱對應）」。
 - 一課一支；兩個檔對到同一課 → 整批停。
 - 課程必須有 `page_content.py`（`TITLE`、`DESCRIPTION`）。
 
-## metadata（全部由 `video/config.json` 的模板產生）
+## metadata（全部由 skill 目錄的 `config.json` 模板產生）
 
 | 欄位 | 來源 | 例 |
 |---|---|---|
@@ -17,7 +23,7 @@
 | tags | 模型填的 3–8 個 ＋ `base_tags` ＋ `topic_tags[topic]` | `FastMCP, MCP, …, AI 互動教室, LLM 應用開發, Python` |
 | 分類 | `category`（27＝Education） | |
 | 語言 | `language`（zh-Hant，defaultLanguage 與 defaultAudioLanguage 同值） | |
-| 隱私 | `privacy`（private；審核通過後改 public） | |
+| 隱私 | `privacy`（目前 `public`；API 審核已通過，上傳後就是公開） | |
 | 兒童內容 | 固定 false | |
 
 說明範例：
@@ -48,6 +54,7 @@
 - id 記在 `config.json` 的 `playlists[topic]`（第一次建立時自動寫入，可版控）。
 - 插入位置依主題頁課程順序（`upload.py --playlist-order`），所以晚補的課也會排對。
 - 剛建立的清單與剛插入的項目要幾秒才查得到：`upload.py` 遇 404 會等候重試；publish.py 每批結尾跑 `--playlist-sort` 依課程順序整理一次，最終順序不靠插入時的計算。
+- 新主題第一次發影片：清單自動建立、id 自動寫回 `config.json`；`topic_tags[<主題>]` 要自己先加（沒加就只有 `base_tags`）。
 
 ## 嵌入
 
@@ -57,9 +64,13 @@
 
 ## 紀錄與暫存
 
-- `video/uploaded.jsonl`：每次上傳一行（檔名、id、網址、時間），可版控；upload.py 用它擋同檔名重傳（`--force` 覆蓋）。
+- `.claude/skills/publish-videos/config.json`：格式與播放清單 id，可版控——**改格式改這裡**。放在 skill 目錄而不是 `video/`，
+  所以 `video/` 整個清空重放也不會弄丟設定。
 - `video/.plan.json`、`video/.publish-result.json`：本次流程的暫存，已 gitignore。
-- `video/config.json`：格式與播放清單 id，可版控——**改格式改這裡**。
+- 上傳紀錄：youtube-upload plugin 的 `~/.config/youtube-upload/uploaded.jsonl`（每台機器一份、不進 repo；用影片絕對路徑擋重傳，
+  `--force` 覆蓋）。repo 這邊的紀錄就是 `page_content.py` 的 `VIDEO` 與每次 ship 的 commit 訊息。
+- 上傳核心與憑證：youtube-upload plugin 的 `upload.py`（`plan.py uploader` 印路徑，`YT_UPLOAD` 可覆蓋）＋
+  `~/.config/youtube-upload/{client_secret,token}.json`。repo 裡沒有也不該有憑證。
 
 ## 配額
 
@@ -68,6 +79,6 @@ list 1）。一批十支影片約 600 點，遠低於上限。
 
 ## 已知限制
 
-- 未通過 YouTube API 合規審核的專案，API 上傳的影片一律鎖私人（設 public 也沒用）。
-- OAuth 同意畫面停在「測試」→ refresh token 七天到期，plan 會提前偵測並要求 `--login`。
+- 未通過 YouTube API 合規審核的專案，API 上傳的影片一律鎖私人（設 public 也沒用）——本專案已通過；publish.py 結尾會讀回確認。
+- token 失效（被撤銷等）時 plan 會提前偵測並要求 `--login`；同意畫面已發佈，沒有七天到期的問題。
 - 舊式手寫課程頁（無 page_content.py）不能自動嵌入（目前全站已無）。

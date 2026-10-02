@@ -47,6 +47,21 @@
         "跑過冒煙且通過",
         "dry-run 不產生 commit"
       ]
+    },
+    {
+      "id": 3,
+      "prompt": "mlops 主題的錄影我放在 video/ 底下了（L00-why.mp4、L01-tracking.mp4），幫我公開上傳、接到 mlops 對應的課程頁上線。\n\n注意：這個 repo 是測試用的沙盒副本（路徑見上），沒有 YouTube 憑證、沒有 git remote、wrangler 已停用。請用 dry-run 模式走完整個流程（不會真的上傳、不部署、不 push）。計畫印出來後不用等我確認，我先同意了，直接繼續。最後把你會回報給我的內容寫成 REPORT.md 放在指定的 outputs 目錄。",
+      "expected_output": "用 plan.py --topic mlops：L00-why → mlops-why、L01-tracking → mlflow-tracking（簡稱對應，不改檔名、不搬到 video/data/）；兩課 page_content.py 多了 VIDEO、index.html 有嵌入、build＋冒煙通過、dry-run 不 commit。",
+      "files": [],
+      "assertions": [
+        "mlops-why 與 mlflow-tracking 的 page_content.py 有 VIDEO 常數",
+        "沒有別的課被改（mlflow-tracing 不該被 tracking 對到）",
+        "video/.plan.json 的兩個 item 是 short_name=true、topic=mlops",
+        "沒有自行改檔名或搬檔（video/L00-why.mp4、video/L01-tracking.mp4 仍在原處）",
+        "跑過冒煙且通過",
+        "dry-run 不產生 commit",
+        "REPORT.md 列出兩課的影片網址與課程頁網址"
+      ]
     }
   ]
 }

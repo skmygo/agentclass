@@ -400,7 +400,7 @@ RWD 行為規範見 site.md「RWD 與行動裝置」節；驗證面三件事：
 - 檔案數 sanity check：純瀏覽器課每課約 +15 檔、外部軌課每課約 +2 檔；
   build 輸出出現「assets 與共用版本不一致」警告＝marimo 版本飄了，
   回頭查根 pyproject 的釘版，別帶著獨立 assets 上線。
-- **影片不放 .mp4**：用 `video/upload.py` 傳上 YouTube，`page_content.py` 寫 `VIDEO = "https://youtu.be/<id>"`，
+- **影片不放 .mp4**：用 `publish-videos` skill 傳上 YouTube，`page_content.py` 寫 `VIDEO = "https://youtu.be/<id>"`，
   page-fill 自動以 `youtube-nocookie.com` iframe（`loading="lazy"`、16:9 `.video-box`）嵌在 hero 標題之後。
 - **Playwright 別等 `networkidle`**：頁面一有 YouTube 這類第三方 iframe，網路永遠不會 idle，`page.goto` 會 60 秒逾時。
   冒煙／截圖腳本一律 `waitUntil: "load"`，之後靠自己的就緒輪詢（模板已改；2026-09-02 加課程影片時踩到）。

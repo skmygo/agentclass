@@ -6,7 +6,7 @@
 #   bash .claude/skills/publish-videos/scripts/ship.sh --no-deploy  # 只 build＋冒煙＋commit
 #   COMMIT_TRAILER=$'Co-Authored-By: ...\nClaude-Session: ...' bash ship.sh   # commit 訊息尾巴
 #
-# 為什麼只冒煙受影響的課：這條線只改 page_content.py／index.html 與 video/ 的設定，不碰 shared/，
+# 為什麼只冒煙受影響的課：這條線只改 page_content.py／index.html 與 skill 的 config.json，不碰 shared/，
 # 其他課的輸出位元組不變；全站冒煙（含 WASM 課）要十分鐘，留給改共用檔的時候。
 # dry-run 的結果（假 id）絕不 commit，build＋冒煙後就停。
 set -euo pipefail
@@ -16,6 +16,7 @@ DEPLOY=1
 for a in "$@"; do case "$a" in --no-deploy) DEPLOY=0;; *) echo "不認識的參數：$a" >&2; exit 1;; esac; done
 
 RESULT=video/.publish-result.json
+CFG=.claude/skills/publish-videos/config.json
 [ -f "$RESULT" ] || { echo "✗ 沒有 $RESULT，先跑 publish.py" >&2; exit 1; }
 # 一值一行：files 是空白分隔的多個路徑，塞進單行 read 只有第一個路徑會進 FILES，
 # 其餘會被最後一個變數吃掉 —— 那樣 git add 只加得到第一課的第一個檔案。
@@ -43,7 +44,7 @@ fi
 
 echo "── commit"
 # shellcheck disable=SC2086
-git add $FILES video/config.json video/uploaded.jsonl
+git add $FILES "$CFG"
 MSG="$(python3 - <<'PY'
 import json, os
 r = json.load(open("video/.publish-result.json"))
@@ -60,8 +61,8 @@ echo "✓ $(git log --oneline -1)"
 
 [ "$DEPLOY" = "1" ] || { echo "── --no-deploy：到 commit 為止。"; exit 0; }
 
-PROJECT="$(python3 -c 'import json;print(json.load(open("video/config.json"))["pages_project"])')"
-SITE="$(python3 -c 'import json;print(json.load(open("video/config.json"))["site_url"].rstrip("/"))')"
+PROJECT="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["pages_project"])' "$CFG")"
+SITE="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["site_url"].rstrip("/"))' "$CFG")"
 echo "── deploy（Cloudflare Pages project $PROJECT）"
 npx wrangler pages deploy dist --project-name="$PROJECT" 2>&1 | grep -E 'Success|Deployment complete|Error|error' || true
 echo "── git push"
