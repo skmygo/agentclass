@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "為什麼需要 MLOps：模型會過期"
 DESCRIPTION = "模型不會當機，它會安靜地爛掉。用可拉桿的 24 個月模擬親眼看準確率從 0.94 掉到 0.45，比較不重訓／定期重訓／監控觸發三種策略的成績與成本，再看「標籤遲到」怎麼讓監控輸給最笨的定期重訓——這就是 MLOps 要解決的問題。"
+VIDEO = "https://youtu.be/9uW2mbIORak"  # 課程影片（YouTube；publish-videos skill 上傳）
 
 STYLE = r"""
   /* 語義色：紅＝不重訓（放著爛）、藍＝定期重訓、綠＝監控觸發、橘＝標籤遲到、紫＝資料漂移 */

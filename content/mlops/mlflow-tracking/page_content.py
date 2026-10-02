@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "MLflow 實驗追蹤：每一次訓練都留下證據"
 DESCRIPTION = "MLflow Tracking 詳解：run 的 params／metrics／tags／artifacts、有 step 的訓練曲線、一行 autolog 自動記錄、nested runs 掃參數、用 search_runs 像查資料庫一樣查實驗——全部在 molab 免費環境實作。"
+VIDEO = "https://youtu.be/FfGdOXCP0vY"  # 課程影片（YouTube；publish-videos skill 上傳）
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/mlflow-tracking/mlflow-tracking_ext.py"
 
 STYLE = r"""

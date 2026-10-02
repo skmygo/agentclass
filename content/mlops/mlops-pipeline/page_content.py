@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "Dagster × MLflow：一條會自己訓練、評估、把關、上線的管線"
 DESCRIPTION = "MLOps 系列壓軸：把 MLflow 追蹤與註冊、Dagster 資產與自動化接成一條線——訓練資產記進 MLflow、evaluate 一行評估、blocking 資產檢查當品質閘門、通過才移動 champion alias，還能從線上模型三跳查回是哪一次執行訓的。molab 免費 CPU 環境全程實作。"
+VIDEO = "https://youtu.be/kVaHKMcsSxg"  # 課程影片（YouTube；publish-videos skill 上傳）
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/mlops-pipeline/mlops-pipeline_ext.py"
 
 STYLE = r"""

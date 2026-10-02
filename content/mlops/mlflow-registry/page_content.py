@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "MLflow Models 與 Model Registry：從最好的 run 到線上那一版"
 DESCRIPTION = "MLflow Models 與 Model Registry 詳解：log_model 打包了什麼、signature 怎麼擋錯輸入、註冊／版本／alias 一行晉升回滾、mlflow.models.evaluate 一行產 8 指標 5 張圖、自訂 pyfunc 打包前後處理、log_input 記資料指紋——molab 免費環境全程實作。"
+VIDEO = "https://youtu.be/z0O54Ph-QoU"  # 課程影片（YouTube；publish-videos skill 上傳）
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/mlflow-registry/mlflow-registry_ext.py"
 
 STYLE = r"""

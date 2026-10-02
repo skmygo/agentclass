@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "Dagster 自動化：誰來按下那個「執行」？"
 DESCRIPTION = "Dagster 自動化詳解：resources 與 Config、job、cron 排程與時區陷阱、分割資產與補跑、用 cursor 記憶的感測器、AutomationCondition 宣告式自動化、RetryPolicy 與失敗通知——全部在 molab 免費環境實作，用 evaluate_tick 直接看排程與感測器會發出什麼。"
+VIDEO = "https://youtu.be/3b6Doqaz0Tg"  # 課程影片（YouTube；publish-videos skill 上傳）
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/dagster-automation/dagster-automation_ext.py"
 
 STYLE = r"""

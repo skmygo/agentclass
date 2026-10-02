@@ -3,6 +3,7 @@ build.sh 不會部署這個檔；它是 index.html 內容區的正本。"""
 
 TITLE = "Dagster 軟體定義資產：管線不是一串任務，是一張資料地圖"
 DESCRIPTION = "Dagster 軟體定義資產詳解：@asset 一個函式就是一份資料、參數名自動連成血緣圖、中繼資料留下每次執行的證據、deps 只排順序、IO manager 讓「算什麼」與「存哪裡」分家、blocking 資產檢查擋住壞資料——molab 免費 CPU 環境全程實作。"
+VIDEO = "https://youtu.be/iC5NCy4RZoY"  # 課程影片（YouTube；publish-videos skill 上傳）
 NB = "https://molab.marimo.io/github/skmygo/agentclass/blob/main/content/mlops/dagster-assets/dagster-assets_ext.py"
 
 STYLE = r"""
