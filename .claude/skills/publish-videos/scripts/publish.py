@@ -62,6 +62,7 @@ def course_order_ids(topic: str, lessons: dict, topics: dict, new_lesson: str) -
 
 
 def main() -> None:
+    sys.stdout.reconfigure(line_buffering=True)  # 輸出導到檔案時，自己的進度列才會跟 upload.py 的輸出照順序交錯
     if not PLAN.exists():
         sys.exit(f"✗ 沒有 {PLAN}，先跑 plan.py")
     plan = json.loads(PLAN.read_text(encoding="utf-8"))
